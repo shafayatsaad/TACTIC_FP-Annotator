@@ -1,0 +1,30 @@
+[
+  {
+    "clip_id": "match_001_720p_seg001",
+    "match_id": "match_001_720p",
+    "path": "raw_videos/match_001_720p.mp4",
+    "start": 6,
+    "end": 16,
+    "annotation_start": 10,
+    "annotation_end": 12,
+    "annotation_window": 2,
+    "half": 1,
+    "game_clock": "H1 00:10",
+    "annotator_state": "manual",
+    "is_locked": false
+  },
+  {
+    "clip_id": "match_001_720p_seg002",
+    "match_id": "match_001_720p",
+    "path": "raw_videos/match_001_720p.mp4",
+    "start": 13.391306,
+    "end": 23.391306,
+    "annotation_start": 17.391306,
+    "annotation_end": 19.391306,
+    "annotation_window": 2,
+    "half": 1,
+    "game_clock": "H1 00:17",
+    "annotator_state": "manual",
+    "is_locked": false
+  }
+]

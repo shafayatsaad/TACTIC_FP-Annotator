@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    background-color: #0a0c10;
+    color: #e2e8f0;
+    font-family:
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      Roboto,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  ::selection {
+    background-color: rgba(99, 102, 241, 0.3);
+  }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
+
+@layer utilities {
+  /* One-shot glow for newly created segments */
+  @keyframes clip-pulse {
+    0% {
+      box-shadow:
+        0 0 0 0 rgba(52, 211, 153, 0.65),
+        inset 2px 0 0 0 #34d399;
+      background-color: rgba(52, 211, 153, 0.18);
+    }
+    60% {
+      box-shadow: 0 0 0 12px rgba(52, 211, 153, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(52, 211, 153, 0);
+    }
+  }
+  .clip-pulse {
+    animation: clip-pulse 1.4s ease-out 1;
+  }
+
+  /* Modal entrance */
+  @keyframes modal-in {
+    0% {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  .modal-in {
+    animation: modal-in 180ms ease-out;
+  }
+
+  /* Subtle fade-in for the timeline band on mark */
+  @keyframes band-in {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+  .band-in {
+    animation: band-in 200ms ease-out;
+  }
+
+  /* Tabular numbers for time readouts */
+  .num-tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}

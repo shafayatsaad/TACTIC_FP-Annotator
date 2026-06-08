@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+yarn.lock
+pnpm-lock.yaml
+
+# Next.js
+tactic-fp-nextjs/.next/
+tactic-fp-nextjs/out/
+
+# Data & Video directories (dynamically re-created on runtime if missing)
+tactic-fp-nextjs/data/
+tactic-fp-nextjs/raw_videos/
+tactic-fp-nextjs/exports/
+tactic-fp-nextjs/generated/
+tactic-fp-nextjs/generated_results/
+tactic-fp-nextjs/results/
+
+# Media formats (ignores raw footage/videos)
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.webm
+
+# Generated outputs
+*.jsonl
+*.csv
+
+# Python cached files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ipynb_checkpoints/
+
+# TypeScript/JavaScript Build and Logs
+*.log
+tsc_out.txt
+tactic-fp-nextjs/tsconfig.tsbuildinfo
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
