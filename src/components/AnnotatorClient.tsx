@@ -690,6 +690,7 @@ export default function AnnotatorClient() {
         );
         if (allClips.length > 0) {
           setClips(allClips);
+          setActiveVideoPath(allClips[0].path);
           setStatusMessage(`${allClips.length} clips loaded`);
         }
 
@@ -819,6 +820,9 @@ export default function AnnotatorClient() {
           makeUniqueClipIds((data.manifest || []).map(normalizeClip)),
         );
         setClips(normalized);
+        if (normalized.length > 0) {
+          setActiveVideoPath(normalized[0].path);
+        }
         setCurrentClipIndex(0);
         loadedVideoPathRef.current = "";
         setStatusMessage(`Manifest generated: ${normalized.length} clips`);
