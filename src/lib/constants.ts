@@ -155,11 +155,6 @@ export function HALF_LABEL(h: number): string {
 }
 
 // ─── Match plan ───
-// Total segments the pipeline plans to produce for a full 90-minute match.
-// Used by the Header to render "Match progress" against the planned target
-// rather than the count of segments currently loaded into memory.
-export const MATCH_PLAN_TOTAL = 47;
-
 // Maximum segment duration in seconds. No single intent segment should
 // exceed this. Segments longer than 15s are auto-split on save.
 export const MAX_SEGMENT_DURATION = 15;
