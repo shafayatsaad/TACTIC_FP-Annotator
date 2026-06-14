@@ -185,6 +185,7 @@ export default function AnnotatorClient() {
 
   // Core data state
   const [clips, setClips] = useState<Clip[]>([]);
+  const [activeVideoPath, setActiveVideoPath] = useState<string | null>(null);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [currentClipIndex, setCurrentClipIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -1256,6 +1257,7 @@ export default function AnnotatorClient() {
   const handleBoundaryNudge = useCallback(
     (edge: "start" | "end", deltaSec: number) => {
       if (!currentClip) return;
+      let updatedClip: Clip | null = null;
       setClips((prev) =>
         prev.map((clip, idx) => {
           if (idx !== currentClipIndex) return clip;
@@ -1276,7 +1278,7 @@ export default function AnnotatorClient() {
               Math.abs(nextEnd - clip.algorithm_proposal.end) > 0.5;
             if (startChanged || endChanged) newState = "modified";
           }
-          return {
+          updatedClip = {
             ...clip,
             start: Math.min(clip.start, nextStart),
             end: Math.max(clip.end, nextEnd),
@@ -1285,10 +1287,52 @@ export default function AnnotatorClient() {
             annotation_window: nextEnd - nextStart,
             annotator_state: newState,
           };
+          return updatedClip;
         }),
       );
+      if (updatedClip) {
+        saveSegmentToServer(updatedClip);
+      }
     },
-    [currentClip, currentClipIndex, videoDurationSec],
+    [currentClip, currentClipIndex, videoDurationSec, saveSegmentToServer],
+  );
+
+  const handleUpdateSegmentTimes = useCallback(
+    (start: number, end: number) => {
+      if (!currentClip) return;
+      const duration = end - start;
+      if (duration < 2) {
+        setStatusMessage("Segment must be at least 2 seconds long.");
+        return;
+      }
+      if (duration > MAX_SEGMENT_DURATION) {
+        setStatusMessage(`Segment cannot exceed ${MAX_SEGMENT_DURATION}s.`);
+        return;
+      }
+      let newState: AnnotatorState = currentClip.annotator_state || "unseen";
+      if (currentClip.algorithm_proposal) {
+        const startChanged =
+          Math.abs(start - currentClip.algorithm_proposal.start) > 0.5;
+        const shadowEndChanged =
+          Math.abs(end - currentClip.algorithm_proposal.end) > 0.5;
+        if (startChanged || shadowEndChanged) newState = "modified";
+      }
+      const updatedClip: Clip = {
+        ...currentClip,
+        start: Math.min(currentClip.start, start),
+        end: Math.max(currentClip.end, end),
+        annotation_start: start,
+        annotation_end: end,
+        annotation_window: duration,
+        annotator_state: newState,
+      };
+      setClips((prev) =>
+        prev.map((c, idx) => (idx === currentClipIndex ? updatedClip : c)),
+      );
+      saveSegmentToServer(updatedClip);
+      setStatusMessage(`Segment timing updated: ${start.toFixed(1)}s – ${end.toFixed(1)}s`);
+    },
+    [currentClip, currentClipIndex, saveSegmentToServer],
   );
 
   // ─── Delete segment ───
@@ -2030,24 +2074,10 @@ export default function AnnotatorClient() {
   const handleSelectServerVideo = useCallback((filename: string) => {
     setShowVideoPicker(false);
     isBlobVideoRef.current = false;
-    const isMkv = filename.toLowerCase().endsWith(".mkv");
     const videoPath = `raw_videos/${filename}`;
     loadedVideoPathRef.current = videoPath;
-
-    const singleClip: Clip = {
-      clip_id: `server_video_${Date.now()}`,
-      match_id: filename.replace(/\.[^.]+$/, ""),
-      path: videoPath,
-      start: 0,
-      end: 120,
-      annotation_start: 0,
-      annotation_end: 10,
-      annotation_window: 10,
-      half: 1,
-      annotator_state: "manual" as AnnotatorState,
-      is_locked: false,
-    };
-    setClips([singleClip]);
+    setActiveVideoPath(videoPath);
+    setClips([]);
     setCurrentClipIndex(0);
     setVideoError("");
     // Reset video duration so it gets updated from actual <video>.duration when metadata loads
