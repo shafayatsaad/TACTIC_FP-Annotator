@@ -193,6 +193,8 @@ export default function AnnotatorClient() {
   const [loopClip, setLoopClip] = useState(false);
   const [videoError, setVideoError] = useState("");
   const [isConverting, setIsConverting] = useState(false);
+  const [convertProgress, setConvertProgress] = useState(0);
+  const convertPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Video state
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -243,20 +245,21 @@ export default function AnnotatorClient() {
       return clips[currentClipIndex];
     }
     if (!activeVideoPath) return undefined;
+    const endVal = (creatingSegment && creatingSegment.end >= 0) ? creatingSegment.end : videoCurrentTime;
     return {
       clip_id: "Draft Segment",
       match_id: lastClip?.match_id ?? "manual",
       path: lastClip?.path ?? activeVideoPath ?? "",
       start: Math.max(0, draftStart - 4),
-      end: draftStart + 2,
+      end: Math.min(videoDurationSec, endVal + 4),
       annotation_start: draftStart,
-      annotation_end: videoCurrentTime,
-      annotation_window: Math.max(0, videoCurrentTime - draftStart),
+      annotation_end: endVal,
+      annotation_window: Math.max(0, endVal - draftStart),
       half: lastClip?.half ?? 1,
       annotator_state: "manual" as AnnotatorState,
       is_locked: false,
     };
-  }, [clips, currentClipIndex, draftStart, videoCurrentTime, activeVideoPath, lastClip]);
+  }, [clips, currentClipIndex, draftStart, videoCurrentTime, activeVideoPath, lastClip, creatingSegment, videoDurationSec]);
 
   const activeConfidence = currentTeam === "A" ? confidenceA : confidenceB;
   const activeCertainty = currentTeam === "A" ? certaintyA : certaintyB;
@@ -634,7 +637,8 @@ export default function AnnotatorClient() {
       videoDurationSec,
       Math.max(t, currentClip.annotation_start + 2),
     );
-    handleUpdateSegmentTimes(currentClip.annotation_start, newEnd);
+    // Use deferred call so handleUpdateSegmentTimes doesn't need to be declared above
+    handleUpdateSegmentTimesRef.current?.(currentClip.annotation_start, newEnd);
   }, [
     currentClipIndex,
     clips,
@@ -644,7 +648,6 @@ export default function AnnotatorClient() {
     readPlayhead,
     videoDurationSec,
     saveSegmentToServer,
-    handleUpdateSegmentTimes,
     currentClip,
   ]);
 
@@ -710,6 +713,13 @@ export default function AnnotatorClient() {
           setClips(allClips);
           setActiveVideoPath(allClips[0].path);
           setStatusMessage(`${allClips.length} clips loaded`);
+          // Probe real duration so the timeline is correct from the start
+          if (!allClips[0].path.startsWith("blob:") && !allClips[0].path.toLowerCase().endsWith(".mkv")) {
+            fetch(`${SERVER_URL}/videos/metadata?path=${encodeURIComponent(allClips[0].path)}`)
+              .then((r) => r.json())
+              .then((d) => { if (d.durationSec > 0) setVideoDurationSec(d.durationSec); })
+              .catch(() => {});
+          }
         }
 
         const annRes = await fetch(`${SERVER_URL}/annotations`);
@@ -857,34 +867,106 @@ export default function AnnotatorClient() {
     }
   };
 
-  // ─── Convert MKV to MP4 ───
+  // ─── Fetch real video duration via ffprobe ───
+  const fetchVideoMetadata = useCallback(async (videoPath: string) => {
+    try {
+      const res = await fetch(`${SERVER_URL}/videos/metadata?path=${encodeURIComponent(videoPath)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.durationSec && data.durationSec > 0) {
+        setVideoDurationSec(data.durationSec);
+      }
+    } catch {
+      // ffprobe not available — <video>.loadedmetadata will set it later
+    }
+  }, []);
+
+  // ─── Convert MKV to MP4 (background job with progress polling) ───
   const handleConvertVideo = async () => {
     const clip = clips[currentClipIndex];
-    if (!clip) return;
-    const sourceName = clip.path.replace(/^raw_videos\//, "");
+    const videoPathToConvert = clip ? clip.path : activeVideoPath;
+    if (!videoPathToConvert) return;
+    if (videoPathToConvert.startsWith("blob:") || isBlobVideoRef.current) {
+      setVideoError("Conversion is only supported for server-hosted video files.");
+      return;
+    }
+    const sourceName = videoPathToConvert.replace(/^raw_videos\//, "");
     setIsConverting(true);
-    setVideoError(
-      "Preparing browser-ready MP4... This may take a few minutes the first time.",
-    );
+    setConvertProgress(0);
+    setVideoError("Preparing browser-ready MP4… starting conversion.");
     try {
       const res = await fetch(`${SERVER_URL}/videos/convert`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source: sourceName }),
       });
-      const data = await res.json();
-      if (data.success && data.filename) {
+      const init = await res.json();
+
+      // Legacy path: server returned success immediately (MP4 already existed)
+      if (init.success && init.filename) {
         setVideoError("");
-        setStatusMessage(data.message || `Video ready: ${data.filename}`);
-        const newPath = `raw_videos/${data.filename}`;
+        setStatusMessage(init.message || `Video ready: ${init.filename}`);
+        const newPath = `raw_videos/${init.filename}`;
         setClips((prev) =>
-          prev.map((c) => (c.path === clip.path ? { ...c, path: newPath } : c)),
+          prev.map((c) => (c.path === videoPathToConvert ? { ...c, path: newPath } : c))
         );
+        setActiveVideoPath(newPath);
         loadedVideoPathRef.current = "";
-      } else setVideoError(data.detail || data.error || "Conversion failed");
+        setIsConverting(false);
+        fetchVideoMetadata(newPath);
+        return;
+      }
+
+      if (!init.jobId) {
+        setVideoError(init.error || "Failed to start conversion");
+        setIsConverting(false);
+        return;
+      }
+
+      // Poll the job status every 2 s
+      const { jobId } = init;
+      if (convertPollRef.current) clearInterval(convertPollRef.current);
+      convertPollRef.current = setInterval(async () => {
+        try {
+          const pollRes = await fetch(`${SERVER_URL}/videos/convert?jobId=${jobId}`);
+          const job = await pollRes.json();
+
+          if (job.status === "running") {
+            setConvertProgress(job.progress ?? 0);
+            setVideoError(
+              `Converting… ${job.progress ?? 0}% — large files may take several minutes.`,
+            );
+            return;
+          }
+
+          // Terminal state — stop polling
+          clearInterval(convertPollRef.current!);
+          convertPollRef.current = null;
+          setIsConverting(false);
+
+          if (job.status === "done") {
+            setConvertProgress(100);
+            setVideoError("");
+            setStatusMessage(job.message || `Video ready: ${job.filename}`);
+            const newPath = `raw_videos/${job.filename}`;
+            setClips((prev) =>
+              prev.map((c) => (c.path === videoPathToConvert ? { ...c, path: newPath } : c))
+            );
+            setActiveVideoPath(newPath);
+            loadedVideoPathRef.current = "";
+            fetchVideoMetadata(newPath);
+          } else {
+            setVideoError(job.detail || job.error || "Conversion failed");
+          }
+        } catch (pollErr: any) {
+          clearInterval(convertPollRef.current!);
+          convertPollRef.current = null;
+          setIsConverting(false);
+          setVideoError(`Poll error: ${pollErr.message}`);
+        }
+      }, 2000);
     } catch (err: any) {
       setVideoError(`Conversion error: ${err.message}`);
-    } finally {
       setIsConverting(false);
     }
   };
@@ -1458,6 +1540,10 @@ export default function AnnotatorClient() {
     [currentClip, currentClipIndex, videoDurationSec, saveSegmentToServer, teamConfig, syncAnnotationsWithClips]
   );
 
+  // Ref so handleSetSegmentEnd can call handleUpdateSegmentTimes without forward-reference issues
+  const handleUpdateSegmentTimesRef = useRef(handleUpdateSegmentTimes);
+  handleUpdateSegmentTimesRef.current = handleUpdateSegmentTimes;
+
   // ─── Delete segment ───
   const handleDeleteSegment = useCallback((clipId: string) => {
     setClips((prev) => {
@@ -1544,12 +1630,6 @@ export default function AnnotatorClient() {
       if (!skipped && sessionBreakDue) {
         setStatusMessage(
           "Forced session break due. Click Resume After Break before continuing.",
-        );
-        return;
-      }
-      if (!skipped && !qualityPass) {
-        setStatusMessage(
-          "Quality gate blocked submit: need at least 18/22 tracked players and no more than 3 red tracker dots.",
         );
         return;
       }
@@ -2028,38 +2108,48 @@ export default function AnnotatorClient() {
           return;
         }
 
+        const isDraft = currentClip.clip_id === "Draft Segment";
+        const matchId = currentClip.match_id || "manual";
+        const realClipId = isDraft
+          ? `${matchId}_seg${String(clips.length).padStart(3, "0")}`
+          : currentClip.clip_id;
+
+        const newClip: Clip = isDraft
+          ? { ...currentClip, clip_id: realClipId }
+          : currentClip;
+
         const ann: Annotation = {
           schema_version: "1.0.0",
           dataset: "TACTIC-Bench",
-          clip_id: currentClip.clip_id,
-          match_id: currentClip.match_id,
-          match_name: currentClip.match_name || currentClip.match_id,
-          half: HALF_LABEL(currentClip.half),
-          window_idx: currentClip.window_idx ?? currentClipIndex,
+          clip_id: realClipId,
+          match_id: newClip.match_id,
+          match_name: newClip.match_name || newClip.match_id,
+          half: HALF_LABEL(newClip.half),
+          window_idx: isDraft ? clips.length : (newClip.window_idx ?? currentClipIndex),
           segment_metadata: {
-            start_sec: currentClip.annotation_start,
-            end_sec: currentClip.annotation_end,
+            start_sec: newClip.annotation_start,
+            end_sec: newClip.annotation_end,
             duration_sec: Number(labelDur.toFixed(3)),
             tensor_frames: tensorFrames,
-            preceding_event: currentClip.anchor_event?.type,
-            following_event: currentClip.following_event,
+            preceding_event: newClip.anchor_event?.type,
+            following_event: newClip.following_event,
             coverage_estimate: Number((coverageEstimate / 100).toFixed(3)),
             is_mixed_phase: isMixedPhase,
           },
           game_state: cleanedGameState,
           video_source: {
-            video_path: currentClip.path,
-            seek_start_sec: currentClip.start,
-            label_start_sec: currentClip.annotation_start,
-            label_end_sec: currentClip.annotation_end,
-            seek_end_sec: currentClip.end,
+            video_path: newClip.path,
+            seek_start_sec: newClip.start,
+            label_start_sec: newClip.annotation_start,
+            label_end_sec: newClip.annotation_end,
+            seek_end_sec: newClip.end,
             fps,
             tensor_fps: 10,
             source_frame_count: Math.round(clipDur * fps),
             tensor_frame_count: tensorFrames,
           },
           reconstruction: {
-            npz_path: buildNpzPath(currentClip),
+            npz_path: buildNpzPath(newClip),
             tensor_shape: [tensorFrames, 23, 4],
             tensor_fps: 10,
             quality_pass: qualityPass,
@@ -2069,7 +2159,6 @@ export default function AnnotatorClient() {
           team_a: {
             team_id: "Team_A",
             team_name: teamConfig.team_a.name,
-
             jersey_color: teamConfig.team_a.jersey_color,
             is_home: teamConfig.team_a.is_home,
             is_primary: teamAPrimary,
@@ -2113,7 +2202,7 @@ export default function AnnotatorClient() {
         };
 
         const updated = [
-          ...annotations.filter((a) => a.clip_id !== currentClip.clip_id),
+          ...annotations.filter((a) => a.clip_id !== realClipId),
           ann,
         ];
         updated.sort((a, b) => {
@@ -2122,13 +2211,17 @@ export default function AnnotatorClient() {
           const windowCmp = (a.window_idx ?? 0) - (b.window_idx ?? 0);
           if (windowCmp !== 0) return windowCmp;
           return String(a.video_source?.video_path || "").localeCompare(
-            String(b.video_source?.video_path || ""),
+            String(b.video_source?.video_path || "")
           );
         });
         setAnnotations(updated);
-        if (autoNext && currentClipIndex < clips.length - 1) {
+
+        if (isDraft) {
+          saveSegmentToServer(newClip);
+          setClips((prev) => [...prev, newClip]);
+          setCurrentClipIndex(clips.length + 1);
+        } else if (autoNext && currentClipIndex < clips.length - 1) {
           setCurrentClipIndex((i) => {
-            // Skip rejected clips when auto-next is enabled
             let next = i + 1;
             while (
               next < clips.length - 1 &&
@@ -2136,19 +2229,18 @@ export default function AnnotatorClient() {
             ) {
               next++;
             }
-            // If all remaining clips are rejected, stay at current+1
             return next;
           });
         }
-        // Auto-advance: next segment starts at the previous segment's END.
-        // This eliminates gaps and keeps the workflow continuous — no separate
-        // M key press needed. The annotator just watches, presses O to mark END,
-        // labels both teams, and presses Enter to submit & chain forward.
-        const nextStartSec = currentClip.annotation_end;
-        setCreatingSegment({ start: nextStartSec, end: nextStartSec + 2 });
+
+        const nextStartSec = newClip.annotation_end;
+        setCreatingSegment(null);
         setStatusMessage(
-          `Segment saved (${labelDur.toFixed(1)}s). Next segment starts at ${formatTime(nextStartSec)}. Watch the video, press O to mark END of the next segment.`,
+          isDraft
+            ? `Segment created (${labelDur.toFixed(1)}s). Next segment starts at ${formatTime(nextStartSec)}.`
+            : `Segment updated (${labelDur.toFixed(1)}s).`
         );
+
         fetch(`${SERVER_URL}/annotations`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2253,10 +2345,56 @@ export default function AnnotatorClient() {
     setClips([]);
     setCurrentClipIndex(0);
     setVideoError("");
-    // Reset video duration so it gets updated from actual <video>.duration when metadata loads
-    setVideoDurationSec(MATCH_DURATION_SEC);
     setIsPlaying(true);
     setStatusMessage(`Loading: ${filename}`);
+    // Probe real duration immediately via ffprobe so the timeline is correct
+    fetchVideoMetadata(videoPath);
+  }, [fetchVideoMetadata]);
+
+  // ─── Browse video file from any folder ───
+  const handleBrowseVideoFile = useCallback(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "video/*";
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const blobUrl = URL.createObjectURL(file);
+      isBlobVideoRef.current = true;
+      loadedVideoPathRef.current = blobUrl;
+      setActiveVideoPath(blobUrl);
+      setClips([]);
+      setAnnotations([]);
+      setCurrentClipIndex(0);
+      setVideoError("");
+      setVideoDurationSec(MATCH_DURATION_SEC);
+      setIsPlaying(true);
+      // Auto-create first segment draft at 0s
+      setCreatingSegment({ start: 0, end: 2 });
+      setStatusMessage(`Loaded: ${file.name}. Press O to mark end of first segment.`);
+    };
+    input.click();
+  }, []);
+
+  // ─── Handle drag-and-drop file ───
+  const handleFileDrop = useCallback((file: File) => {
+    if (!file.type.startsWith("video/")) {
+      setStatusMessage("Only video files are supported.");
+      return;
+    }
+    const blobUrl = URL.createObjectURL(file);
+    isBlobVideoRef.current = true;
+    loadedVideoPathRef.current = blobUrl;
+    setActiveVideoPath(blobUrl);
+    setClips([]);
+    setAnnotations([]);
+    setCurrentClipIndex(0);
+    setVideoError("");
+    setVideoDurationSec(MATCH_DURATION_SEC);
+    setIsPlaying(true);
+    // Auto-create first segment draft at 0s
+    setCreatingSegment({ start: 0, end: 2 });
+    setStatusMessage(`Loaded: ${file.name}. Press O to mark end of first segment.`);
   }, []);
 
   // ─── Export ───
@@ -2757,7 +2895,6 @@ export default function AnnotatorClient() {
         currentClipIndex={currentClipIndex}
         totalClips={clips.length}
         annotatedCount={annotations.length}
-        matchPlanTotal={MATCH_PLAN_TOTAL}
         isGenerating={isGenerating}
         statusMessage={statusMessage}
         onLoadManifest={handleLoadManifest}
@@ -2787,6 +2924,7 @@ export default function AnnotatorClient() {
           hasAnnotated={hasAnnotated}
           recentlyCreatedClipId={recentlyCreatedClipId}
           onDeleteSegment={handleDeleteSegment}
+          onBrowseVideo={handleBrowseVideoFile}
         />
         <main className="flex-1 flex flex-col p-4 overflow-hidden">
           <VideoPlayer
@@ -2806,6 +2944,7 @@ export default function AnnotatorClient() {
             loopClip={loopClip}
             videoError={videoError}
             isConverting={isConverting}
+            convertProgress={convertProgress}
             creatingSegment={creatingSegment}
             onTogglePlayback={togglePlayback}
             onReplayClip={replayClip}
@@ -2885,9 +3024,6 @@ export default function AnnotatorClient() {
           detectedPossessionTeam={detectedPossessionTeam}
           manualPossession={manualPossession}
           onManualPossessionChange={setManualPossession}
-          trackedPlayers={trackedPlayers}
-          redTrackerCount={redTrackerCount}
-          qualityPass={qualityPass}
           sessionBreakDue={sessionBreakDue}
           onAcknowledgeBreak={() => {
             setBreakAcknowledgedAt(annotations.length);
