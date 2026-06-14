@@ -2206,7 +2206,7 @@ export default function AnnotatorClient() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }, 1000);
-  }, [annotations, clips, teamConfig]);
+  }, [annotations, clips, teamConfig, activeVideoPath]);
 
   // ─── Reset ───
   const resetSession = useCallback(() => {
@@ -2218,6 +2218,7 @@ export default function AnnotatorClient() {
       return;
     setAnnotations([]);
     setClips([]);
+    setActiveVideoPath(null);
     setCurrentClipIndex(0);
     setSelectedIntentA("");
     setSelectedIntentB("");
@@ -2573,21 +2574,7 @@ export default function AnnotatorClient() {
     hasShownSplitPromptRef.current = true;
   }, []);
 
-  // ─── Auto-start first segment at 0:00 when loading a new video ───
-  // When a video is loaded and there are no clips, set creatingSegment to start at 0.
-  useEffect(() => {
-    if (
-      !isLoading &&
-      clips.length === 1 &&
-      clips[0]?.annotation_start === 0 &&
-      creatingSegment === null
-    ) {
-      setCreatingSegment({ start: 0, end: 2 });
-      setStatusMessage(
-        "Match loaded. Starting at 0:00. Watch the action, press O to mark END of the first segment.",
-      );
-    }
-  }, [isLoading, clips, creatingSegment]);
+
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#0a0c10] text-slate-200 font-sans selection:bg-indigo-500/30">
