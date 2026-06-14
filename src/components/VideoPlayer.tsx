@@ -24,6 +24,7 @@ interface Props {
   videoRef: React.RefObject<HTMLVideoElement>;
   videoContainerRef: React.RefObject<HTMLDivElement>;
   currentClip: Clip | undefined;
+  videoPath: string | null;
   clips: Clip[];
   currentClipIndex: number;
   matchDurationSec: number;
@@ -76,6 +77,7 @@ export default function VideoPlayer(props: Props) {
     videoRef,
     videoContainerRef,
     currentClip,
+    videoPath,
     clips,
     matchDurationSec,
     isLoading,
@@ -306,7 +308,7 @@ export default function VideoPlayer(props: Props) {
             <div className="w-10 h-10 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin mx-auto mb-2" />
             <span className="text-xs text-slate-500">Loading…</span>
           </div>
-        ) : clips.length === 0 ? (
+        ) : !videoPath ? (
           <div className="text-center pointer-events-none">
             <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-3">
               <Play className="w-6 h-6 text-slate-500 ml-0.5" />
@@ -323,7 +325,7 @@ export default function VideoPlayer(props: Props) {
               <Play className="w-3.5 h-3.5" /> Load Video
             </button>
           </div>
-        ) : currentClip?.path ? (
+        ) : videoPath ? (
           <>
             <video
               ref={videoRef}
@@ -361,7 +363,7 @@ export default function VideoPlayer(props: Props) {
                   >
                     {videoError}
                   </p>
-                  {!isConverting && currentClip.path.endsWith(".mkv") && (
+                  {!isConverting && videoPath.endsWith(".mkv") && (
                     <button
                       type="button"
                       onClick={(e) => {
