@@ -159,22 +159,28 @@ export default function ClipExplorer({
           )}
         </div>
       </div>
-      <div className="p-3 bg-black/20 shrink-0">
+      <div className="p-3 bg-black/20 shrink-0 border-t border-white/5">
         <h3 className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-2">
-          Shortcuts
+          Keyboard Shortcuts
         </h3>
         <div className="grid grid-cols-2 gap-x-2 gap-y-1">
           {[
-            ["Intents", "1-9,0"],
-            ["Teams", "A/B"],
-            ["Play", "Space"],
-            ["Skip", "S"],
-            ["Submit", "Enter"],
-            ["Nav", "←/→"],
+            ["Intents", "1-9, 0, Q-T"],
+            ["Select Team", "A / B"],
+            ["Play / Pause", "Space / K"],
+            ["Skip Clip", "S"],
+            ["Submit / Save", "Enter"],
+            ["Prev / Next", "[ / ]"],
+            ["New Segment", "M"],
+            ["Cancel Seg", "N / Esc"],
+            ["Set Start", "I"],
+            ["Set End", "O"],
+            ["Seek 5s", "← / →"],
+            ["Mute", "U"],
           ].map(([l, k]) => (
             <div key={l} className="flex items-center justify-between">
               <span className="text-[10px] text-slate-400">{l}</span>
-              <kbd className="bg-white/10 px-1 rounded text-[9px] text-slate-300 font-mono">
+              <kbd className="bg-white/10 px-1.5 py-0.5 rounded text-[9px] text-slate-300 font-mono">
                 {k}
               </kbd>
             </div>
