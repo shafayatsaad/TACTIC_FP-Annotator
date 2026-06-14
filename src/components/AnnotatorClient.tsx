@@ -26,7 +26,6 @@ import {
   HALF_LABEL,
   normalizeClip,
   makeUniqueClipIds,
-  MATCH_PLAN_TOTAL,
   type Certainty,
   type Clip,
   type Annotation,
@@ -236,7 +235,29 @@ export default function AnnotatorClient() {
   const isBlobVideoRef = useRef(false);
 
   // ─── Derived state ───
-  const currentClip = clips[currentClipIndex];
+  const lastClip = clips[clips.length - 1];
+  const draftStart = lastClip ? lastClip.annotation_end : 0;
+
+  const currentClip = useMemo((): Clip | undefined => {
+    if (clips.length > 0 && currentClipIndex < clips.length) {
+      return clips[currentClipIndex];
+    }
+    if (!activeVideoPath) return undefined;
+    return {
+      clip_id: "Draft Segment",
+      match_id: lastClip?.match_id ?? "manual",
+      path: lastClip?.path ?? activeVideoPath ?? "",
+      start: Math.max(0, draftStart - 4),
+      end: draftStart + 2,
+      annotation_start: draftStart,
+      annotation_end: videoCurrentTime,
+      annotation_window: Math.max(0, videoCurrentTime - draftStart),
+      half: lastClip?.half ?? 1,
+      annotator_state: "manual" as AnnotatorState,
+      is_locked: false,
+    };
+  }, [clips, currentClipIndex, draftStart, videoCurrentTime, activeVideoPath, lastClip]);
+
   const activeConfidence = currentTeam === "A" ? confidenceA : confidenceB;
   const activeCertainty = currentTeam === "A" ? certaintyA : certaintyB;
   const segmentDuration = currentClip
@@ -503,131 +524,128 @@ export default function AnnotatorClient() {
   // Then the user picks intents and presses Enter to submit the annotation.
   const handleSetSegmentEnd = useCallback(() => {
     const t = readPlayhead();
-    if (creatingSegment) {
-      // Finalize the draft: set end and immediately confirm it into a real clip.
-      const start = Math.min(
-        creatingSegment.start,
-        creatingSegment.start >= 0 ? creatingSegment.start : Math.max(0, t - 2),
-      );
-      const end = Math.max(t, start + 2);
+    const isDraftMode = currentClipIndex >= clips.length || (currentClip && currentClip.clip_id === "Draft Segment");
+    if (isDraftMode) {
+      const start = draftStart;
+      const end = t;
       const duration = end - start;
       if (duration < 2) {
         setStatusMessage("Segment must be at least 2 seconds long.");
         return;
       }
+
+      const path = lastClip?.path ?? activeVideoPath ?? "";
+      const matchId = lastClip?.match_id ?? "manual";
+      const half = lastClip?.half ?? 1;
+
       if (duration > MAX_SEGMENT_DURATION) {
-        setStatusMessage(
-          `Segment cannot exceed ${MAX_SEGMENT_DURATION}s (got ${duration.toFixed(1)}s).`,
-        );
-        return;
+        // Splitting into 15s clips + remainder
+        let currentStart = start;
+        const newClips: Clip[] = [];
+        while (end - currentStart > 15) {
+          const segmentEnd = currentStart + 15;
+          const existingCount = clips.length + newClips.length;
+          const id = `${matchId}_seg${String(existingCount).padStart(3, "0")}`;
+          const c: Clip = {
+            clip_id: id,
+            match_id: matchId,
+            path,
+            start: Math.max(0, currentStart - 4),
+            end: Math.min(videoDurationSec, segmentEnd + 4),
+            annotation_start: currentStart,
+            annotation_end: segmentEnd,
+            annotation_window: 15,
+            half,
+            game_clock: formatMatchClock(half, currentStart),
+            annotator_state: "manual" as AnnotatorState,
+            is_locked: false,
+          };
+          newClips.push(c);
+          currentStart = segmentEnd;
+        }
+
+        // Remainder
+        const existingCount = clips.length + newClips.length;
+        const remainderId = `${matchId}_seg${String(existingCount).padStart(3, "0")}`;
+        const remainderClip: Clip = {
+          clip_id: remainderId,
+          match_id: matchId,
+          path,
+          start: Math.max(0, currentStart - 4),
+          end: Math.min(videoDurationSec, end + 4),
+          annotation_start: currentStart,
+          annotation_end: end,
+          annotation_window: end - currentStart,
+          half,
+          game_clock: formatMatchClock(half, currentStart),
+          annotator_state: "manual" as AnnotatorState,
+          is_locked: false,
+        };
+        newClips.push(remainderClip);
+
+        setClips((prev) => {
+          const next = [...prev, ...newClips].sort(
+            (a, b) => a.annotation_start - b.annotation_start,
+          );
+          const idx = next.findIndex((c) => c.clip_id === remainderId);
+          if (idx >= 0) setCurrentClipIndex(idx);
+          return next;
+        });
+
+        newClips.forEach((c) => saveSegmentToServer(c));
+        setStatusMessage(`Segment created and auto-split into ${newClips.length} segments.`);
+      } else {
+        // Duration <= 15
+        const existingCount = clips.length;
+        const id = `${matchId}_seg${String(existingCount).padStart(3, "0")}`;
+        const newClip: Clip = {
+          clip_id: id,
+          match_id: matchId,
+          path,
+          start: Math.max(0, start - 4),
+          end: Math.min(videoDurationSec, end + 4),
+          annotation_start: start,
+          annotation_end: end,
+          annotation_window: duration,
+          half,
+          game_clock: formatMatchClock(half, start),
+          annotator_state: "manual" as AnnotatorState,
+          is_locked: false,
+        };
+
+        setClips((prev) => {
+          const next = [...prev, newClip].sort(
+            (a, b) => a.annotation_start - b.annotation_start,
+          );
+          const idx = next.findIndex((c) => c.clip_id === id);
+          if (idx >= 0) setCurrentClipIndex(idx);
+          return next;
+        });
+
+        saveSegmentToServer(newClip);
+        setStatusMessage(`Segment created (${duration.toFixed(1)}s). Pick intents and press Enter.`);
       }
-      const overlap = findOverlap(clips, start, end);
-      if (overlap) {
-        setStatusMessage(
-          `Overlaps with segment ${overlap.clip_id}. Adjust boundaries.`,
-        );
-        return;
-      }
-      const half = currentClip?.half ?? 1;
-      const matchId = currentClip?.match_id ?? "manual";
-      const existingCount = clips.filter(
-        (c) => c.annotation_start < start && c.match_id === matchId,
-      ).length;
-      const id = `${matchId}_seg${String(existingCount).padStart(3, "0")}`;
-      const newClip: Clip = {
-        clip_id: id,
-        match_id: matchId,
-        path: currentClip?.path ?? "",
-        start: Math.max(0, start - 4),
-        end: Math.min(videoDurationSec, end + 4),
-        annotation_start: start,
-        annotation_end: end,
-        annotation_window: duration,
-        half,
-        game_clock: formatMatchClock(half, start),
-        window_idx: currentClip?.window_idx,
-        match_name: currentClip?.match_name,
-        competition: currentClip?.competition,
-        season: currentClip?.season,
-        trajectory_path: currentClip?.trajectory_path,
-        anchor_event: currentClip?.anchor_event,
-        following_event: currentClip?.following_event,
-        possession_state: currentClip?.possession_state,
-        team_perspective: currentClip?.team_perspective,
-        resolution: currentClip?.resolution,
-        features: currentClip?.features,
-        quality_score: currentClip?.quality_score,
-        tracking_coverage: currentClip?.tracking_coverage,
-        annotator_state: "manual" as AnnotatorState,
-        is_locked: false,
-      };
-      setClips((prev) => {
-        const next = [...prev, newClip].sort(
-          (a, b) => a.annotation_start - b.annotation_start,
-        );
-        const newIdx = next.findIndex((c) => c.clip_id === id);
-        if (newIdx >= 0) setCurrentClipIndex(newIdx);
-        return next;
-      });
-      setCreatingSegment(null);
-      setRecentlyCreatedClipId(id);
-      setTimeout(() => setRecentlyCreatedClipId(null), 1500);
-      // Persist the segment
-      saveSegmentToServer(newClip);
-      setStatusMessage(
-        `Segment created (${duration.toFixed(1)}s). Pick intents, then Submit (Enter).`,
-      );
       return;
     }
+
     // Normal mode: edit current clip's annotation end
     if (!currentClip) return;
     const newEnd = Math.min(
       videoDurationSec,
       Math.max(t, currentClip.annotation_start + 2),
     );
-    const newDuration = newEnd - currentClip.annotation_start;
-    if (newDuration < 2) {
-      setStatusMessage("Segment would be too short (< 2s).");
-      return;
-    }
-    if (newDuration > MAX_SEGMENT_DURATION) {
-      setStatusMessage(
-        `Segment would exceed ${MAX_SEGMENT_DURATION}s (${newDuration.toFixed(1)}s).`,
-      );
-      return;
-    }
-    const overlap = findOverlap(
-      clips,
-      currentClip.annotation_start,
-      newEnd,
-      currentClip.clip_id,
-    );
-    if (overlap) {
-      setStatusMessage(`End change overlaps with ${overlap.clip_id}.`);
-      return;
-    }
-    setClips((prev) =>
-      prev.map((clip, idx) =>
-        idx !== currentClipIndex
-          ? clip
-          : {
-              ...clip,
-              annotation_end: newEnd,
-              annotation_window: newEnd - clip.annotation_start,
-              annotator_state:
-                clip.annotator_state === "accepted"
-                  ? "modified"
-                  : clip.annotator_state,
-            },
-      ),
-    );
-    setStatusMessage(`Annotation end set to ${formatTime(newEnd)}`);
+    handleUpdateSegmentTimes(currentClip.annotation_start, newEnd);
   }, [
-    creatingSegment,
-    currentClip,
     currentClipIndex,
+    clips,
+    draftStart,
+    lastClip,
+    activeVideoPath,
     readPlayhead,
     videoDurationSec,
+    saveSegmentToServer,
+    handleUpdateSegmentTimes,
+    currentClip,
   ]);
 
   // New-segment workflow callbacks, passed to VideoPlayer.
@@ -1305,6 +1323,43 @@ export default function AnnotatorClient() {
     [currentClip, currentClipIndex, videoDurationSec, saveSegmentToServer],
   );
 
+  const syncAnnotationsWithClips = useCallback((updatedClips: Clip[], currentAnnotations: Annotation[]): Annotation[] => {
+    const clipIds = new Set(updatedClips.map((c) => c.clip_id));
+    let filtered = currentAnnotations.filter((a) => clipIds.has(a.clip_id));
+
+    filtered = filtered.map((ann) => {
+      const clip = updatedClips.find((c) => c.clip_id === ann.clip_id);
+      if (!clip) return ann;
+      const duration = clip.annotation_end - clip.annotation_start;
+      const tensorFrames = Math.max(20, Math.min(150, Math.round(duration * 10)));
+      return {
+        ...ann,
+        segment_metadata: {
+          ...ann.segment_metadata,
+          start_sec: clip.annotation_start,
+          end_sec: clip.annotation_end,
+          duration_sec: duration,
+          tensor_frames: tensorFrames,
+        },
+        video_source: {
+          ...ann.video_source,
+          seek_start_sec: clip.start,
+          label_start_sec: clip.annotation_start,
+          label_end_sec: clip.annotation_end,
+          seek_end_sec: clip.end,
+          tensor_frame_count: tensorFrames,
+        },
+        reconstruction: {
+          ...ann.reconstruction,
+          tensor_shape: [tensorFrames, 23, 4],
+          padding_mask: buildPaddingMask(tensorFrames),
+        }
+      } as Annotation;
+    });
+
+    return filtered;
+  }, []);
+
   const handleUpdateSegmentTimes = useCallback(
     (start: number, end: number) => {
       if (!currentClip) return;
@@ -1317,44 +1372,151 @@ export default function AnnotatorClient() {
         setStatusMessage(`Segment cannot exceed ${MAX_SEGMENT_DURATION}s.`);
         return;
       }
-      let newState: AnnotatorState = currentClip.annotator_state || "unseen";
-      if (currentClip.algorithm_proposal) {
-        const startChanged =
-          Math.abs(start - currentClip.algorithm_proposal.start) > 0.5;
-        const shadowEndChanged =
-          Math.abs(end - currentClip.algorithm_proposal.end) > 0.5;
-        if (startChanged || shadowEndChanged) newState = "modified";
-      }
-      const updatedClip: Clip = {
-        ...currentClip,
-        start: Math.min(currentClip.start, start),
-        end: Math.max(currentClip.end, end),
-        annotation_start: start,
-        annotation_end: end,
-        annotation_window: duration,
-        annotator_state: newState,
-      };
-      setClips((prev) =>
-        prev.map((c, idx) => (idx === currentClipIndex ? updatedClip : c)),
-      );
-      saveSegmentToServer(updatedClip);
+
+      setClips((prev) => {
+        const next = prev.map((c, idx) => {
+          if (idx !== currentClipIndex) return c;
+          let newState: AnnotatorState = c.annotator_state || "unseen";
+          if (c.algorithm_proposal) {
+            const startChanged = Math.abs(start - c.algorithm_proposal.start) > 0.5;
+            const endChanged = Math.abs(end - c.algorithm_proposal.end) > 0.5;
+            if (startChanged || endChanged) newState = "modified";
+          }
+          return {
+            ...c,
+            annotation_start: start,
+            annotation_end: end,
+            annotation_window: duration,
+            annotator_state: newState,
+          };
+        });
+
+        // Re-chain using boundaries list
+        const sorted = [...next].sort((a, b) => a.annotation_start - b.annotation_start);
+        const boundaries = [0];
+        const activeIdx = sorted.findIndex((c) => c.clip_id === currentClip.clip_id);
+        
+        for (let i = 0; i < sorted.length; i++) {
+          if (i === activeIdx) {
+            boundaries[i] = start;
+            boundaries[i + 1] = end;
+          } else {
+            boundaries[i + 1] = sorted[i].annotation_end;
+          }
+        }
+
+        boundaries[0] = 0;
+        for (let i = 1; i < boundaries.length; i++) {
+          if (boundaries[i] < boundaries[i - 1] + 2) {
+            boundaries[i] = boundaries[i - 1] + 2;
+          }
+        }
+
+        const rechained = sorted.map((c, idx) => {
+          const newStart = boundaries[idx];
+          const newEnd = boundaries[idx + 1];
+          const windowDur = newEnd - newStart;
+          return {
+            ...c,
+            annotation_start: newStart,
+            annotation_end: newEnd,
+            annotation_window: windowDur,
+            start: Math.max(0, newStart - 4),
+            end: Math.min(videoDurationSec, newEnd + 4),
+            game_clock: formatMatchClock(c.half ?? 1, newStart),
+          };
+        });
+
+        // Update annotations state and sync to server
+        setAnnotations((prevAnn) => {
+          const updatedAnn = syncAnnotationsWithClips(rechained, prevAnn);
+          fetch(`${SERVER_URL}/annotations`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              schema_version: "1.0.0",
+              dataset: "TACTIC-Bench",
+              team_config: teamConfig,
+              annotations: updatedAnn,
+            }),
+          }).catch(() => console.warn("Sync failed"));
+          return updatedAnn;
+        });
+
+        // Sync segments to server
+        fetch(`${SERVER_URL}/segments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ segments: rechained }),
+        }).catch(() => console.warn("Failed to sync segments"));
+
+        return rechained;
+      });
+
       setStatusMessage(`Segment timing updated: ${start.toFixed(1)}s – ${end.toFixed(1)}s`);
     },
-    [currentClip, currentClipIndex, saveSegmentToServer],
+    [currentClip, currentClipIndex, videoDurationSec, saveSegmentToServer, teamConfig, syncAnnotationsWithClips]
   );
 
   // ─── Delete segment ───
   const handleDeleteSegment = useCallback((clipId: string) => {
-    setClips((prev) => prev.filter((c) => c.clip_id !== clipId));
-    setAnnotations((prev) => prev.filter((a) => a.clip_id !== clipId));
-    setStatusMessage(`Segment ${clipId} deleted.`);
-    // Also delete from server
-    fetch(`${SERVER_URL}/segments`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clip_id: clipId }),
-    }).catch(() => console.warn("Failed to delete segment from server"));
-  }, []);
+    setClips((prev) => {
+      const filtered = prev.filter((c) => c.clip_id !== clipId);
+      
+      // Re-chain remaining clips
+      let currentStart = 0;
+      const rechained = filtered.map((clip) => {
+        const duration = clip.annotation_end - clip.annotation_start;
+        const newStart = currentStart;
+        const newEnd = newStart + duration;
+        currentStart = newEnd;
+        return {
+          ...clip,
+          annotation_start: newStart,
+          annotation_end: newEnd,
+          annotation_window: duration,
+          start: Math.max(0, newStart - 4),
+          end: Math.min(videoDurationSec, newEnd + 4),
+          game_clock: formatMatchClock(clip.half ?? 1, newStart),
+        };
+      });
+      
+      // Update annotations and sync to server
+      setAnnotations((prevAnn) => {
+        const updatedAnn = syncAnnotationsWithClips(rechained, prevAnn);
+        // Sync to server
+        fetch(`${SERVER_URL}/annotations`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            schema_version: "1.0.0",
+            dataset: "TACTIC-Bench",
+            team_config: teamConfig,
+            annotations: updatedAnn,
+          }),
+        }).catch(() => console.warn("Sync failed"));
+        return updatedAnn;
+      });
+      
+      // Save all segments to server (overwrite the list on server)
+      fetch(`${SERVER_URL}/segments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ segments: rechained }),
+      }).catch(() => console.warn("Failed to sync segments on server"));
+      
+      // Select appropriate index
+      if (rechained.length > 0) {
+        setCurrentClipIndex((prevIdx) => Math.min(prevIdx, rechained.length - 1));
+      } else {
+        setCurrentClipIndex(0);
+      }
+      
+      return rechained;
+    });
+    
+    setStatusMessage(`Segment ${clipId} deleted and chain updated.`);
+  }, [videoDurationSec, teamConfig, syncAnnotationsWithClips]);
 
   // ─── Save annotation ───
   const saveAnnotation = useCallback(
