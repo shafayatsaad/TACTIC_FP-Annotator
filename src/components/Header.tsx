@@ -11,7 +11,6 @@ interface HeaderProps {
   currentClipIndex: number;
   totalClips: number;
   annotatedCount: number;
-  matchPlanTotal: number;
   isGenerating: boolean;
   statusMessage: string;
   onLoadManifest: () => void;
@@ -25,18 +24,9 @@ export default function Header({
   currentClipIndex,
   totalClips,
   annotatedCount,
-  matchPlanTotal,
   statusMessage,
   onLoadVideoDirect,
 }: HeaderProps) {
-  // Match progress is computed against the planned segment total for the full
-  // 90-minute match, not the count of segments currently loaded into memory.
-  // Clamped to 100% so a fully annotated session never visually overflows.
-  const matchProgressPct =
-    matchPlanTotal > 0
-      ? Math.min(100, Math.round((annotatedCount / matchPlanTotal) * 100))
-      : 0;
-
   return (
     <header className="h-14 px-4 flex items-center justify-between shrink-0 border-b border-white/10 relative z-10">
       <div className="flex items-center gap-3">
@@ -48,34 +38,18 @@ export default function Header({
         </h1>
         <div className="w-px h-4 bg-white/10 mx-1" />
         <p className="text-xs text-slate-400">
-          {currentClip
-            ? `${currentClip.match_id} · Segment ${currentClipIndex + 1}/${totalClips}`
-            : "No match loaded"}
+          {currentClip ? currentClip.match_id : "No match loaded"}
         </p>
       </div>
       <div className="flex items-center gap-3">
         {coverageStats && <CoverageMeter stats={coverageStats} />}
-        <div
-          className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5"
-          title="Match progress — segments annotated vs. planned total"
-        >
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-            Match
-          </span>
-          <span className="text-xs font-medium">
-            {annotatedCount}{" "}
-            <span className="text-slate-500">/ {matchPlanTotal}</span>
-          </span>
-          <div className="w-24 h-1.5 bg-black/40 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-300"
-              style={{ width: `${matchProgressPct}%` }}
-            />
+        {totalClips > 0 && (
+          <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
+            <span className="text-xs font-medium text-slate-200">
+              Segment {currentClipIndex + 1} of {totalClips} · {annotatedCount} annotated
+            </span>
           </div>
-          <span className="text-indigo-400 text-xs font-bold">
-            {matchProgressPct}%
-          </span>
-        </div>
+        )}
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
