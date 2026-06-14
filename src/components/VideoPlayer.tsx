@@ -38,6 +38,7 @@ interface Props {
   loopClip: boolean;
   videoError: string;
   isConverting: boolean;
+  convertProgress: number;
   creatingSegment: CreatingSegment;
   onTogglePlayback: () => void;
   onReplayClip: () => void;
@@ -114,10 +115,12 @@ export default function VideoPlayer(props: Props) {
     onHelp,
     getAnnotatorState,
     formatTime,
+    setVideoError,
     onSetSegmentStart,
     onSetSegmentEnd,
     onFileDrop,
   } = props;
+  const convertProgress = props.convertProgress ?? 0;
 
   const [isDragOver, setIsDragOver] = useState(false);
   const handleDragOver = (e: React.DragEvent) => {
@@ -233,20 +236,9 @@ export default function VideoPlayer(props: Props) {
   // start to end, then release.
   const handleProgressMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!creatingSegment) {
-        // Normal click: seek the video.
-        onProgressClick(e);
-        return;
-      }
-      if (!progressBarRef.current) return;
-      const rect = progressBarRef.current.getBoundingClientRect();
-      const p = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const t = p * matchDurationSec;
-      setDragStart(t);
-      setDragCurrent(t);
-      e.preventDefault();
+      onProgressClick(e);
     },
-    [creatingSegment, matchDurationSec, onProgressClick],
+    [onProgressClick],
   );
 
   useEffect(() => {
@@ -385,14 +377,28 @@ export default function VideoPlayer(props: Props) {
             {videoError && (
               <div className="absolute top-12 left-3 right-3 z-10 flex items-start justify-between">
                 <div
-                  className={`px-3 py-2 rounded-lg border max-w-sm backdrop-blur ${isConverting ? "bg-indigo-900/80 border-indigo-500/30" : "bg-rose-900/80 border-rose-500/30"}`}
+                  className={`px-3 py-2 rounded-lg border max-w-sm backdrop-blur w-full ${isConverting ? "bg-indigo-900/80 border-indigo-500/30" : "bg-rose-900/80 border-rose-500/30"}`}
                 >
                   <p
                     className={`text-xs ${isConverting ? "text-indigo-100" : "text-rose-100"}`}
                   >
                     {videoError}
                   </p>
-                  {!isConverting && videoPath.endsWith(".mkv") && (
+                  {isConverting && (
+                    <div className="mt-2">
+                      <div className="flex justify-between text-[9px] text-indigo-300 mb-1">
+                        <span>Converting…</span>
+                        <span>{convertProgress}%</span>
+                      </div>
+                      <div className="h-1.5 bg-indigo-950 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-indigo-400 to-emerald-400 rounded-full transition-all duration-500"
+                          style={{ width: `${convertProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {!isConverting && videoPath?.endsWith(".mkv") && (
                     <button
                       type="button"
                       onClick={(e) => {
@@ -411,7 +417,7 @@ export default function VideoPlayer(props: Props) {
                     e.stopPropagation();
                     setVideoError("");
                   }}
-                  className="text-slate-300 hover:text-white p-1 bg-black/60 border border-white/10 rounded"
+                  className="text-slate-300 hover:text-white p-1 bg-black/60 border border-white/10 rounded ml-2 flex-shrink-0"
                 >
                   <span className="text-xs">×</span>
                 </button>
@@ -467,23 +473,6 @@ export default function VideoPlayer(props: Props) {
       >
         <div className="bg-gradient-to-t from-black/95 via-black/70 to-transparent pt-6 pb-3 px-4">
           <div className="flex items-center gap-2 mb-2">
-            <button
-              type="button"
-              onClick={onStartSegmentCreate}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors ${creatingSegment ? "bg-indigo-500/30 text-indigo-200 border border-indigo-500/50" : "bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10"}`}
-              title="Drag on the timeline to define a new segment (N)"
-            >
-              <Plus className="w-3 h-3" /> New Segment
-            </button>
-            {/* Set segment start / end at playhead */}
-            <button
-              type="button"
-              onClick={onSetSegmentStart}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors"
-              title="Set segment start at playhead (I)"
-            >
-              <SkipBack className="w-3 h-3" /> Start
-            </button>
             <button
               type="button"
               onClick={onSetSegmentEnd}
