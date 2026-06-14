@@ -2088,7 +2088,7 @@ export default function AnnotatorClient() {
 
   // ─── Export ───
   const exportJSON = useCallback(() => {
-    const matchId = clips[0]?.match_id || "unknown";
+    const matchId = clips[0]?.match_id || (activeVideoPath ? activeVideoPath.split("/").pop()?.replace(/\.[^.]+$/, "") : "unknown");
     const modelSamples = toModelSamples(annotations);
     fetch(`${SERVER_URL}/export/json`, {
       method: "POST",
@@ -2108,11 +2108,11 @@ export default function AnnotatorClient() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }, 1000);
-  }, [annotations, clips]);
+  }, [annotations, clips, activeVideoPath]);
 
   const exportCSV = useCallback(() => {
     if (!annotations.length) return;
-    const matchId = clips[0]?.match_id || "unknown";
+    const matchId = clips[0]?.match_id || (activeVideoPath ? activeVideoPath.split("/").pop()?.replace(/\.[^.]+$/, "") : "unknown");
     const exportAnnotations = withCurrentTeamIdentity(annotations, teamConfig);
     fetch(`${SERVER_URL}/export/csv`, {
       method: "POST",
