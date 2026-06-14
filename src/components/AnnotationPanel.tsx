@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Check,
@@ -19,6 +20,7 @@ import {
   type Certainty,
   type GameState,
   type TeamConfig,
+  type Clip,
 } from "@/lib/constants";
 
 export type ManualPossession = "A" | "B" | "contested" | null;
@@ -31,6 +33,8 @@ interface ClassDistItem {
 }
 
 interface Props {
+  currentClip?: Clip;
+  onUpdateSegmentTimes?: (start: number, end: number) => void;
   currentTeam: "A" | "B";
   onTeamChange: (team: "A" | "B") => void;
   teamConfig: { team_a: TeamConfig; team_b: TeamConfig };
@@ -90,6 +94,8 @@ const CONFIDENCE_LABELS = [
 ];
 
 export default function AnnotationPanel({
+  currentClip,
+  onUpdateSegmentTimes,
   currentTeam,
   onTeamChange,
   teamConfig,
@@ -131,6 +137,51 @@ export default function AnnotationPanel({
   onExportCSV,
   onReset,
 }: Props) {
+  const [localStart, setLocalStart] = useState("");
+  const [localEnd, setLocalEnd] = useState("");
+
+  useEffect(() => {
+    if (currentClip) {
+      setLocalStart(currentClip.annotation_start.toFixed(1));
+      setLocalEnd(currentClip.annotation_end.toFixed(1));
+    } else {
+      setLocalStart("");
+      setLocalEnd("");
+    }
+  }, [currentClip]);
+
+  const handleStartBlur = () => {
+    if (!currentClip || !onUpdateSegmentTimes) return;
+    const val = parseFloat(localStart);
+    if (Number.isFinite(val)) {
+      onUpdateSegmentTimes(val, currentClip.annotation_end);
+    } else {
+      setLocalStart(currentClip.annotation_start.toFixed(1));
+    }
+  };
+
+  const handleEndBlur = () => {
+    if (!currentClip || !onUpdateSegmentTimes) return;
+    const val = parseFloat(localEnd);
+    if (Number.isFinite(val)) {
+      onUpdateSegmentTimes(currentClip.annotation_start, val);
+    } else {
+      setLocalEnd(currentClip.annotation_end.toFixed(1));
+    }
+  };
+
+  const handleNudgeStart = (delta: number) => {
+    if (!currentClip || !onUpdateSegmentTimes) return;
+    const newStart = Math.max(0, currentClip.annotation_start + delta);
+    onUpdateSegmentTimes(newStart, currentClip.annotation_end);
+  };
+
+  const handleNudgeEnd = (delta: number) => {
+    if (!currentClip || !onUpdateSegmentTimes) return;
+    const newEnd = currentClip.annotation_end + delta;
+    onUpdateSegmentTimes(currentClip.annotation_start, newEnd);
+  };
+
   const remaining = totalClips - annotationsCount;
   const activeTeam =
     currentTeam === "A" ? teamConfig.team_a : teamConfig.team_b;
@@ -206,6 +257,98 @@ export default function AnnotationPanel({
 
   return (
     <aside className="w-72 bg-black/40 border-l border-white/10 flex flex-col shrink-0 overflow-y-auto custom-scrollbar">
+      <div className="p-3 border-b border-white/5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+            Active Segment Timing
+          </h3>
+          {currentClip && (
+            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+              currentClip.annotator_state === "accepted" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+              currentClip.annotator_state === "modified" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
+              "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+            }`}>
+              {currentClip.annotator_state || "manual"}
+            </span>
+          )}
+        </div>
+
+        {currentClip ? (
+          <div className="space-y-3">
+            <div className="text-[11px] text-slate-400 font-mono">
+              ID: <span className="text-white font-bold">{currentClip.clip_id}</span>
+            </div>
+
+            {/* Start Time Control */}
+            <div>
+              <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Start Time (sec)</span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleNudgeStart(-0.5)}
+                  className="px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] font-mono text-slate-300"
+                >
+                  -0.5s
+                </button>
+                <input
+                  type="text"
+                  value={localStart}
+                  onChange={(e) => setLocalStart(e.target.value)}
+                  onBlur={handleStartBlur}
+                  onKeyDown={(e) => e.key === "Enter" && handleStartBlur()}
+                  className="w-full text-center rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 font-mono outline-none focus:border-indigo-500/50"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleNudgeStart(0.5)}
+                  className="px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] font-mono text-slate-300"
+                >
+                  +0.5s
+                </button>
+              </div>
+            </div>
+
+            {/* End Time Control */}
+            <div>
+              <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">End Time (sec)</span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleNudgeEnd(-0.5)}
+                  className="px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] font-mono text-slate-300"
+                >
+                  -0.5s
+                </button>
+                <input
+                  type="text"
+                  value={localEnd}
+                  onChange={(e) => setLocalEnd(e.target.value)}
+                  onBlur={handleEndBlur}
+                  onKeyDown={(e) => e.key === "Enter" && handleEndBlur()}
+                  className="w-full text-center rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 font-mono outline-none focus:border-indigo-500/50"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleNudgeEnd(0.5)}
+                  className="px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] font-mono text-slate-300"
+                >
+                  +0.5s
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-[10px] text-slate-400 bg-white/[0.02] border border-white/5 rounded-md p-2 font-mono">
+              <span>Duration:</span>
+              <span className="text-white font-bold">{(currentClip.annotation_end - currentClip.annotation_start).toFixed(1)}s</span>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-4 bg-white/[0.01] border border-dashed border-white/10 rounded-lg">
+            <span className="text-[10px] text-slate-500">No active segment</span>
+          </div>
+        )}
+      </div>
+
       <div className="p-3 border-b border-white/5">
         <h3 className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-3">
           Annotate Teams
