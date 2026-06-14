@@ -12,6 +12,7 @@ import {
   Check,
   SkipBack,
   SkipForward,
+  FolderOpen,
 } from "lucide-react";
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import type { Clip, AnnotatorState } from "@/lib/constants";
@@ -63,6 +64,7 @@ interface Props {
   setVideoError: (s: string) => void;
   onSetSegmentStart: () => void;
   onSetSegmentEnd: () => void;
+  onFileDrop?: (file: File) => void;
 }
 
 const STATE_COLORS: Record<string, string> = {
@@ -112,10 +114,27 @@ export default function VideoPlayer(props: Props) {
     onHelp,
     getAnnotatorState,
     formatTime,
-    setVideoError,
     onSetSegmentStart,
     onSetSegmentEnd,
+    onFileDrop,
   } = props;
+
+  const [isDragOver, setIsDragOver] = useState(false);
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && onFileDrop) {
+      onFileDrop(file);
+    }
+  };
 
   const progressBarRef = useRef<HTMLDivElement>(null);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
@@ -275,8 +294,18 @@ export default function VideoPlayer(props: Props) {
   return (
     <div
       ref={videoContainerRef}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       className="flex-1 flex flex-col bg-black/70 rounded-2xl border border-white/[0.07] shadow-2xl relative overflow-hidden min-h-[320px] mb-4 group/player"
     >
+      {isDragOver && (
+        <div className="absolute inset-0 z-30 bg-indigo-950/80 border-2 border-dashed border-indigo-500 rounded-2xl flex flex-col items-center justify-center backdrop-blur-sm pointer-events-none transition-all">
+          <FolderOpen className="w-12 h-12 text-indigo-400 mb-3 animate-bounce" />
+          <p className="text-sm font-semibold text-indigo-200">Drop video here to load</p>
+          <p className="text-xs text-indigo-400 mt-1">Supports MP4, MKV, etc.</p>
+        </div>
+      )}
       {currentClip && (
         <div className="absolute top-3 left-3 z-20 px-2.5 py-1 bg-black/70 border border-white/10 text-slate-200 text-[10px] font-mono rounded-md flex items-center gap-1.5 backdrop-blur">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" />
