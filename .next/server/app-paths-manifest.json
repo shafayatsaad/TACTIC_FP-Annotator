@@ -1,8 +1,0 @@
-{
-  "/page": "app/page.js",
-  "/icon.png/route": "app/icon.png/route.js",
-  "/api/segments/route": "app/api/segments/route.js",
-  "/api/manifest/route": "app/api/manifest/route.js",
-  "/api/annotations/route": "app/api/annotations/route.js",
-  "/api/videos/[[...path]]/route": "app/api/videos/[[...path]]/route.js"
-}
