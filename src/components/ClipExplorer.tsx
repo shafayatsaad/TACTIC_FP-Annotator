@@ -24,6 +24,7 @@ interface Props {
   formatMatchClock: (half: number, s: number) => string;
   hasAnnotated: (id: string) => boolean;
   recentlyCreatedClipId?: string | null;
+  onBrowseVideo: () => void;
 }
 
 export default function ClipExplorer({
@@ -47,6 +48,7 @@ export default function ClipExplorer({
   formatMatchClock,
   hasAnnotated,
   recentlyCreatedClipId = null,
+  onBrowseVideo,
 }: Props) {
   return (
     <aside className="w-64 bg-black/40 border-r border-white/10 flex flex-col shrink-0">
@@ -89,12 +91,20 @@ export default function ClipExplorer({
             <div className="text-center py-6">
               <FolderOpen className="w-8 h-8 text-slate-600 mx-auto mb-2" />
               <p className="text-xs text-slate-500 mb-3">No match loaded</p>
-              <button
-                onClick={onLoadVideoDirect}
-                className="w-full px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5"
-              >
-                <Video className="w-3 h-3" /> Load Video
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={onLoadVideoDirect}
+                  className="w-full px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Video className="w-3 h-3" /> Load Video
+                </button>
+                <button
+                  onClick={onBrowseVideo}
+                  className="w-full px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <FolderOpen className="w-3 h-3" /> Browse File
+                </button>
+              </div>
             </div>
           ) : (
             filteredClips.map((clip) => {
