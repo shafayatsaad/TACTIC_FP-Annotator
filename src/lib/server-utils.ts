@@ -140,6 +140,12 @@ export function deleteSegment(clipId: string) {
   writeSegments(filtered);
 }
 
+export function deleteAnnotation(clipId: string) {
+  const session = readAnnotationSession();
+  const filtered = session.annotations.filter((a: any) => a.clip_id !== clipId);
+  writeAnnotations(filtered, session.team_config);
+}
+
 export function resetGeneratedSessionFiles() {
   ensureDirectories();
   const safeRemove = (target: string) => {
