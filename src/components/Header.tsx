@@ -43,10 +43,10 @@ export default function Header({
       </div>
       <div className="flex items-center gap-3">
         {coverageStats && <CoverageMeter stats={coverageStats} />}
-        {totalClips > 0 && (
+        {currentClip && (
           <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
             <span className="text-xs font-medium text-slate-200">
-              Segment {currentClipIndex + 1} of {totalClips} · {annotatedCount} annotated
+              Segment {currentClipIndex + 1} · {totalClips} saved · {annotatedCount} annotated
             </span>
           </div>
         )}
