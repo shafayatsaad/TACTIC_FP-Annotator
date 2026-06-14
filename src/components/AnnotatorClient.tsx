@@ -717,43 +717,48 @@ export default function AnnotatorClient() {
   useEffect(() => {
     const video = videoRef.current;
     const clip = clips[currentClipIndex];
-    if (!video || !clip || !clip.path) return;
+    const videoPath = clip ? clip.path : activeVideoPath;
+    if (!video || !videoPath) return;
     setVideoError("");
     video.pause();
 
+    const start = clip ? clip.start : 0;
+
     // For blob URLs (direct video load), skip server URL construction
-    if (isBlobVideoRef.current || clip.path.startsWith("blob:")) {
+    if (isBlobVideoRef.current || videoPath.startsWith("blob:")) {
       isBlobVideoRef.current = true;
-      if (video.src !== clip.path) {
-        video.src = clip.path;
+      if (video.src !== videoPath) {
+        video.src = videoPath;
         video.load();
       }
-      loadedVideoPathRef.current = clip.path;
+      loadedVideoPathRef.current = videoPath;
       // Update clip end + actual duration from video metadata
       const onMeta = () => {
-        video.currentTime = clip.start;
+        video.currentTime = start;
         video.playbackRate = playbackRate;
         video.play().catch(() => {});
         setVideoDurationSec(video.duration);
-        setClips((prev) =>
-          prev.map((c) =>
-            c.clip_id === clip.clip_id ? { ...c, end: video.duration } : c,
-          ),
-        );
+        if (clip) {
+          setClips((prev) =>
+            prev.map((c) =>
+              c.clip_id === clip.clip_id ? { ...c, end: video.duration } : c,
+            ),
+          );
+        }
         video.removeEventListener("loadedmetadata", onMeta);
       };
       video.addEventListener("loadedmetadata", onMeta);
       setIsPlaying(true);
-      setVideoCurrentTime(clip.start);
+      setVideoCurrentTime(start);
       return () => video.removeEventListener("loadedmetadata", onMeta);
     }
 
-    if (clip.path.toLowerCase().endsWith(".mkv")) {
+    if (videoPath.toLowerCase().endsWith(".mkv")) {
       video.removeAttribute("src");
       video.load();
       loadedVideoPathRef.current = "";
       setIsPlaying(false);
-      setVideoCurrentTime(clip.start);
+      setVideoCurrentTime(start);
       setVideoError(
         "MKV needs a browser-ready MP4. Click Prepare MP4 once; the original MKV is kept.",
       );
@@ -766,12 +771,11 @@ export default function AnnotatorClient() {
     const onLoadedMeta = () => {
       if (cancelled) return;
       setVideoDurationSec(video.duration);
-      video.currentTime = clip.start;
+      video.currentTime = start;
       video.playbackRate = playbackRate;
       video.muted = isMuted;
       video.addEventListener("seeked", onSeeked, { once: true });
     };
-    const videoPath = clip.path;
     const needsReload =
       loadedVideoPathRef.current !== videoPath ||
       video.error != null ||
@@ -785,7 +789,7 @@ export default function AnnotatorClient() {
       onLoadedMeta();
     }
     setIsPlaying(true);
-    setVideoCurrentTime(clip.start);
+    setVideoCurrentTime(start);
     return () => {
       cancelled = true;
       video.removeEventListener("seeked", onSeeked);
@@ -794,7 +798,7 @@ export default function AnnotatorClient() {
     // playbackRate + isMuted are applied imperatively on the element above
     // to avoid re-loading the video on every speed/mute change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentClipIndex, clips]);
+  }, [currentClipIndex, clips, activeVideoPath]);
 
   // ─── Generate Manifest ───
   const handleGenerateManifest = async () => {
@@ -2040,6 +2044,9 @@ export default function AnnotatorClient() {
           makeUniqueClipIds(raw.map(normalizeClip)),
         );
         setClips(normalized);
+        if (normalized.length > 0) {
+          setActiveVideoPath(normalized[0].path);
+        }
         setCurrentClipIndex(0);
         loadedVideoPathRef.current = "";
         setStatusMessage(`${normalized.length} clips from file`);
@@ -2624,6 +2631,7 @@ export default function AnnotatorClient() {
             videoRef={videoRef}
             videoContainerRef={videoContainerRef}
             currentClip={currentClip}
+            videoPath={currentClip ? currentClip.path : activeVideoPath}
             clips={clips}
             currentClipIndex={currentClipIndex}
             matchDurationSec={videoDurationSec}
@@ -2650,7 +2658,7 @@ export default function AnnotatorClient() {
             onVideoPlaying={() => setIsBuffering(false)}
             onVideoError={() => {
               setIsPlaying(false);
-              const isMkv = currentClip?.path?.endsWith(".mkv");
+              const isMkv = (currentClip?.path ?? activeVideoPath)?.endsWith(".mkv");
               setVideoError(
                 isMkv
                   ? 'MKV not supported. Click "Convert to MP4".'
@@ -2686,6 +2694,8 @@ export default function AnnotatorClient() {
           />
         </main>
         <AnnotationPanel
+          currentClip={currentClip}
+          onUpdateSegmentTimes={handleUpdateSegmentTimes}
           currentTeam={currentTeam}
           onTeamChange={setCurrentTeam}
           teamConfig={teamConfig}
