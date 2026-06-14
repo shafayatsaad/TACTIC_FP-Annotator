@@ -66,9 +66,6 @@ interface Props {
   detectedPossessionTeam: "A" | "B" | null;
   manualPossession: ManualPossession;
   onManualPossessionChange: (p: ManualPossession) => void;
-  trackedPlayers: number;
-  redTrackerCount: number;
-  qualityPass: boolean;
   sessionBreakDue: boolean;
   onAcknowledgeBreak: () => void;
   isUncertain: boolean;
@@ -119,9 +116,6 @@ export default function AnnotationPanel({
   detectedPossessionTeam,
   manualPossession,
   onManualPossessionChange,
-  trackedPlayers,
-  redTrackerCount,
-  qualityPass,
   sessionBreakDue,
   onAcknowledgeBreak,
   isUncertain,
@@ -697,28 +691,6 @@ export default function AnnotationPanel({
         <h3 className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-3">
           Session
         </h3>
-        <div
-          className={`mb-3 rounded-lg border p-2 ${qualityPass ? "border-emerald-500/20 bg-emerald-500/10" : "border-rose-500/25 bg-rose-500/10"}`}
-        >
-          <div className="mb-2 flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-300">
-              <ShieldCheck className="h-3.5 w-3.5" /> Quality
-            </span>
-            <span
-              className={`text-[9px] font-bold ${qualityPass ? "text-emerald-300" : "text-rose-300"}`}
-            >
-              {trackedPlayers}/22 tracked
-            </span>
-          </div>
-          <div className="grid grid-cols-11 gap-1">
-            {Array.from({ length: 22 }, (_, idx) => (
-              <span
-                key={idx}
-                className={`h-1.5 rounded-full ${idx < 22 - redTrackerCount ? "bg-emerald-400" : "bg-rose-400"}`}
-              />
-            ))}
-          </div>
-        </div>
         {sessionBreakDue && (
           <button
             type="button"
