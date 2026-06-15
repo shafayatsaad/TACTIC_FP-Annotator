@@ -380,6 +380,7 @@ export interface Annotation {
     quality_pass: boolean;
     tracked_players?: number;
     padding_mask?: boolean[] | undefined;
+    tracking_confidence_mean?: number;
   };
 
   team_a: {
@@ -388,6 +389,8 @@ export interface Annotation {
     jersey_color?: string;
     is_home: boolean;
     is_primary: boolean;
+    formation_estimate?: string;
+    players_visible?: number;
     label: {
       intent_class: string | null;
       confidence: number;
@@ -402,6 +405,8 @@ export interface Annotation {
     jersey_color?: string;
     is_home: boolean;
     is_primary: boolean;
+    formation_estimate?: string;
+    players_visible?: number;
     label: {
       intent_class: string | null;
       confidence: number;
@@ -418,6 +423,14 @@ export interface Annotation {
     annotation_timestamp: string;
     annotation_duration_sec: number;
     tool_version: string;
+    re_annotation_count?: number;
+  };
+  dag_features?: {
+    formation_compactness?: number;
+    pressing_speed?: number;
+    pitch_control_share?: number;
+    xg_estimate?: number;
+    phase_mixture?: number[];
   };
   agreement: {
     annotated_at: string;
