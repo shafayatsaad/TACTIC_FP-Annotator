@@ -57,6 +57,7 @@ export function readAnnotations(): any[] {
 export function readAnnotationSession(): {
   annotations: any[];
   team_config?: any;
+  match_config?: any;
   schema_version: string;
   dataset: string;
 } {
@@ -69,6 +70,7 @@ export function readAnnotationSession(): {
         dataset: data.dataset || "TACTIC-Bench",
         annotations: data.annotations,
         team_config: data.team_config,
+        match_config: data.match_config,
       };
     if (Array.isArray(data))
       return {
@@ -90,7 +92,7 @@ export function readAnnotationSession(): {
   }
 }
 
-export function writeAnnotations(annotations: any[], teamConfig?: any) {
+export function writeAnnotations(annotations: any[], teamConfig?: any, matchConfig?: any) {
   fs.writeFileSync(
     getAnnotationsPath(),
     JSON.stringify(
@@ -98,6 +100,7 @@ export function writeAnnotations(annotations: any[], teamConfig?: any) {
         schema_version: "1.0.0",
         dataset: "TACTIC-Bench",
         team_config: teamConfig,
+        match_config: matchConfig,
         annotations,
       },
       null,
@@ -143,7 +146,7 @@ export function deleteSegment(clipId: string) {
 export function deleteAnnotation(clipId: string) {
   const session = readAnnotationSession();
   const filtered = session.annotations.filter((a: any) => a.clip_id !== clipId);
-  writeAnnotations(filtered, session.team_config);
+  writeAnnotations(filtered, session.team_config, session.match_config);
 }
 
 export function resetGeneratedSessionFiles() {
