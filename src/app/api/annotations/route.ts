@@ -9,7 +9,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    writeAnnotations(body.annotations || [], body.team_config);
+    writeAnnotations(body.annotations || [], body.team_config, body.match_config);
     return NextResponse.json({ success: true });
   } catch (error: any) { return NextResponse.json({ error: "Failed to save annotations", detail: error.message }, { status: 500 }); }
 }
