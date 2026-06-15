@@ -77,9 +77,23 @@ interface Props {
   classDistribution: ClassDistItem[];
   onSkip: () => void;
   onSubmit: () => void;
-  onExportJSON: () => void;
+  onExportJSON?: () => void;
   onExportCSV: () => void;
   onReset: () => void;
+  matchConfig: {
+    match_id: string;
+    competition: string;
+    season: string;
+    match_date: string;
+    home_team: string;
+    away_team: string;
+    final_score: string;
+    halftime_score: string;
+    annotator: string;
+    annotator_license: string;
+    session_id: string;
+  };
+  onMatchConfigChange: (config: any) => void;
 }
 
 const CONFIDENCE_LABELS = [
@@ -130,7 +144,10 @@ export default function AnnotationPanel({
   onExportJSON,
   onExportCSV,
   onReset,
+  matchConfig,
+  onMatchConfigChange,
 }: Props) {
+  const [showMatchDetails, setShowMatchDetails] = useState(false);
   const [localStart, setLocalStart] = useState("");
   const [localEnd, setLocalEnd] = useState("");
 
@@ -339,6 +356,149 @@ export default function AnnotationPanel({
         ) : (
           <div className="text-center py-4 bg-white/[0.01] border border-dashed border-white/10 rounded-lg">
             <span className="text-[10px] text-slate-500">No active segment</span>
+          </div>
+        )}
+      </div>
+
+      {/* Match Details Accordion */}
+      <div className="p-3 border-b border-white/5">
+        <button
+          type="button"
+          onClick={() => setShowMatchDetails(!showMatchDetails)}
+          className="w-full flex items-center justify-between text-left outline-none"
+        >
+          <h3 className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+            Match Details
+          </h3>
+          <span className="text-slate-500 text-xs font-bold leading-none select-none">
+            {showMatchDetails ? "▼" : "▶"}
+          </span>
+        </button>
+        {showMatchDetails && (
+          <div className="space-y-2.5 mt-3">
+            <label className="block">
+              <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Match ID</span>
+              <input
+                type="text"
+                value={matchConfig.match_id}
+                onChange={(e) => onMatchConfigChange({ ...matchConfig, match_id: e.target.value })}
+                className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Home Team</span>
+                <input
+                  type="text"
+                  value={matchConfig.home_team}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    onMatchConfigChange({ ...matchConfig, home_team: val });
+                    onTeamConfigChange({
+                      ...teamConfig,
+                      team_a: { ...teamConfig.team_a, name: val }
+                    });
+                  }}
+                  className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
+                />
+              </label>
+              <label className="block">
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Away Team</span>
+                <input
+                  type="text"
+                  value={matchConfig.away_team}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    onMatchConfigChange({ ...matchConfig, away_team: val });
+                    onTeamConfigChange({
+                      ...teamConfig,
+                      team_b: { ...teamConfig.team_b, name: val }
+                    });
+                  }}
+                  className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
+                />
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Competition</span>
+                <input
+                  type="text"
+                  value={matchConfig.competition}
+                  onChange={(e) => onMatchConfigChange({ ...matchConfig, competition: e.target.value })}
+                  className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
+                />
+              </label>
+              <label className="block">
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Season</span>
+                <input
+                  type="text"
+                  value={matchConfig.season}
+                  onChange={(e) => onMatchConfigChange({ ...matchConfig, season: e.target.value })}
+                  className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
+                />
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Match Date</span>
+                <input
+                  type="text"
+                  value={matchConfig.match_date}
+                  onChange={(e) => onMatchConfigChange({ ...matchConfig, match_date: e.target.value })}
+                  className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
+                />
+              </label>
+              <label className="block">
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Final Score</span>
+                <input
+                  type="text"
+                  value={matchConfig.final_score}
+                  onChange={(e) => onMatchConfigChange({ ...matchConfig, final_score: e.target.value })}
+                  className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
+                />
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Halftime Score</span>
+                <input
+                  type="text"
+                  value={matchConfig.halftime_score}
+                  onChange={(e) => onMatchConfigChange({ ...matchConfig, halftime_score: e.target.value })}
+                  className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
+                />
+              </label>
+              <label className="block">
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Annotator</span>
+                <input
+                  type="text"
+                  value={matchConfig.annotator}
+                  onChange={(e) => onMatchConfigChange({ ...matchConfig, annotator: e.target.value })}
+                  className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
+                />
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">License</span>
+                <input
+                  type="text"
+                  value={matchConfig.annotator_license}
+                  onChange={(e) => onMatchConfigChange({ ...matchConfig, annotator_license: e.target.value })}
+                  className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
+                />
+              </label>
+              <label className="block">
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Session ID</span>
+                <input
+                  type="text"
+                  value={matchConfig.session_id}
+                  onChange={(e) => onMatchConfigChange({ ...matchConfig, session_id: e.target.value })}
+                  className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
+                />
+              </label>
+            </div>
           </div>
         )}
       </div>
