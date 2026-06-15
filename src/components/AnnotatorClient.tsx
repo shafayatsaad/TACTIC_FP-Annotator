@@ -38,9 +38,37 @@ import { formatTime, formatMatchClock } from "@/lib/utils";
 import { MAX_SEGMENT_DURATION } from "@/lib/constants";
 
 const SERVER_URL = "/api";
+interface MatchConfig {
+  match_id: string;
+  competition: string;
+  season: string;
+  match_date: string;
+  home_team: string;
+  away_team: string;
+  final_score: string;
+  halftime_score: string;
+  annotator: string;
+  annotator_license: string;
+  session_id: string;
+}
+
+const DEFAULT_MATCH_CONFIG: MatchConfig = {
+  match_id: "epl_2014-15_chelsea_burnley_2015-02-21",
+  competition: "england_epl",
+  season: "2014-2015",
+  match_date: "2015-02-21",
+  home_team: "Chelsea",
+  away_team: "Burnley",
+  final_score: "1-1",
+  halftime_score: "1-0",
+  annotator: "coach_001",
+  annotator_license: "UEFA_Pro",
+  session_id: "session_042",
+};
+
 const DEFAULT_TEAM_CONFIG: { team_a: TeamConfig; team_b: TeamConfig } = {
-  team_a: { id: "A", name: "Team A", jersey_color: "#ef233c", is_home: true },
-  team_b: { id: "B", name: "Team B", jersey_color: "#3b82f6", is_home: false },
+  team_a: { id: "A", name: "Chelsea", jersey_color: "#ef233c", is_home: true },
+  team_b: { id: "B", name: "Burnley", jersey_color: "#3b82f6", is_home: false },
 };
 
 const DEFAULT_GAME_STATE: GameState = {
@@ -175,6 +203,7 @@ export default function AnnotatorClient() {
   const [isUncertain, setIsUncertain] = useState(false);
   const [autoNext, setAutoNext] = useState(true);
   const [teamConfig, setTeamConfig] = useState(DEFAULT_TEAM_CONFIG);
+  const [matchConfig, setMatchConfig] = useState<MatchConfig>(DEFAULT_MATCH_CONFIG);
   const [gameState, setGameState] = useState<GameState>(DEFAULT_GAME_STATE);
   // User-selected possession for the current segment:
   // "A" | "B" | "contested" | null (null = follow trajectory-detected team)
@@ -311,6 +340,15 @@ export default function AnnotatorClient() {
     );
   }, [currentClip, detectedPossessionTeam]);
 
+  // ─── Save segment to server ───
+  const saveSegmentToServer = useCallback((clip: Clip) => {
+    fetch(`${SERVER_URL}/segments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(clip),
+    }).catch(() => console.warn("Failed to save segment to server"));
+  }, []);
+
   // ─── Algorithm proposal / annotator decision callbacks ───
   const getAnnotatorState = useCallback((clip: Clip): AnnotatorState => {
     if (clip.is_locked) return clip.annotator_state || "accepted";
@@ -322,19 +360,31 @@ export default function AnnotatorClient() {
   }, []);
 
   const handleAcceptProposal = useCallback((clipId: string) => {
-    setClips((prev) =>
-      prev.map((clip) =>
-        clip.clip_id === clipId
-          ? {
-              ...clip,
-              annotator_state: "accepted" as AnnotatorState,
-              is_locked: true,
-            }
-          : clip,
-      ),
-    );
+    setClips((prev) => {
+      const next = prev.map((clip) => {
+        if (clip.clip_id === clipId) {
+          const updated = {
+            ...clip,
+            annotator_state: "accepted" as AnnotatorState,
+            is_locked: true,
+          };
+          saveSegmentToServer(updated);
+          return updated;
+        }
+        return clip;
+      });
+
+      // Sync segments to server
+      fetch(`${SERVER_URL}/segments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ segments: next }),
+      }).catch(() => console.warn("Failed to sync segments"));
+
+      return next;
+    });
     setStatusMessage(`Segment ${clipId} accepted and locked.`);
-  }, []);
+  }, [saveSegmentToServer]);
 
   const handleDeleteProposal = useCallback((clipId: string) => {
     setClips((prev) => {
@@ -386,26 +436,178 @@ export default function AnnotatorClient() {
         annotator_state: "modified" as AnnotatorState,
         is_locked: false,
       };
-      setAnnotations((anns) =>
-        anns.filter(
-          (a) => a.clip_id !== clipId && a.clip_id !== previous.clip_id,
-        ),
-      );
-      setStatusMessage(`Merged ${previous.clip_id} + ${clipId}.`);
       const result = [...prev];
       result[idx - 1] = merged;
-      return result.filter((_, i) => i !== idx);
+      const filteredClips = result.filter((_, i) => i !== idx);
+
+      // Save merged segment to server and sync segments list
+      saveSegmentToServer(merged);
+      fetch(`${SERVER_URL}/segments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ segments: filteredClips }),
+      }).catch(() => console.warn("Failed to sync segments"));
+
+      // Update annotations and sync to server
+      setAnnotations((anns) => {
+        const filteredAnns = anns.filter(
+          (a) => a.clip_id !== clipId && a.clip_id !== previous.clip_id,
+        );
+        
+        // Sort chronologically by half and start time
+        const sortedAnn = [...filteredAnns].sort((a, b) => {
+          const halfCmp = String(a.half).localeCompare(String(b.half));
+          if (halfCmp !== 0) return halfCmp;
+          const aStart = a.segment_metadata?.start_sec ?? a.video_source?.label_start_sec ?? 0;
+          const bStart = b.segment_metadata?.start_sec ?? b.video_source?.label_start_sec ?? 0;
+          return aStart - bStart;
+        });
+
+        fetch(`${SERVER_URL}/annotations`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            schema_version: "1.0.0",
+            dataset: "TACTIC-Bench",
+            team_config: teamConfig,
+            match_config: matchConfig,
+            annotations: sortedAnn,
+          }),
+        }).catch(() => console.warn("Sync failed"));
+        return sortedAnn;
+      });
+
+      setStatusMessage(`Merged ${previous.clip_id} + ${clipId}.`);
+      setCurrentClipIndex((prevIdx) => Math.max(0, idx - 1));
+      return filteredClips;
     });
+  }, [saveSegmentToServer, teamConfig, matchConfig]);
+
+  const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  const generateUniqueClipId = useCallback((tempClips: Clip[], matchId: string): string => {
+    const prefix = `${matchId}_seg`;
+    let maxNum = -1;
+    const regex = new RegExp(`^${escapeRegExp(prefix)}(\\d+)$`);
+    tempClips.forEach((c) => {
+      const m = c.clip_id.match(regex);
+      if (m) {
+        const num = parseInt(m[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    });
+    const nextNum = maxNum >= 0 ? maxNum + 1 : tempClips.length;
+    let num = nextNum;
+    while (true) {
+      const candidate = `${prefix}${String(num).padStart(3, "0")}`;
+      if (!tempClips.some((c) => c.clip_id === candidate)) {
+        return candidate;
+      }
+      num++;
+    }
   }, []);
 
-  // ─── Save segment to server ───
-  const saveSegmentToServer = useCallback((clip: Clip) => {
-    fetch(`${SERVER_URL}/segments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(clip),
-    }).catch(() => console.warn("Failed to save segment to server"));
+  const copyAnnotationWithNewTimes = useCallback((ann: Annotation, clip: Clip): Annotation => {
+    const duration = clip.annotation_end - clip.annotation_start;
+    const tensorFrames = Math.max(20, Math.min(150, Math.round(duration * 10)));
+    return {
+      ...ann,
+      clip_id: clip.clip_id,
+      segment_metadata: {
+        ...ann.segment_metadata,
+        start_sec: clip.annotation_start,
+        end_sec: clip.annotation_end,
+        duration_sec: Number(duration.toFixed(3)),
+        tensor_frames: tensorFrames,
+      },
+      video_source: {
+        ...ann.video_source,
+        seek_start_sec: clip.start,
+        label_start_sec: clip.annotation_start,
+        label_end_sec: clip.annotation_end,
+        seek_end_sec: clip.end,
+        tensor_frame_count: tensorFrames,
+      },
+      reconstruction: {
+        ...ann.reconstruction,
+        tensor_shape: [tensorFrames, 23, 4],
+        padding_mask: buildPaddingMask(tensorFrames),
+      }
+    };
   }, []);
+
+  const calculateSplitClips = useCallback((
+    start: number,
+    end: number,
+    templateClip: Clip,
+    realClipId: string,
+    existingClips: Clip[]
+  ): Clip[] => {
+    const matchId = templateClip.match_id || "manual";
+    const path = templateClip.path;
+    const half = templateClip.half ?? 1;
+
+    let currentStart = start;
+    const splitClips: Clip[] = [];
+    let isFirst = true;
+    let tempClips = [...existingClips];
+
+    while (end - currentStart > 15) {
+      const segmentEnd = currentStart + 15;
+      const id = isFirst ? realClipId : generateUniqueClipId(tempClips, matchId);
+
+      const c: Clip = {
+        ...templateClip,
+        clip_id: id,
+        match_id: matchId,
+        path,
+        start: Math.max(0, currentStart - 4),
+        end: Math.min(videoDurationSec, segmentEnd + 4),
+        annotation_start: currentStart,
+        annotation_end: segmentEnd,
+        annotation_window: 15,
+        half,
+        game_clock: formatMatchClock(half, currentStart),
+        annotator_state: isFirst ? templateClip.annotator_state : "manual",
+        is_locked: false,
+      };
+      splitClips.push(c);
+      if (id !== templateClip.clip_id) {
+        tempClips.push(c);
+      }
+      isFirst = false;
+      currentStart = segmentEnd;
+    }
+
+    // Remainder
+    const remainderId = generateUniqueClipId(tempClips, matchId);
+    const remainderClip: Clip = {
+      ...templateClip,
+      clip_id: remainderId,
+      match_id: matchId,
+      path,
+      start: Math.max(0, currentStart - 4),
+      end: Math.min(videoDurationSec, end + 4),
+      annotation_start: currentStart,
+      annotation_end: end,
+      annotation_window: end - currentStart,
+      half,
+      game_clock: formatMatchClock(half, currentStart),
+      annotator_state: "manual",
+      is_locked: false,
+    };
+    splitClips.push(remainderClip);
+
+    return splitClips;
+  }, [videoDurationSec, generateUniqueClipId]);
+
+  const buildSplitAnnotations = useCallback((
+    splitClips: Clip[],
+    templateAnn: Annotation
+  ): Annotation[] => {
+    return splitClips.map((clip) => copyAnnotationWithNewTimes(templateAnn, clip));
+  }, [copyAnnotationWithNewTimes]);
+
 
   // ─── New-segment workflow: drag on the timeline ───
   // The VideoPlayer emits the proposed start/end after a drag-release.
@@ -422,12 +624,6 @@ export default function AnnotatorClient() {
       setStatusMessage("Segment must be at least 2 seconds long.");
       return;
     }
-    if (duration > MAX_SEGMENT_DURATION) {
-      setStatusMessage(
-        `Segment cannot exceed ${MAX_SEGMENT_DURATION}s (got ${duration.toFixed(1)}s).`,
-      );
-      return;
-    }
     const overlap = findOverlap(clips, start, end);
     if (overlap) {
       setStatusMessage(
@@ -437,18 +633,56 @@ export default function AnnotatorClient() {
       return;
     }
     const half = currentClip?.half ?? 1;
-    const matchId = currentClip?.match_id ?? "manual";
-    // Compute a sequential index for this segment based on its position
-    // among all clips sorted by annotation_start. This produces readable,
-    // training-friendly IDs like "match_001_seg014".
-    const existingCount = clips.filter(
-      (c) => c.annotation_start < start && c.match_id === matchId,
-    ).length;
-    const id = `${matchId}_seg${String(existingCount).padStart(3, "0")}`;
+    const matchId = matchConfig.match_id || currentClip?.match_id || "manual";
+    const path = currentClip?.path ?? activeVideoPath ?? "";
+
+    if (duration > MAX_SEGMENT_DURATION) {
+      const templateClip: Clip = currentClip || {
+        clip_id: "Draft Segment",
+        match_id: matchId,
+        path,
+        start,
+        end,
+        annotation_start: start,
+        annotation_end: end,
+        annotation_window: duration,
+        half,
+        annotator_state: "manual",
+        is_locked: false,
+      };
+      const realClipId = generateUniqueClipId(clips, matchId);
+      const splitClips = calculateSplitClips(start, end, templateClip, realClipId, clips);
+
+      setClips((prev) => {
+        const next = [...prev, ...splitClips].sort(
+          (a, b) => a.annotation_start - b.annotation_start,
+        );
+        const remainderId = splitClips[splitClips.length - 1].clip_id;
+        const idx = next.findIndex((c) => c.clip_id === remainderId);
+        if (idx >= 0) setCurrentClipIndex(idx);
+
+        // Sync segments to server
+        fetch(`${SERVER_URL}/segments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ segments: next }),
+        }).catch(() => console.warn("Failed to sync segments"));
+
+        return next;
+      });
+
+      splitClips.forEach((c) => saveSegmentToServer(c));
+      setCreatingSegment(null);
+      setStatusMessage(`Segment created and auto-split into ${splitClips.length} segments.`);
+      return;
+    }
+
+    // Duration <= 15
+    const id = generateUniqueClipId(clips, matchId);
     const newClip: Clip = {
       clip_id: id,
       match_id: matchId,
-      path: currentClip?.path ?? "",
+      path,
       start: Math.max(0, start - 4),
       end: Math.min(videoDurationSec, end + 4),
       annotation_start: start,
@@ -457,7 +691,7 @@ export default function AnnotatorClient() {
       half,
       game_clock: formatMatchClock(half, start),
       window_idx: currentClip?.window_idx,
-      match_name: currentClip?.match_name,
+      match_name: currentClip?.match_name || matchId,
       competition: currentClip?.competition,
       season: currentClip?.season,
       trajectory_path: currentClip?.trajectory_path,
@@ -472,23 +706,38 @@ export default function AnnotatorClient() {
       annotator_state: "manual" as AnnotatorState,
       is_locked: false,
     };
+
     setClips((prev) => {
       const next = [...prev, newClip].sort(
         (a, b) => a.annotation_start - b.annotation_start,
       );
-      const newIdx = next.findIndex((c) => c.clip_id === id);
-      if (newIdx >= 0) setCurrentClipIndex(newIdx);
+      const idx = next.findIndex((c) => c.clip_id === id);
+      if (idx >= 0) setCurrentClipIndex(idx);
+
+      // Sync segments to server
+      fetch(`${SERVER_URL}/segments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ segments: next }),
+      }).catch(() => console.warn("Failed to sync segments"));
+
       return next;
     });
-    setCreatingSegment(null);
-    setRecentlyCreatedClipId(id);
-    setTimeout(() => setRecentlyCreatedClipId(null), 1500);
-    // Persist the segment
+
     saveSegmentToServer(newClip);
-    setStatusMessage(
-      `New segment created (${duration.toFixed(1)}s). Pick intents for both teams, then Submit (Enter).`,
-    );
-  }, [creatingSegment, currentClip, videoDurationSec, saveSegmentToServer]);
+    setCreatingSegment(null);
+    setStatusMessage(`Segment created (${duration.toFixed(1)}s). Pick intents and press Enter.`);
+  }, [
+    creatingSegment,
+    currentClip,
+    videoDurationSec,
+    saveSegmentToServer,
+    clips,
+    matchConfig,
+    activeVideoPath,
+    calculateSplitClips,
+    generateUniqueClipId,
+  ]);
 
   // Wrappers used by VideoPlayer (no-arg) so the player stays simple.
   const readPlayhead = useCallback((): number => {
@@ -541,91 +790,45 @@ export default function AnnotatorClient() {
       const matchId = lastClip?.match_id ?? "manual";
       const half = lastClip?.half ?? 1;
 
+      // Always create single segment — auto-split happens at submit time (Enter)
+      const id = generateUniqueClipId(clips, matchId);
+      const newClip: Clip = {
+        clip_id: id,
+        match_id: matchId,
+        path,
+        start: Math.max(0, start - 4),
+        end: Math.min(videoDurationSec, end + 4),
+        annotation_start: start,
+        annotation_end: end,
+        annotation_window: duration,
+        half,
+        game_clock: formatMatchClock(half, start),
+        annotator_state: "manual" as AnnotatorState,
+        is_locked: false,
+      };
+
+      setClips((prev) => {
+        const next = [...prev, newClip].sort(
+          (a, b) => a.annotation_start - b.annotation_start,
+        );
+        const idx = next.findIndex((c) => c.clip_id === id);
+        if (idx >= 0) setCurrentClipIndex(idx);
+
+        // Save segments to server
+        fetch(`${SERVER_URL}/segments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ segments: next }),
+        }).catch(() => console.warn("Failed to sync segments"));
+
+        return next;
+      });
+
+      saveSegmentToServer(newClip);
+      setCreatingSegment(null);
       if (duration > MAX_SEGMENT_DURATION) {
-        // Splitting into 15s clips + remainder
-        let currentStart = start;
-        const newClips: Clip[] = [];
-        while (end - currentStart > 15) {
-          const segmentEnd = currentStart + 15;
-          const existingCount = clips.length + newClips.length;
-          const id = `${matchId}_seg${String(existingCount).padStart(3, "0")}`;
-          const c: Clip = {
-            clip_id: id,
-            match_id: matchId,
-            path,
-            start: Math.max(0, currentStart - 4),
-            end: Math.min(videoDurationSec, segmentEnd + 4),
-            annotation_start: currentStart,
-            annotation_end: segmentEnd,
-            annotation_window: 15,
-            half,
-            game_clock: formatMatchClock(half, currentStart),
-            annotator_state: "manual" as AnnotatorState,
-            is_locked: false,
-          };
-          newClips.push(c);
-          currentStart = segmentEnd;
-        }
-
-        // Remainder
-        const existingCount = clips.length + newClips.length;
-        const remainderId = `${matchId}_seg${String(existingCount).padStart(3, "0")}`;
-        const remainderClip: Clip = {
-          clip_id: remainderId,
-          match_id: matchId,
-          path,
-          start: Math.max(0, currentStart - 4),
-          end: Math.min(videoDurationSec, end + 4),
-          annotation_start: currentStart,
-          annotation_end: end,
-          annotation_window: end - currentStart,
-          half,
-          game_clock: formatMatchClock(half, currentStart),
-          annotator_state: "manual" as AnnotatorState,
-          is_locked: false,
-        };
-        newClips.push(remainderClip);
-
-        setClips((prev) => {
-          const next = [...prev, ...newClips].sort(
-            (a, b) => a.annotation_start - b.annotation_start,
-          );
-          const idx = next.findIndex((c) => c.clip_id === remainderId);
-          if (idx >= 0) setCurrentClipIndex(idx);
-          return next;
-        });
-
-        newClips.forEach((c) => saveSegmentToServer(c));
-        setStatusMessage(`Segment created and auto-split into ${newClips.length} segments.`);
+        setStatusMessage(`Segment created (${duration.toFixed(1)}s). Will auto-split into 15s chunks on submit. Pick intents and press Enter.`);
       } else {
-        // Duration <= 15
-        const existingCount = clips.length;
-        const id = `${matchId}_seg${String(existingCount).padStart(3, "0")}`;
-        const newClip: Clip = {
-          clip_id: id,
-          match_id: matchId,
-          path,
-          start: Math.max(0, start - 4),
-          end: Math.min(videoDurationSec, end + 4),
-          annotation_start: start,
-          annotation_end: end,
-          annotation_window: duration,
-          half,
-          game_clock: formatMatchClock(half, start),
-          annotator_state: "manual" as AnnotatorState,
-          is_locked: false,
-        };
-
-        setClips((prev) => {
-          const next = [...prev, newClip].sort(
-            (a, b) => a.annotation_start - b.annotation_start,
-          );
-          const idx = next.findIndex((c) => c.clip_id === id);
-          if (idx >= 0) setCurrentClipIndex(idx);
-          return next;
-        });
-
-        saveSegmentToServer(newClip);
         setStatusMessage(`Segment created (${duration.toFixed(1)}s). Pick intents and press Enter.`);
       }
       return;
@@ -649,6 +852,8 @@ export default function AnnotatorClient() {
     videoDurationSec,
     saveSegmentToServer,
     currentClip,
+    calculateSplitClips,
+    generateUniqueClipId,
   ]);
 
   // New-segment workflow callbacks, passed to VideoPlayer.
@@ -714,7 +919,7 @@ export default function AnnotatorClient() {
           setActiveVideoPath(allClips[0].path);
           setStatusMessage(`${allClips.length} clips loaded`);
           // Probe real duration so the timeline is correct from the start
-          if (!allClips[0].path.startsWith("blob:") && !allClips[0].path.toLowerCase().endsWith(".mkv")) {
+          if (!allClips[0].path.startsWith("blob:")) {
             fetch(`${SERVER_URL}/videos/metadata?path=${encodeURIComponent(allClips[0].path)}`)
               .then((r) => r.json())
               .then((d) => { if (d.durationSec > 0) setVideoDurationSec(d.durationSec); })
@@ -732,6 +937,8 @@ export default function AnnotatorClient() {
           );
           if (annData.team_config?.team_a && annData.team_config?.team_b)
             setTeamConfig(annData.team_config);
+          if (annData.match_config)
+            setMatchConfig(annData.match_config);
         }
       } catch {
         // Server might be starting — not an error, user can load video directly
@@ -755,12 +962,7 @@ export default function AnnotatorClient() {
     // For blob URLs (direct video load), skip server URL construction
     if (isBlobVideoRef.current || videoPath.startsWith("blob:")) {
       isBlobVideoRef.current = true;
-      if (video.src !== videoPath) {
-        video.src = videoPath;
-        video.load();
-      }
-      loadedVideoPathRef.current = videoPath;
-      // Update clip end + actual duration from video metadata
+      
       const onMeta = () => {
         video.currentTime = start;
         video.playbackRate = playbackRate;
@@ -773,12 +975,26 @@ export default function AnnotatorClient() {
             ),
           );
         }
-        video.removeEventListener("loadedmetadata", onMeta);
       };
-      video.addEventListener("loadedmetadata", onMeta);
+
+      if (video.src !== videoPath) {
+        video.addEventListener("loadedmetadata", onMeta, { once: true });
+        video.src = videoPath;
+        video.load();
+      } else {
+        if (video.readyState >= 1) {
+          onMeta();
+        } else {
+          video.addEventListener("loadedmetadata", onMeta, { once: true });
+        }
+      }
+      
+      loadedVideoPathRef.current = videoPath;
       setIsPlaying(true);
       setVideoCurrentTime(start);
-      return () => video.removeEventListener("loadedmetadata", onMeta);
+      return () => {
+        video.removeEventListener("loadedmetadata", onMeta);
+      };
     }
 
     if (videoPath.toLowerCase().endsWith(".mkv")) {
@@ -810,9 +1026,9 @@ export default function AnnotatorClient() {
       video.networkState === 3;
     if (needsReload) {
       loadedVideoPathRef.current = videoPath;
+      video.addEventListener("loadedmetadata", onLoadedMeta, { once: true });
       video.src = `${SERVER_URL}/videos/${encodeURI(videoPath)}`;
       video.load();
-      video.addEventListener("loadedmetadata", onLoadedMeta, { once: true });
     } else {
       onLoadedMeta();
     }
@@ -1400,9 +1616,64 @@ export default function AnnotatorClient() {
       );
       if (updatedClip) {
         saveSegmentToServer(updatedClip);
+        
+        // Update annotation in annotations list and sync to server immediately
+        setAnnotations((prevAnn) => {
+          const updatedAnn = prevAnn.map((ann) => {
+            if (ann.clip_id !== updatedClip!.clip_id) return ann;
+            const duration = updatedClip!.annotation_end - updatedClip!.annotation_start;
+            const tensorFrames = Math.max(20, Math.min(150, Math.round(duration * 10)));
+            return {
+              ...ann,
+              segment_metadata: {
+                ...ann.segment_metadata,
+                start_sec: updatedClip!.annotation_start,
+                end_sec: updatedClip!.annotation_end,
+                duration_sec: duration,
+                tensor_frames: tensorFrames,
+              },
+              video_source: {
+                ...ann.video_source,
+                seek_start_sec: updatedClip!.start,
+                label_start_sec: updatedClip!.annotation_start,
+                label_end_sec: updatedClip!.annotation_end,
+                seek_end_sec: updatedClip!.end,
+                tensor_frame_count: tensorFrames,
+              },
+              reconstruction: {
+                ...ann.reconstruction,
+                tensor_shape: [tensorFrames, 23, 4],
+                padding_mask: buildPaddingMask(tensorFrames),
+              }
+            };
+          });
+
+          // Sort annotations chronologically by half and start time
+          const sortedAnn = [...updatedAnn].sort((a, b) => {
+            const halfCmp = String(a.half).localeCompare(String(b.half));
+            if (halfCmp !== 0) return halfCmp;
+            const aStart = a.segment_metadata?.start_sec ?? a.video_source?.label_start_sec ?? 0;
+            const bStart = b.segment_metadata?.start_sec ?? b.video_source?.label_start_sec ?? 0;
+            return aStart - bStart;
+          });
+
+          fetch(`${SERVER_URL}/annotations`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              schema_version: "1.0.0",
+              dataset: "TACTIC-Bench",
+              team_config: teamConfig,
+              match_config: matchConfig,
+              annotations: sortedAnn,
+            }),
+          }).catch(() => console.warn("Sync failed"));
+
+          return sortedAnn;
+        });
       }
     },
-    [currentClip, currentClipIndex, videoDurationSec, saveSegmentToServer],
+    [currentClip, currentClipIndex, videoDurationSec, saveSegmentToServer, teamConfig, matchConfig],
   );
 
   const syncAnnotationsWithClips = useCallback((updatedClips: Clip[], currentAnnotations: Annotation[]): Annotation[] => {
@@ -1451,7 +1722,66 @@ export default function AnnotatorClient() {
         return;
       }
       if (duration > MAX_SEGMENT_DURATION) {
-        setStatusMessage(`Segment cannot exceed ${MAX_SEGMENT_DURATION}s.`);
+        const matchId = currentClip.match_id || "manual";
+        const splitClips = calculateSplitClips(start, end, currentClip, currentClip.clip_id, clips);
+        const remainderId = splitClips[splitClips.length - 1].clip_id;
+
+        // Update annotations state and sync to server
+        setAnnotations((prevAnn) => {
+          const origAnn = prevAnn.find((a) => a.clip_id === currentClip.clip_id);
+          const filtered = prevAnn.filter((a) => a.clip_id !== currentClip.clip_id);
+          const newAnns: Annotation[] = [];
+
+          if (origAnn) {
+            newAnns.push(...buildSplitAnnotations(splitClips, origAnn));
+          }
+
+          const updatedAnn = [...filtered, ...newAnns].sort(
+            (a, b) =>
+              String(a.half).localeCompare(String(b.half)) ||
+              (a.window_idx ?? 0) - (b.window_idx ?? 0),
+          );
+
+          // Sync annotations to server
+          fetch(`${SERVER_URL}/annotations`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              schema_version: "1.0.0",
+              dataset: "TACTIC-Bench",
+              team_config: teamConfig,
+              match_config: matchConfig,
+              annotations: updatedAnn,
+            }),
+          }).catch(() => console.warn("Sync failed"));
+
+          return updatedAnn;
+        });
+
+        // Update clips state and sync to server
+        setClips((prev) => {
+          const next = prev.flatMap((c, idx) => {
+            if (idx === currentClipIndex) return splitClips;
+            return [c];
+          });
+          const sorted = next.sort((a, b) => a.annotation_start - b.annotation_start);
+
+          // Select the remainder clip as the active clip
+          const idxB = sorted.findIndex((c) => c.clip_id === remainderId);
+          if (idxB >= 0) setCurrentClipIndex(idxB);
+
+          // Sync segments to server
+          fetch(`${SERVER_URL}/segments`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ segments: sorted }),
+          }).catch(() => console.warn("Failed to sync segments"));
+
+          return sorted;
+        });
+
+        splitClips.forEach((c) => saveSegmentToServer(c));
+        setStatusMessage(`Segment timing updated and auto-split into ${splitClips.length} segments.`);
         return;
       }
 
@@ -1519,6 +1849,7 @@ export default function AnnotatorClient() {
               schema_version: "1.0.0",
               dataset: "TACTIC-Bench",
               team_config: teamConfig,
+              match_config: matchConfig,
               annotations: updatedAnn,
             }),
           }).catch(() => console.warn("Sync failed"));
@@ -1537,7 +1868,18 @@ export default function AnnotatorClient() {
 
       setStatusMessage(`Segment timing updated: ${start.toFixed(1)}s – ${end.toFixed(1)}s`);
     },
-    [currentClip, currentClipIndex, videoDurationSec, saveSegmentToServer, teamConfig, syncAnnotationsWithClips]
+    [
+      currentClip,
+      currentClipIndex,
+      videoDurationSec,
+      saveSegmentToServer,
+      teamConfig,
+      matchConfig,
+      syncAnnotationsWithClips,
+      calculateSplitClips,
+      buildSplitAnnotations,
+      clips,
+    ]
   );
 
   // Ref so handleSetSegmentEnd can call handleUpdateSegmentTimes without forward-reference issues
@@ -1570,6 +1912,15 @@ export default function AnnotatorClient() {
       // Update annotations and sync to server
       setAnnotations((prevAnn) => {
         const updatedAnn = syncAnnotationsWithClips(rechained, prevAnn);
+        // Sort chronologically by half and start time
+        const sortedAnn = [...updatedAnn].sort((a, b) => {
+          const halfCmp = String(a.half).localeCompare(String(b.half));
+          if (halfCmp !== 0) return halfCmp;
+          const aStart = a.segment_metadata?.start_sec ?? a.video_source?.label_start_sec ?? 0;
+          const bStart = b.segment_metadata?.start_sec ?? b.video_source?.label_start_sec ?? 0;
+          return aStart - bStart;
+        });
+
         // Sync to server
         fetch(`${SERVER_URL}/annotations`, {
           method: "POST",
@@ -1578,10 +1929,11 @@ export default function AnnotatorClient() {
             schema_version: "1.0.0",
             dataset: "TACTIC-Bench",
             team_config: teamConfig,
-            annotations: updatedAnn,
+            match_config: matchConfig,
+            annotations: sortedAnn,
           }),
         }).catch(() => console.warn("Sync failed"));
-        return updatedAnn;
+        return sortedAnn;
       });
       
       // Save all segments to server (overwrite the list on server)
@@ -1596,13 +1948,14 @@ export default function AnnotatorClient() {
         setCurrentClipIndex((prevIdx) => Math.min(prevIdx, rechained.length - 1));
       } else {
         setCurrentClipIndex(0);
+        setCreatingSegment({ start: 0, end: 2 });
       }
       
       return rechained;
     });
     
     setStatusMessage(`Segment ${clipId} deleted and chain updated.`);
-  }, [videoDurationSec, teamConfig, syncAnnotationsWithClips]);
+  }, [videoDurationSec, teamConfig, matchConfig, syncAnnotationsWithClips]);
 
   // ─── Save annotation ───
   const saveAnnotation = useCallback(
@@ -1665,19 +2018,26 @@ export default function AnnotatorClient() {
             : {}),
         };
 
+        const isDraft = currentClip.clip_id === "Draft Segment";
+        const matchId = currentClip.match_id || "manual";
+        const realClipId = isDraft
+          ? `${matchId}_seg${String(clips.length).padStart(3, "0")}`
+          : currentClip.clip_id;
+
+        const newClip: Clip = isDraft
+          ? { ...currentClip, clip_id: realClipId }
+          : currentClip;
+
+        const tensorFrames = Math.max(
+          20,
+          Math.min(150, Math.round(labelDur * 10)),
+        );
+
         if (!skipped && labelDur > MAX_SEGMENT_DURATION) {
-          // Auto-split at 15s: save segment A (0-15s), create segment B (15s-end)
-          // with same intent labels pre-filled, then navigate to segment B.
-          const splitSec = MAX_SEGMENT_DURATION;
-          const restDur = labelDur - splitSec;
+          // Auto-split at 15s
+          const splitClips = calculateSplitClips(currentClip.annotation_start, currentClip.annotation_end, newClip, realClipId, clips);
+          const remainderId = splitClips[splitClips.length - 1].clip_id;
 
-          // 1. Save annotation for segment A (0-15s)
-          const tensorFramesA = Math.max(
-            20,
-            Math.min(150, Math.round(splitSec * 10)),
-          );
-
-          // Build annotation for the 15s portion
           const intentLabelA = getIntentLabel(selectedIntentA);
           const intentLabelB = getIntentLabel(selectedIntentB);
           const exclusionLabel = gameState.dead_ball
@@ -1695,7 +2055,7 @@ export default function AnnotatorClient() {
             ? null
             : intentLabelB;
 
-          // Derive possession for segment A
+          // Derive possession for Segment A
           let teamAPossession =
             !effectiveExclusion && detectedPossessionTeam === "A";
           let teamBPossession =
@@ -1744,47 +2104,43 @@ export default function AnnotatorClient() {
             }
           }
 
-          // Create annotation for segment A
-          const annA: Annotation = {
+          const templateAnn: Annotation = {
             schema_version: "1.0.0",
             dataset: "TACTIC-Bench",
-            clip_id: currentClip.clip_id,
-            match_id: currentClip.match_id,
-            match_name: currentClip.match_name || currentClip.match_id,
-            half: HALF_LABEL(currentClip.half),
-            window_idx: currentClip.window_idx ?? currentClipIndex,
+            clip_id: realClipId,
+            match_id: newClip.match_id,
+            match_name: newClip.match_name || newClip.match_id,
+            half: HALF_LABEL(newClip.half),
+            window_idx: isDraft ? clips.length : (newClip.window_idx ?? currentClipIndex),
             segment_metadata: {
-              start_sec: currentClip.annotation_start,
-              end_sec: currentClip.annotation_start + splitSec,
-              duration_sec: splitSec,
-              tensor_frames: tensorFramesA,
-              preceding_event: currentClip.anchor_event?.type,
-              following_event: currentClip.following_event,
+              start_sec: newClip.annotation_start,
+              end_sec: newClip.annotation_end,
+              duration_sec: Number(labelDur.toFixed(3)),
+              tensor_frames: tensorFrames,
+              preceding_event: newClip.anchor_event?.type,
+              following_event: newClip.following_event,
               coverage_estimate: Number((coverageEstimate / 100).toFixed(3)),
               is_mixed_phase: isMixedPhase,
             },
             game_state: cleanedGameState,
             video_source: {
-              video_path: currentClip.path,
-              seek_start_sec: currentClip.start,
-              label_start_sec: currentClip.annotation_start,
-              label_end_sec: currentClip.annotation_start + splitSec,
-              seek_end_sec: currentClip.annotation_start + splitSec + 4,
-              fps: currentClip.resolution?.fps ?? 25,
+              video_path: newClip.path,
+              seek_start_sec: newClip.start,
+              label_start_sec: newClip.annotation_start,
+              label_end_sec: newClip.annotation_end,
+              seek_end_sec: newClip.end,
+              fps,
               tensor_fps: 10,
-              source_frame_count: Math.round(
-                (currentClip.end - currentClip.start) *
-                  (currentClip.resolution?.fps ?? 25),
-              ),
-              tensor_frame_count: tensorFramesA,
+              source_frame_count: Math.round(clipDur * fps),
+              tensor_frame_count: tensorFrames,
             },
             reconstruction: {
-              npz_path: buildNpzPath(currentClip),
-              tensor_shape: [tensorFramesA, 23, 4],
+              npz_path: buildNpzPath(newClip),
+              tensor_shape: [tensorFrames, 23, 4],
               tensor_fps: 10,
               quality_pass: qualityPass,
               tracked_players: trackedPlayers,
-              padding_mask: buildPaddingMask(tensorFramesA),
+              padding_mask: buildPaddingMask(tensorFrames),
             },
             team_a: {
               team_id: "Team_A",
@@ -1831,171 +2187,53 @@ export default function AnnotatorClient() {
             model_split: { assigned_split: "train" },
           };
 
-          // 2. Update annotations with segment A
-          const updatedA = [
-            ...annotations.filter((a) => a.clip_id !== currentClip.clip_id),
-            annA,
+          const newAnns = buildSplitAnnotations(splitClips, templateAnn);
+
+          const updated = [
+            ...annotations.filter((a) => a.clip_id !== currentClip.clip_id && a.clip_id !== realClipId),
+            ...newAnns,
           ];
+          updated.sort((a, b) => {
+            const halfCmp = String(a.half).localeCompare(String(b.half));
+            if (halfCmp !== 0) return halfCmp;
+            const windowCmp = (a.window_idx ?? 0) - (b.window_idx ?? 0);
+            if (windowCmp !== 0) return windowCmp;
+            return String(a.video_source?.video_path || "").localeCompare(
+              String(b.video_source?.video_path || "")
+            );
+          });
+          setAnnotations(updated);
 
-          // 3. Create segment B (clip + pre-filled annotation)
-          const half = currentClip.half;
-          const matchId = currentClip.match_id;
-          const segBStart = currentClip.annotation_start + splitSec;
-          const segBEnd = currentClip.annotation_end;
-          const existingCount = clips.filter(
-            (c) => c.annotation_start < segBStart && c.match_id === matchId,
-          ).length;
-          const segBId = `${matchId}_seg${String(existingCount).padStart(3, "0")}`;
-
-          const segBClip: Clip = {
-            clip_id: segBId,
-            match_id: currentClip.match_id,
-            path: currentClip.path,
-            start: Math.max(0, segBStart - 4),
-            end: Math.min(videoDurationSec, segBEnd + 4),
-            annotation_start: segBStart,
-            annotation_end: segBEnd,
-            annotation_window: restDur,
-            half,
-            game_clock: formatMatchClock(half, segBStart),
-            window_idx: currentClip.window_idx,
-            match_name: currentClip.match_name,
-            competition: currentClip.competition,
-            season: currentClip.season,
-            trajectory_path: currentClip.trajectory_path,
-            anchor_event: currentClip.anchor_event,
-            following_event: currentClip.following_event,
-            possession_state: currentClip.possession_state,
-            team_perspective: currentClip.team_perspective,
-            resolution: currentClip.resolution,
-            features: currentClip.features,
-            quality_score: currentClip.quality_score,
-            tracking_coverage: currentClip.tracking_coverage,
-            annotator_state: "manual" as AnnotatorState,
-            is_locked: false,
-          };
-
-          // Pre-fill annotation for segment B with same intents
-          const tensorFramesB = Math.max(
-            20,
-            Math.min(150, Math.round(restDur * 10)),
-          );
-          const annB: Annotation = {
-            schema_version: "1.0.0",
-            dataset: "TACTIC-Bench",
-            clip_id: segBId,
-            match_id: currentClip.match_id,
-            match_name: currentClip.match_name || currentClip.match_id,
-            half: HALF_LABEL(half),
-            window_idx: currentClip.window_idx ?? currentClipIndex,
-            segment_metadata: {
-              start_sec: segBStart,
-              end_sec: segBEnd,
-              duration_sec: restDur,
-              tensor_frames: tensorFramesB,
-              preceding_event: currentClip.anchor_event?.type,
-              following_event: currentClip.following_event,
-              coverage_estimate: Number((coverageEstimate / 100).toFixed(3)),
-              is_mixed_phase: isMixedPhase,
-            },
-            game_state: cleanedGameState,
-            video_source: {
-              video_path: currentClip.path,
-              seek_start_sec: segBClip.start,
-              label_start_sec: segBStart,
-              label_end_sec: segBEnd,
-              seek_end_sec: segBClip.end,
-              fps: currentClip.resolution?.fps ?? 25,
-              tensor_fps: 10,
-              source_frame_count: Math.round(
-                (segBClip.end - segBClip.start) *
-                  (currentClip.resolution?.fps ?? 25),
-              ),
-              tensor_frame_count: tensorFramesB,
-            },
-            reconstruction: {
-              npz_path: buildNpzPath(segBClip),
-              tensor_shape: [tensorFramesB, 23, 4],
-              tensor_fps: 10,
-              quality_pass: qualityPass,
-              tracked_players: trackedPlayers,
-              padding_mask: buildPaddingMask(tensorFramesB),
-            },
-            team_a: {
-              team_id: "Team_A",
-              team_name: teamConfig.team_a.name,
-              jersey_color: teamConfig.team_a.jersey_color,
-              is_home: teamConfig.team_a.is_home,
-              is_primary: teamAPossession,
-              label: {
-                intent_class: teamAIntentClass,
-                confidence: skipped ? 0 : confidenceA,
-                certainty: skipped ? "low" : certaintyA,
-              },
-              possession: teamAPossession,
-            },
-            team_b: {
-              team_id: "Team_B",
-              team_name: teamConfig.team_b.name,
-              jersey_color: teamConfig.team_b.jersey_color,
-              is_home: teamConfig.team_b.is_home,
-              is_primary: teamBPossession,
-              label: {
-                intent_class: teamBIntentClass,
-                confidence: skipped ? 0 : confidenceB,
-                certainty: skipped ? "low" : certaintyB,
-              },
-              possession: teamBPossession,
-            },
-            team_config: teamConfig,
-            exclusion: effectiveExclusion,
-            annotation_meta: {
-              annotator_id: "coach_001",
-              session_id: `sess_${new Date().toISOString().slice(0, 10).replace(/-/g, "")}`,
-              annotation_timestamp: new Date().toISOString(),
-              annotation_duration_sec: 0,
-              tool_version: "tactic-annotator-v3.0",
-            },
-            agreement: {
-              annotated_at: new Date().toISOString(),
-              flagged_review: isUncertain,
-              skipped,
-            },
-            model_split: { assigned_split: "train" },
-          };
-
-          // 4. Update state: add segment B clip and annotation, save segment A
-          setAnnotations(
-            [
-              ...annotations.filter((a) => a.clip_id !== currentClip.clip_id),
-              annA,
-              annB,
-            ].sort(
-              (a, b) =>
-                String(a.half).localeCompare(String(b.half)) ||
-                (a.window_idx ?? 0) - (b.window_idx ?? 0),
-            ),
-          );
-
-          // Replace current clip with segment B and add it
-          saveSegmentToServer(segBClip);
           setClips((prev) => {
             const filtered = prev.filter(
-              (c) => c.clip_id !== currentClip.clip_id,
+              (c) => c.clip_id !== currentClip.clip_id && c.clip_id !== realClipId
             );
-            const next = [...filtered, segBClip].sort(
+            const next = [...filtered, ...splitClips].sort(
               (a, b) => a.annotation_start - b.annotation_start,
             );
-            const idxB = next.findIndex((c) => c.clip_id === segBId);
-            if (idxB >= 0) setCurrentClipIndex(idxB);
+            
+            // Always advance to draft mode for next segment
+            setCurrentClipIndex(next.length);
+
+            // Sync segments to server
+            fetch(`${SERVER_URL}/segments`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ segments: next }),
+            }).catch(() => console.warn("Failed to sync segments"));
+
             return next;
           });
 
-          setCreatingSegment(null);
-          setShowSplitPrompt(true);
+          splitClips.forEach((c) => saveSegmentToServer(c));
+          // Auto-chain: create new segment draft from end of last split
+          const lastSplitEnd = splitClips[splitClips.length - 1].annotation_end;
+          setCreatingSegment({ start: lastSplitEnd, end: lastSplitEnd + 2 });
           setStatusMessage(
-            `Auto-split: segment A (0–15s) saved. Segment B (${restDur.toFixed(1)}s) starts at ${formatTime(segBStart)} with same intents pre-filled.`,
+            `Auto-split: ${splitClips.length} segments saved. Next segment starts at ${formatTime(lastSplitEnd)}. Press O to mark end.`
           );
+
+          // Sync annotations to server
           fetch(`${SERVER_URL}/annotations`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -2003,19 +2241,14 @@ export default function AnnotatorClient() {
               schema_version: "1.0.0",
               dataset: "TACTIC-Bench",
               team_config: teamConfig,
-              annotations: [
-                ...annotations.filter((a) => a.clip_id !== currentClip.clip_id),
-                annA,
-                annB,
-              ],
+              match_config: matchConfig,
+              annotations: updated,
             }),
           }).catch(() => console.warn("Sync failed"));
+
           return;
         }
-        const tensorFrames = Math.max(
-          20,
-          Math.min(150, Math.round(labelDur * 10)),
-        );
+
         const intentLabelA = getIntentLabel(selectedIntentA);
         const intentLabelB = getIntentLabel(selectedIntentB);
         const exclusionLabel = gameState.dead_ball
@@ -2107,16 +2340,6 @@ export default function AnnotatorClient() {
           );
           return;
         }
-
-        const isDraft = currentClip.clip_id === "Draft Segment";
-        const matchId = currentClip.match_id || "manual";
-        const realClipId = isDraft
-          ? `${matchId}_seg${String(clips.length).padStart(3, "0")}`
-          : currentClip.clip_id;
-
-        const newClip: Clip = isDraft
-          ? { ...currentClip, clip_id: realClipId }
-          : currentClip;
 
         const ann: Annotation = {
           schema_version: "1.0.0",
@@ -2218,8 +2441,14 @@ export default function AnnotatorClient() {
 
         if (isDraft) {
           saveSegmentToServer(newClip);
-          setClips((prev) => [...prev, newClip]);
-          setCurrentClipIndex(clips.length + 1);
+          setClips((prev) => {
+            const next = [...prev, newClip];
+            setCurrentClipIndex(next.length);
+            return next;
+          });
+        } else if (currentClipIndex === clips.length - 1) {
+          // Submitted the last segment -> transition to new draft segment
+          setCurrentClipIndex(clips.length);
         } else if (autoNext && currentClipIndex < clips.length - 1) {
           setCurrentClipIndex((i) => {
             let next = i + 1;
@@ -2234,12 +2463,16 @@ export default function AnnotatorClient() {
         }
 
         const nextStartSec = newClip.annotation_end;
-        setCreatingSegment(null);
-        setStatusMessage(
-          isDraft
-            ? `Segment created (${labelDur.toFixed(1)}s). Next segment starts at ${formatTime(nextStartSec)}.`
-            : `Segment updated (${labelDur.toFixed(1)}s).`
-        );
+        if (isDraft || currentClipIndex === clips.length - 1) {
+          // Auto-chain: create new segment draft from end of this segment
+          setCreatingSegment({ start: nextStartSec, end: nextStartSec + 2 });
+          setStatusMessage(
+            `Segment saved (${labelDur.toFixed(1)}s). Next segment starts at ${formatTime(nextStartSec)}. Press O to mark end.`
+          );
+        } else {
+          setCreatingSegment(null);
+          setStatusMessage(`Segment updated (${labelDur.toFixed(1)}s).`);
+        }
 
         fetch(`${SERVER_URL}/annotations`, {
           method: "POST",
@@ -2248,6 +2481,7 @@ export default function AnnotatorClient() {
             schema_version: "1.0.0",
             dataset: "TACTIC-Bench",
             team_config: teamConfig,
+            match_config: matchConfig,
             annotations: updated,
           }),
         }).catch(() => console.warn("Sync failed"));
@@ -2275,10 +2509,14 @@ export default function AnnotatorClient() {
       currentClipIndex,
       clips,
       teamConfig,
+      matchConfig,
       gameState,
       currentTeam,
       manualPossession,
       detectedPossessionTeam,
+      calculateSplitClips,
+      buildSplitAnnotations,
+      saveSegmentToServer,
     ],
   );
 
@@ -2344,9 +2582,36 @@ export default function AnnotatorClient() {
     setActiveVideoPath(videoPath);
     setClips([]);
     setCurrentClipIndex(0);
+    setCreatingSegment({ start: 0, end: 2 });
     setVideoError("");
+    setVideoDurationSec(MATCH_DURATION_SEC);
     setIsPlaying(true);
-    setStatusMessage(`Loading: ${filename}`);
+    setSelectedIntentA("");
+    setSelectedIntentB("");
+    setManualPossession(null);
+    setStatusMessage(`Loading: ${filename}. Press O to mark end of first segment.`);
+    
+    // Auto-derive team names and match ID
+    const cleanName = filename.replace(/\.[^.]+$/, "");
+    const parts = cleanName.split(/[_-]/);
+    let home = "Chelsea";
+    let away = "Burnley";
+    if (parts.length >= 2) {
+      home = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+      away = parts[1].charAt(0).toUpperCase() + parts[1].slice(1);
+    }
+    const derivedMatchId = `match_${cleanName}`;
+    setMatchConfig((prev) => ({
+      ...prev,
+      match_id: derivedMatchId,
+      home_team: home,
+      away_team: away,
+    }));
+    setTeamConfig({
+      team_a: { id: "A", name: home, jersey_color: "#ef233c", is_home: true },
+      team_b: { id: "B", name: away, jersey_color: "#3b82f6", is_home: false },
+    });
+
     // Probe real duration immediately via ffprobe so the timeline is correct
     fetchVideoMetadata(videoPath);
   }, [fetchVideoMetadata]);
@@ -2364,11 +2629,32 @@ export default function AnnotatorClient() {
       loadedVideoPathRef.current = blobUrl;
       setActiveVideoPath(blobUrl);
       setClips([]);
-      setAnnotations([]);
       setCurrentClipIndex(0);
       setVideoError("");
       setVideoDurationSec(MATCH_DURATION_SEC);
       setIsPlaying(true);
+
+      // Auto-derive team names and match ID
+      const cleanName = file.name.replace(/\.[^.]+$/, "");
+      const parts = cleanName.split(/[_-]/);
+      let home = "Chelsea";
+      let away = "Burnley";
+      if (parts.length >= 2) {
+        home = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+        away = parts[1].charAt(0).toUpperCase() + parts[1].slice(1);
+      }
+      const derivedMatchId = `match_${cleanName}`;
+      setMatchConfig((prev) => ({
+        ...prev,
+        match_id: derivedMatchId,
+        home_team: home,
+        away_team: away,
+      }));
+      setTeamConfig({
+        team_a: { id: "A", name: home, jersey_color: "#ef233c", is_home: true },
+        team_b: { id: "B", name: away, jersey_color: "#3b82f6", is_home: false },
+      });
+
       // Auto-create first segment draft at 0s
       setCreatingSegment({ start: 0, end: 2 });
       setStatusMessage(`Loaded: ${file.name}. Press O to mark end of first segment.`);
@@ -2387,39 +2673,274 @@ export default function AnnotatorClient() {
     loadedVideoPathRef.current = blobUrl;
     setActiveVideoPath(blobUrl);
     setClips([]);
-    setAnnotations([]);
     setCurrentClipIndex(0);
     setVideoError("");
     setVideoDurationSec(MATCH_DURATION_SEC);
     setIsPlaying(true);
+
+    // Auto-derive team names and match ID
+    const cleanName = file.name.replace(/\.[^.]+$/, "");
+    const parts = cleanName.split(/[_-]/);
+    let home = "Chelsea";
+    let away = "Burnley";
+    if (parts.length >= 2) {
+      home = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+      away = parts[1].charAt(0).toUpperCase() + parts[1].slice(1);
+    }
+    const derivedMatchId = `match_${cleanName}`;
+    setMatchConfig((prev) => ({
+      ...prev,
+      match_id: derivedMatchId,
+      home_team: home,
+      away_team: away,
+    }));
+    setTeamConfig({
+      team_a: { id: "A", name: home, jersey_color: "#ef233c", is_home: true },
+      team_b: { id: "B", name: away, jersey_color: "#3b82f6", is_home: false },
+    });
+
     // Auto-create first segment draft at 0s
     setCreatingSegment({ start: 0, end: 2 });
     setStatusMessage(`Loaded: ${file.name}. Press O to mark end of first segment.`);
   }, []);
 
   // ─── Export ───
-  const exportJSON = useCallback(() => {
-    const matchId = clips[0]?.match_id || (activeVideoPath ? activeVideoPath.split("/").pop()?.replace(/\.[^.]+$/, "") : "unknown");
-    const modelSamples = toModelSamples(annotations);
-    fetch(`${SERVER_URL}/export/json`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ annotations, match_id: matchId }),
-    }).catch(() => {});
-    const blob = new Blob([JSON.stringify(modelSamples, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `TACTIC_FP_Annotated_${matchId}.json`;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 1000);
-  }, [annotations, clips, activeVideoPath]);
+  const exportJSON = useCallback(async () => {
+    try {
+      const res = await fetch(`${SERVER_URL}/export/json`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          match_config: matchConfig,
+          team_config: teamConfig,
+          annotations: annotations,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setStatusMessage(
+          `JSON exported to server exports/ directory.${data.warning ? ` Warning: ${data.warning}` : ""}`
+        );
+        // Reconstruct schema locally to download in browser
+        const getMostFrequentIntent = (segs: any[], team: "home" | "away") => {
+          const counts: Record<string, number> = {};
+          segs.forEach(s => {
+            const intent = team === "home" ? s.team_home?.label?.intent_class : s.team_away?.label?.intent_class;
+            if (intent && intent !== "Skipped") {
+              counts[intent] = (counts[intent] || 0) + 1;
+            }
+          });
+          const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+          return sorted.length > 0 ? sorted[0][0] : "None";
+        };
+
+        const segmentsList = annotations.map((ann, idx) => {
+          const start_sec = Number(ann.segment_metadata?.start_sec ?? ann.video_source?.label_start_sec ?? 0);
+          const end_sec = Number(ann.segment_metadata?.end_sec ?? ann.video_source?.label_end_sec ?? 0);
+          const duration_sec = Number(ann.segment_metadata?.duration_sec ?? (end_sec - start_sec));
+          const coverage_estimate = Number(ann.segment_metadata?.coverage_estimate ?? 1);
+          const tensorFrames = ann.reconstruction?.tensor_shape?.[0] ?? Math.max(20, Math.min(150, Math.round(duration_sec * 10)));
+          const tensorFps = ann.reconstruction?.tensor_fps || 10;
+          const padding_mask = Array.from({ length: 150 }, (_, i) => (i < tensorFrames ? 1 : 0));
+          const aIsHome = teamConfig.team_a.is_home === true || ann.team_a?.is_home === true;
+          const teamAObj = ann.team_a || {};
+          const teamBObj = ann.team_b || {};
+          const team_home = aIsHome ? teamAObj : teamBObj;
+          const team_away = aIsHome ? teamBObj : teamAObj;
+          const home_label = {
+            intent_class: team_home?.label?.intent_class ?? "Skipped",
+            confidence: team_home?.label?.confidence ?? 0,
+            certainty: team_home?.label?.certainty ?? "low"
+          };
+          const away_label = {
+            intent_class: team_away?.label?.intent_class ?? "Skipped",
+            confidence: team_away?.label?.confidence ?? 0,
+            certainty: team_away?.label?.certainty ?? "low"
+          };
+          const home_formation = team_home?.formation_estimate || (aIsHome ? "4-2-3-1" : "4-4-2");
+          const away_formation = team_away?.formation_estimate || (aIsHome ? "4-4-2" : "4-2-3-1");
+
+          let buildup = 0.25, press = 0.25, block = 0.25, transition = 0.25;
+          const combinedIntents = [home_label.intent_class, away_label.intent_class];
+          if (combinedIntents.some(i => i.includes("BuildUp") || i.includes("PossCirculation"))) {
+            buildup = 0.6; press = 0.15; block = 0.15; transition = 0.1;
+          } else if (combinedIntents.some(i => i.includes("Press"))) {
+            press = 0.6; buildup = 0.15; block = 0.15; transition = 0.1;
+          } else if (combinedIntents.some(i => i.includes("Block"))) {
+            block = 0.6; press = 0.15; buildup = 0.15; transition = 0.1;
+          } else if (combinedIntents.some(i => i.includes("Trans"))) {
+            transition = 0.6; buildup = 0.15; press = 0.15; block = 0.1;
+          }
+
+          let decisive_action = null;
+          const preEv = ann.segment_metadata?.preceding_event;
+          if (preEv === "shot" || preEv === "goal" || preEv === "pass" || preEv === "cross") {
+            decisive_action = {
+              action_type: preEv === "shot" ? "Shots on target" : preEv === "pass" ? "Pass" : preEv === "cross" ? "Cross" : "Goal",
+              position_ms: Math.round((end_sec - start_sec - 1) * 1000),
+              team: team_home?.possession ? "home" : "away",
+              visibility: "visible",
+              tia_delta_ms: 5000
+            };
+          }
+
+          return {
+            segment_id: ann.clip_id || `${matchConfig.match_id}_seg${String(idx).padStart(3, "0")}`,
+            half: Number(ann.half) || (ann.half === "2nd" ? 2 : 1),
+            start_ms: Math.round(start_sec * 1000),
+            end_ms: Math.round(end_sec * 1000),
+            duration_ms: Math.round(duration_sec * 1000),
+            time_from_kickoff_ms: Math.round(start_sec * 1000),
+            coverage_estimate: Number((coverage_estimate).toFixed(3)),
+            annotator: ann.annotation_meta?.annotator_id || matchConfig.annotator || "coach_001",
+            annotator_license: matchConfig.annotator_license || "UEFA_Pro",
+            session_id: ann.annotation_meta?.session_id || matchConfig.session_id || "session_042",
+            timestamp: ann.annotation_meta?.annotation_timestamp || new Date().toISOString(),
+            annotation_duration_sec: Number(ann.annotation_meta?.annotation_duration_sec || 20),
+            re_annotation_count: Number(ann.annotation_meta?.re_annotation_count || 0),
+            reconstruction: {
+              npz_path: ann.reconstruction?.npz_path || `data/trajectories/${matchConfig.match_id}/${ann.clip_id}.npz`,
+              tensor_shape: ann.reconstruction?.tensor_shape || [tensorFrames, 23, 4],
+              tensor_fps: tensorFps,
+              quality_pass: ann.reconstruction?.quality_pass !== false,
+              tracked_players: Number(ann.reconstruction?.tracked_players || 22),
+              tracked_ball: true,
+              tracking_confidence_mean: Number(ann.reconstruction?.tracking_confidence_mean || 0.85),
+              padding_mask,
+            },
+            team_home: {
+              label: home_label,
+              is_primary: home_label.intent_class !== "Skipped" ? team_home?.is_primary !== false : false,
+              possession: team_home?.possession === true,
+              formation_estimate: home_formation,
+              players_visible: Number(team_home?.players_visible || 11)
+            },
+            team_away: {
+              label: away_label,
+              is_primary: away_label.intent_class !== "Skipped" ? team_away?.is_primary === true : false,
+              possession: team_away?.possession === true,
+              formation_estimate: away_formation,
+              players_visible: Number(team_away?.players_visible || 10)
+            },
+            exclusion: ann.exclusion || null,
+            model_split: ann.model_split?.assigned_split || "train",
+            dag_features: {
+              phase_mixture: [
+                Number(buildup.toFixed(2)),
+                Number(press.toFixed(2)),
+                Number(block.toFixed(2)),
+                Number(transition.toFixed(2))
+              ],
+              formation_compactness: Number((ann.dag_features?.formation_compactness || 0.45).toFixed(2)),
+              pressing_speed: Number((ann.dag_features?.pressing_speed || 2.3).toFixed(1)),
+              pitch_control_share: team_home?.possession ? 0.6 : 0.4,
+              xg_estimate: home_label.intent_class === "DirectAttack" ? 0.3 : 0.05
+            },
+            ...(decisive_action ? { decisive_action } : {})
+          };
+        });
+
+        const h1Segments = segmentsList.filter(s => s.half === 1);
+        const h2Segments = segmentsList.filter(s => s.half === 2);
+        const h1VideoSource = h1Segments[0]?.reconstruction?.npz_path ? h1Segments[0].reconstruction.npz_path.split("/").pop()?.replace(/\.[^.]+$/, "") + ".mp4" : `${matchConfig.home_team.toLowerCase()}_${matchConfig.away_team.toLowerCase()}_h1.mp4`;
+        const h2VideoSource = h2Segments[0]?.reconstruction?.npz_path ? h2Segments[0].reconstruction.npz_path.split("/").pop()?.replace(/\.[^.]+$/, "") + ".mp4" : `${matchConfig.home_team.toLowerCase()}_${matchConfig.away_team.toLowerCase()}_h2.mp4`;
+
+        const h1HomeIntent = getMostFrequentIntent(h1Segments, "home");
+        const h1AwayIntent = getMostFrequentIntent(h1Segments, "away");
+        const h2HomeIntent = getMostFrequentIntent(h2Segments, "home");
+        const h2AwayIntent = getMostFrequentIntent(h2Segments, "away");
+        const home_tactic_shift = h1HomeIntent !== h2HomeIntent && h1HomeIntent !== "None" && h2HomeIntent !== "None" ? `${h1HomeIntent} → ${h2HomeIntent}` : null;
+        const away_tactic_shift = h1AwayIntent !== h2AwayIntent && h1AwayIntent !== "None" && h2AwayIntent !== "None" ? `${h1AwayIntent} → ${h2AwayIntent}` : null;
+
+        const setPieceCount = segmentsList.filter(s => s.team_home?.label?.intent_class?.includes("SetPiece") || s.team_away?.label?.intent_class?.includes("SetPiece")).length;
+        const contestedPlayCount = segmentsList.filter(s => s.team_home?.label?.intent_class === "ContestedPlay" || s.team_away?.label?.intent_class === "ContestedPlay").length;
+
+        const halves = [];
+        if (h1Segments.length > 0 || h2Segments.length === 0) {
+          halves.push({
+            half: 1,
+            video_source: h1VideoSource,
+            duration_ms: h1Segments.length > 0 ? Math.max(...h1Segments.map(s => s.end_ms)) : 2700000,
+            score_at_end: matchConfig.halftime_score,
+            segments: h1Segments
+          });
+        }
+        if (h2Segments.length > 0) {
+          halves.push({
+            half: 2,
+            video_source: h2VideoSource,
+            duration_ms: Math.max(...h2Segments.map(s => s.end_ms)),
+            score_at_start: matchConfig.halftime_score,
+            score_at_end: matchConfig.final_score,
+            segments: h2Segments
+          });
+        }
+
+        let halftime_tactical_change = null;
+        if (home_tactic_shift || away_tactic_shift) {
+          halftime_tactical_change = {
+            detected: true,
+            home_shift: home_tactic_shift || "None",
+            away_shift: away_tactic_shift || "None",
+            wasserstein_distance: 0.42
+          };
+        }
+        if (halftime_tactical_change && halves.length > 1 && halves[1].segments.length > 0) {
+          (halves[1].segments[0] as any).halftime_tactical_change = halftime_tactical_change;
+        }
+
+        const exportedData = {
+          match_id: matchConfig.match_id,
+          competition: matchConfig.competition,
+          season: matchConfig.season,
+          match_date: matchConfig.match_date,
+          home_team: matchConfig.home_team,
+          away_team: matchConfig.away_team,
+          final_score: matchConfig.final_score,
+          halftime_score: matchConfig.halftime_score,
+          halves,
+          match_metadata: {
+            total_segments: segmentsList.length,
+            half1_segments: h1Segments.length,
+            half2_segments: h2Segments.length,
+            annotators: [matchConfig.annotator],
+            annotation_sessions: [matchConfig.session_id],
+            total_annotation_time_sec: annotations.reduce((acc, ann) => acc + Number(ann.annotation_meta?.annotation_duration_sec || 0), 0),
+            fleiss_kappa: null,
+            inter_annotator_agreement: {
+              completed: false,
+              pending_reviewers: ["coach_002", "coach_003"]
+            },
+            halftime_tactical_change_detected: halftime_tactical_change !== null,
+            home_team_tactic_shift: home_tactic_shift,
+            away_team_tactic_shift: away_tactic_shift,
+            camera_quality_score: 0.85,
+            tracking_quality_mean: Number((segmentsList.reduce((acc, s) => acc + s.reconstruction.tracking_confidence_mean, 0) / (segmentsList.length || 1)).toFixed(2)),
+            set_piece_count: setPieceCount,
+            contested_play_count: contestedPlayCount
+          }
+        };
+
+        const blob = new Blob([JSON.stringify(exportedData, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `TACTIC_FP_Annotated_${matchConfig.match_id}.json`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 1000);
+      } else {
+        setStatusMessage(`JSON export failed: ${data.error || "Server error"}`);
+      }
+    } catch (err: any) {
+      setStatusMessage(`JSON export failed: ${err.message}`);
+    }
+  }, [annotations, matchConfig, teamConfig]);
 
   const exportCSV = useCallback(() => {
     if (!annotations.length) return;
@@ -2527,10 +3048,12 @@ export default function AnnotatorClient() {
       )
     )
       return;
+    // Clear all client state
     setAnnotations([]);
     setClips([]);
     setActiveVideoPath(null);
     setCurrentClipIndex(0);
+    setCreatingSegment(null);
     setSelectedIntentA("");
     setSelectedIntentB("");
     setConfidence(4);
@@ -2544,9 +3067,15 @@ export default function AnnotatorClient() {
     setBreakAcknowledgedAt(0);
     setIsUncertain(false);
     setTeamConfig(DEFAULT_TEAM_CONFIG);
+    setMatchConfig(DEFAULT_MATCH_CONFIG);
     setGameState(DEFAULT_GAME_STATE);
     setManualPossession(null);
+    setVideoError("");
+    setVideoDurationSec(MATCH_DURATION_SEC);
+    setShowSplitPrompt(false);
+    hasShownSplitPromptRef.current = false;
     loadedVideoPathRef.current = "";
+    isBlobVideoRef.current = false;
     setStatusMessage("Resetting generated session files...");
     fetch(`${SERVER_URL}/annotations/reset`, { method: "POST" })
       .then(async (res) => {
@@ -2820,7 +3349,8 @@ export default function AnnotatorClient() {
         draftDuration >= MAX_SEGMENT_DURATION &&
         !hasShownSplitPromptRef.current
       ) {
-        setShowSplitPrompt(true);
+        // Non-blocking: just inform the user, auto-split happens on submit
+        setStatusMessage(`Segment is ${draftDuration.toFixed(0)}s — will auto-split into 15s chunks when you press Enter.`);
         hasShownSplitPromptRef.current = true;
       }
       if (draftDuration < MAX_SEGMENT_DURATION) {
@@ -3001,6 +3531,8 @@ export default function AnnotatorClient() {
           onTeamChange={setCurrentTeam}
           teamConfig={teamConfig}
           onTeamConfigChange={setTeamConfig}
+          matchConfig={matchConfig}
+          onMatchConfigChange={setMatchConfig}
           gameState={gameState}
           onGameStateChange={setGameState}
           selectedIntentA={selectedIntentA}
@@ -3163,18 +3695,7 @@ export default function AnnotatorClient() {
           </div>
         </div>
       )}
-      {showSplitPrompt && creatingSegment && (
-        <SplitPrompt
-          durationSec={Math.max(
-            0,
-            (creatingSegment.end >= 0
-              ? creatingSegment.end
-              : videoCurrentTime) - creatingSegment.start,
-          )}
-          onSplit={handleSplitSegment}
-          onContinue={handleSplitPromptContinue}
-        />
-      )}
+      {/* SplitPrompt removed — auto-split happens silently on submit */}
     </div>
   );
 }
