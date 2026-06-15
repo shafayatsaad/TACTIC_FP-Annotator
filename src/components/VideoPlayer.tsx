@@ -374,7 +374,7 @@ export default function VideoPlayer(props: Props) {
                 <div className="w-12 h-12 rounded-full border-[3px] border-white/15 border-t-white/80 animate-spin" />
               </div>
             )}
-            {videoError && (
+            {(videoError || isConverting) && (
               <div className="absolute top-12 left-3 right-3 z-10 flex items-start justify-between">
                 <div
                   className={`px-3 py-2 rounded-lg border max-w-sm backdrop-blur w-full ${isConverting ? "bg-indigo-900/80 border-indigo-500/30" : "bg-rose-900/80 border-rose-500/30"}`}
@@ -382,7 +382,7 @@ export default function VideoPlayer(props: Props) {
                   <p
                     className={`text-xs ${isConverting ? "text-indigo-100" : "text-rose-100"}`}
                   >
-                    {videoError}
+                    {isConverting ? (videoError || "Preparing browser-ready MP4… starting conversion.") : videoError}
                   </p>
                   {isConverting && (
                     <div className="mt-2">
