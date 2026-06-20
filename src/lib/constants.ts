@@ -236,6 +236,12 @@ export interface Clip {
   algorithm_proposal?: AlgorithmProposal;
   annotator_state?: AnnotatorState;
   is_locked?: boolean;
+  reconstruction?: {
+    npz_path: string;
+    tensor_fps?: number;
+    quality_pass?: boolean;
+    tracked_players?: number;
+  };
 }
 
 export interface TeamConfig {
@@ -340,6 +346,25 @@ export function makeUniqueClipIds(clips: Clip[]): Clip[] {
     used.add(uniqueId);
     return { ...clip, clip_id: uniqueId };
   });
+}
+
+export function generateNpzPath(matchId: string, clipId: string): string {
+  // Sanitize for filesystem safety
+  const safeMatch = matchId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const safeClip = clipId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return `data/trajectories/${safeMatch}/${safeClip}.npz`;
+}
+
+export function generateClipId(
+  matchId: string,
+  half: number,
+  startSec: number,
+  suffix?: string
+): string {
+  const base = `${matchId}_h${half}_${Math.floor(startSec * 10)
+    .toString()
+    .padStart(5, "0")}`;
+  return suffix ? `${base}_${suffix}` : base;
 }
 
 export interface Annotation {
