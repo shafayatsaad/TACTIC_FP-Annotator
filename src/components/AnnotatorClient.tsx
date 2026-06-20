@@ -524,29 +524,7 @@ export default function AnnotatorClient() {
     });
   }, [saveSegmentToServer, teamConfig, matchConfig]);
 
-  const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-  const generateUniqueClipId = useCallback((tempClips: Clip[], matchId: string): string => {
-    const prefix = `${matchId}_seg`;
-    let maxNum = -1;
-    const regex = new RegExp(`^${escapeRegExp(prefix)}(\\d+)$`);
-    tempClips.forEach((c) => {
-      const m = c.clip_id.match(regex);
-      if (m) {
-        const num = parseInt(m[1], 10);
-        if (num > maxNum) maxNum = num;
-      }
-    });
-    const nextNum = maxNum >= 0 ? maxNum + 1 : tempClips.length;
-    let num = nextNum;
-    while (true) {
-      const candidate = `${prefix}${String(num).padStart(3, "0")}`;
-      if (!tempClips.some((c) => c.clip_id === candidate)) {
-        return candidate;
-      }
-      num++;
-    }
-  }, []);
 
   const copyAnnotationWithNewTimes = useCallback((ann: Annotation, clip: Clip): Annotation => {
     const duration = clip.annotation_end - clip.annotation_start;
@@ -579,8 +557,6 @@ export default function AnnotatorClient() {
       }
     };
   }, []);
-
-  const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   const createSegmentsFromBoundary = useCallback((
     matchId: string,
@@ -615,6 +591,7 @@ export default function AnnotatorClient() {
         ...baseClip,
         clip_id: clipId,
         match_id: matchId,
+        path: baseClip.path || "",
         half,
         start: Math.max(0, currentStart - 4),
         end: Math.min(videoDurationSec, chunkEnd + 4),
