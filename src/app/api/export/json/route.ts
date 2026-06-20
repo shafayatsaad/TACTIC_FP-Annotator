@@ -109,21 +109,6 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
     const home_formation = team_home?.formation_estimate || (aIsHome ? "4-2-3-1" : "4-4-2");
     const away_formation = team_away?.formation_estimate || (aIsHome ? "4-4-2" : "4-2-3-1");
 
-    // Phase mixture estimation
-    let buildup = 0.25, press = 0.25, block = 0.25, transition = 0.25;
-    const combinedIntents = [home_label.intent_class, away_label.intent_class].filter(
-      (i): i is string => typeof i === "string"
-    );
-    if (combinedIntents.some(i => i.includes("BuildUp") || i.includes("PossCirculation"))) {
-      buildup = 0.6; press = 0.15; block = 0.15; transition = 0.1;
-    } else if (combinedIntents.some(i => i.includes("Press"))) {
-      press = 0.6; buildup = 0.15; block = 0.15; transition = 0.1;
-    } else if (combinedIntents.some(i => i.includes("Block"))) {
-      block = 0.6; press = 0.15; buildup = 0.15; transition = 0.1;
-    } else if (combinedIntents.some(i => i.includes("Trans"))) {
-      transition = 0.6; buildup = 0.15; press = 0.15; block = 0.1;
-    }
-
     // decisive action mapping
     let decisive_action = null;
     const preEv = ann.segment_metadata?.preceding_event;
@@ -179,18 +164,6 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
       },
       exclusion: ann.exclusion || null,
       model_split: assignedSplit,
-      dag_features: isExclusion ? null : {
-        phase_mixture: [
-          Number(buildup.toFixed(2)),
-          Number(press.toFixed(2)),
-          Number(block.toFixed(2)),
-          Number(transition.toFixed(2))
-        ],
-        formation_compactness: Number((ann.dag_features?.formation_compactness || 0.45).toFixed(2)),
-        pressing_speed: Number((ann.dag_features?.pressing_speed || 2.3).toFixed(1)),
-        pitch_control_share: team_home?.possession ? 0.6 : 0.4,
-        xg_estimate: home_label.intent_class === "DirectAttack" ? 0.3 : 0.05
-      },
       ...(decisive_action ? { decisive_action } : {})
     };
   });
