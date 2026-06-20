@@ -107,12 +107,15 @@ export const DEFENSE_INTENTS = [
   "SetPieceDefend",
   "DefensiveTrans",
 ];
-export const EXCLUSION_INTENTS = ["DeadBall", "ContestedPlay"];
+export const EXCLUSION_INTENTS = ["DeadBall", "ContestedPlay"] as const;
 export const SET_PIECE_INTENTS = ["SetPieceAttack", "SetPieceDefend"];
 
-export function isExclusionIntent(label: string): boolean {
-  return EXCLUSION_INTENTS.includes(label);
+export function isExclusionIntent(label: string | null): boolean {
+  if (!label) return false;
+  return EXCLUSION_INTENTS.includes(label as any);
 }
+
+export type ModelSplit = "train" | "val" | "test" | "excluded";
 export function isAttackIntent(label: string): boolean {
   return ATTACK_INTENTS.includes(label);
 }
