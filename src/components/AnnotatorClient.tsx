@@ -573,76 +573,71 @@ export default function AnnotatorClient() {
       },
       reconstruction: {
         ...ann.reconstruction,
+        npz_path: clip.reconstruction?.npz_path || generateNpzPath(clip.match_id, clip.clip_id),
         tensor_shape: [tensorFrames, 23, 4],
         padding_mask: buildPaddingMask(tensorFrames),
       }
     };
   }, []);
 
-  const calculateSplitClips = useCallback((
-    start: number,
-    end: number,
-    templateClip: Clip,
-    realClipId: string,
-    existingClips: Clip[]
+  const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  const createSegmentsFromBoundary = useCallback((
+    matchId: string,
+    half: number,
+    startSec: number,
+    endSec: number,
+    baseClip: Partial<Clip>
   ): Clip[] => {
-    const matchId = templateClip.match_id || "manual";
-    const path = templateClip.path;
-    const half = templateClip.half ?? 1;
-
-    let currentStart = start;
-    const splitClips: Clip[] = [];
-    let isFirst = true;
-    let tempClips = [...existingClips];
-
-    while (end - currentStart > 15) {
-      const segmentEnd = currentStart + 15;
-      const id = isFirst ? realClipId : generateUniqueClipId(tempClips, matchId);
-
-      const c: Clip = {
-        ...templateClip,
-        clip_id: id,
-        match_id: matchId,
-        path,
-        start: Math.max(0, currentStart - 4),
-        end: Math.min(videoDurationSec, segmentEnd + 4),
-        annotation_start: currentStart,
-        annotation_end: segmentEnd,
-        annotation_window: 15,
-        half,
-        game_clock: formatMatchClock(half, currentStart),
-        annotator_state: isFirst ? templateClip.annotator_state : "manual",
-        is_locked: false,
-      };
-      splitClips.push(c);
-      if (id !== templateClip.clip_id) {
-        tempClips.push(c);
+    const totalDuration = endSec - startSec;
+    const chunks: Clip[] = [];
+    
+    let currentStart = startSec;
+    let partIdx = 1;
+    
+    while (currentStart < endSec) {
+      const chunkEnd = Math.min(currentStart + MAX_SEGMENT_DURATION, endSec);
+      const chunkDuration = chunkEnd - currentStart;
+      
+      if (chunkDuration < 2.0 && chunks.length > 0) {
+        const prev = chunks[chunks.length - 1];
+        prev.annotation_end = chunkEnd;
+        prev.end = Math.min(videoDurationSec, chunkEnd + 4);
+        prev.annotation_window = prev.annotation_end - prev.annotation_start;
+        break;
       }
-      isFirst = false;
-      currentStart = segmentEnd;
+      
+      const clipId = generateClipId(matchId, half, currentStart, 
+        totalDuration > MAX_SEGMENT_DURATION ? `p${partIdx}` : undefined
+      );
+      
+      const chunk: Clip = {
+        ...baseClip,
+        clip_id: clipId,
+        match_id: matchId,
+        half,
+        start: Math.max(0, currentStart - 4),
+        end: Math.min(videoDurationSec, chunkEnd + 4),
+        annotation_start: currentStart,
+        annotation_end: chunkEnd,
+        annotation_window: chunkDuration,
+        game_clock: formatMatchClock(half, currentStart),
+        trajectory_path: generateNpzPath(matchId, clipId),
+        reconstruction: {
+          npz_path: generateNpzPath(matchId, clipId),
+          tensor_fps: 10,
+          quality_pass: true,
+          tracked_players: 22,
+        },
+      };
+      
+      chunks.push(chunk);
+      currentStart = chunkEnd;
+      partIdx++;
     }
-
-    // Remainder
-    const remainderId = generateUniqueClipId(tempClips, matchId);
-    const remainderClip: Clip = {
-      ...templateClip,
-      clip_id: remainderId,
-      match_id: matchId,
-      path,
-      start: Math.max(0, currentStart - 4),
-      end: Math.min(videoDurationSec, end + 4),
-      annotation_start: currentStart,
-      annotation_end: end,
-      annotation_window: end - currentStart,
-      half,
-      game_clock: formatMatchClock(half, currentStart),
-      annotator_state: "manual",
-      is_locked: false,
-    };
-    splitClips.push(remainderClip);
-
-    return splitClips;
-  }, [videoDurationSec, generateUniqueClipId]);
+    
+    return chunks;
+  }, [videoDurationSec]);
 
   const buildSplitAnnotations = useCallback((
     splitClips: Clip[],
@@ -693,8 +688,7 @@ export default function AnnotatorClient() {
         annotator_state: "manual",
         is_locked: false,
       };
-      const realClipId = generateUniqueClipId(clips, matchId);
-      const splitClips = calculateSplitClips(start, end, templateClip, realClipId, clips);
+      const splitClips = createSegmentsFromBoundary(matchId, half, start, end, templateClip);
 
       setClips((prev) => {
         const next = [...prev, ...splitClips].sort(
@@ -721,7 +715,7 @@ export default function AnnotatorClient() {
     }
 
     // Duration <= 15
-    const id = generateUniqueClipId(clips, matchId);
+    const id = generateClipId(matchId, half, start);
     const newClip: Clip = {
       clip_id: id,
       match_id: matchId,
@@ -778,8 +772,7 @@ export default function AnnotatorClient() {
     clips,
     matchConfig,
     activeVideoPath,
-    calculateSplitClips,
-    generateUniqueClipId,
+    createSegmentsFromBoundary,
   ]);
 
   // Wrappers used by VideoPlayer (no-arg) so the player stays simple.
@@ -834,7 +827,7 @@ export default function AnnotatorClient() {
       const half = lastClip?.half ?? 1;
 
       // Always create single segment — auto-split happens at submit time (Enter)
-      const id = generateUniqueClipId(clips, matchId);
+      const id = generateClipId(matchId, half, start);
       const newClip: Clip = {
         clip_id: id,
         match_id: matchId,
@@ -895,8 +888,7 @@ export default function AnnotatorClient() {
     videoDurationSec,
     saveSegmentToServer,
     currentClip,
-    calculateSplitClips,
-    generateUniqueClipId,
+    createSegmentsFromBoundary,
   ]);
 
   // New-segment workflow callbacks, passed to VideoPlayer.
@@ -1768,7 +1760,7 @@ export default function AnnotatorClient() {
       }
       if (duration > MAX_SEGMENT_DURATION) {
         const matchId = currentClip.match_id || "manual";
-        const splitClips = calculateSplitClips(start, end, currentClip, currentClip.clip_id, clips);
+        const splitClips = createSegmentsFromBoundary(matchId, currentClip.half ?? 1, start, end, currentClip);
         const remainderId = splitClips[splitClips.length - 1].clip_id;
 
         // Update annotations state and sync to server
@@ -1921,7 +1913,7 @@ export default function AnnotatorClient() {
       teamConfig,
       matchConfig,
       syncAnnotationsWithClips,
-      calculateSplitClips,
+      createSegmentsFromBoundary,
       buildSplitAnnotations,
       clips,
     ]
@@ -2112,7 +2104,7 @@ export default function AnnotatorClient() {
 
         if (!skipped && labelDur > MAX_SEGMENT_DURATION) {
           // Auto-split at 15s
-          const splitClips = calculateSplitClips(currentClip.annotation_start, currentClip.annotation_end, newClip, realClipId, clips);
+          const splitClips = createSegmentsFromBoundary(newClip.match_id, newClip.half, newClip.annotation_start, newClip.annotation_end, newClip);
           const remainderId = splitClips[splitClips.length - 1].clip_id;
 
           const intentLabelA = getIntentLabel(selectedIntentA);
@@ -2590,9 +2582,7 @@ export default function AnnotatorClient() {
       gameState,
       currentTeam,
       manualPossession,
-      detectedPossessionTeam,
-      calculateSplitClips,
-      buildSplitAnnotations,
+      createSegmentsFromBoundary,
       saveSegmentToServer,
     ],
   );
