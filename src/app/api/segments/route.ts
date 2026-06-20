@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readSegments, writeSegments, deleteSegment } from "@/lib/server-utils";
-import { MAX_SEGMENT_DURATION, isExclusionIntent } from "@/lib/constants";
+import { MAX_SEGMENT_DURATION, isExclusionIntent, generateNpzPath } from "@/lib/constants";
 
-function validateSegment(segment: any): { error: string; detail: string } | null {
+function validateSegment(segment: any): { error: string; detail: string; status?: number } | null {
   const duration = (segment.annotation_end ?? segment.end) - (segment.annotation_start ?? segment.start);
   if (duration < 2.0) {
     return { error: "Segment too short", detail: `Duration ${duration.toFixed(2)}s < 2.0s minimum` };
@@ -30,6 +30,17 @@ function validateSegment(segment: any): { error: string; detail: string } | null
     return { error: "Coverage too low", detail: `${coverage} < 0.80 minimum` };
   }
 
+  // --- NPZ path uniqueness gate ---
+  const npzPath = segment.reconstruction?.npz_path || generateNpzPath(segment.match_id || "unknown", segment.clip_id);
+  const segments = readSegments();
+  const pathExists = segments.some((s: any) => 
+    s.clip_id !== segment.clip_id &&
+    (s.reconstruction?.npz_path || generateNpzPath(s.match_id || "unknown", s.clip_id)) === npzPath
+  );
+  if (pathExists) {
+    return { error: "Duplicate NPZ path", detail: `${npzPath} already exists. Regenerate segment.`, status: 409 };
+  }
+
   return null;
 }
 
@@ -52,7 +63,7 @@ export async function POST(request: NextRequest) {
       // Save single segment
       const err = validateSegment(body);
       if (err) {
-        return NextResponse.json(err, { status: 400 });
+        return NextResponse.json({ error: err.error, detail: err.detail }, { status: err.status || 400 });
       }
       const segments = readSegments();
       const existing = segments.findIndex(
@@ -71,7 +82,7 @@ export async function POST(request: NextRequest) {
     for (const segment of bulkSegments) {
       const err = validateSegment(segment);
       if (err) {
-        return NextResponse.json(err, { status: 400 });
+        return NextResponse.json({ error: err.error, detail: err.detail }, { status: err.status || 400 });
       }
     }
     writeSegments(bulkSegments);
