@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readSegments, writeSegments, deleteSegment } from "@/lib/server-utils";
-import { MAX_SEGMENT_DURATION, isExclusionIntent, generateNpzPath } from "@/lib/constants";
+import {
+  MAX_SEGMENT_DURATION,
+  isExclusionIntent,
+  generateNpzPath,
+  MODEL_FPS,
+  MAX_MODEL_FRAMES,
+  computePaddingMask,
+} from "@/lib/constants";
 
 function validateSegment(segment: any): { error: string; detail: string; status?: number } | null {
   const duration = (segment.annotation_end ?? segment.end) - (segment.annotation_start ?? segment.start);
@@ -12,6 +19,11 @@ function validateSegment(segment: any): { error: string; detail: string; status?
   }
   if (duration <= 0) {
     return { error: "Invalid duration", detail: "End time must be after start time" };
+  }
+
+  const expectedFrames = Math.round(duration * MODEL_FPS);
+  if (expectedFrames > MAX_MODEL_FRAMES) {
+    return { error: "Segment too long", detail: `Expected frame count ${expectedFrames} exceeds ${MAX_MODEL_FRAMES} frames maximum (equivalent to 15s)` };
   }
 
   const teamAIntent = segment.team_a?.label?.intent_class ?? null;
@@ -75,6 +87,18 @@ export async function POST(request: NextRequest) {
       if (err) {
         return NextResponse.json({ error: err.error, detail: err.detail }, { status: err.status || 400 });
       }
+
+      const duration = (body.annotation_end ?? body.end) - (body.annotation_start ?? body.start);
+      const expectedFrames = Math.round(duration * MODEL_FPS);
+
+      body.reconstruction = {
+        ...body.reconstruction,
+        npz_path: body.reconstruction?.npz_path || generateNpzPath(body.match_id || "unknown", body.clip_id),
+        tensor_shape: body.reconstruction?.tensor_shape || [expectedFrames, 23, 4],
+        tensor_fps: body.reconstruction?.tensor_fps || MODEL_FPS,
+        padding_mask: body.reconstruction?.padding_mask || computePaddingMask(expectedFrames),
+      };
+
       const segments = readSegments();
       const existing = segments.findIndex(
         (s: any) => s.clip_id === body.clip_id,
@@ -89,13 +113,29 @@ export async function POST(request: NextRequest) {
     }
     // Save all segments
     const bulkSegments = body.segments || [];
+    const processedSegments = [];
     for (const segment of bulkSegments) {
       const err = validateSegment(segment);
       if (err) {
         return NextResponse.json({ error: err.error, detail: err.detail }, { status: err.status || 400 });
       }
+
+      const duration = (segment.annotation_end ?? segment.end) - (segment.annotation_start ?? segment.start);
+      const expectedFrames = Math.round(duration * MODEL_FPS);
+
+      const updatedSegment = {
+        ...segment,
+        reconstruction: {
+          ...segment.reconstruction,
+          npz_path: segment.reconstruction?.npz_path || generateNpzPath(segment.match_id || "unknown", segment.clip_id),
+          tensor_shape: segment.reconstruction?.tensor_shape || [expectedFrames, 23, 4],
+          tensor_fps: segment.reconstruction?.tensor_fps || MODEL_FPS,
+          padding_mask: segment.reconstruction?.padding_mask || computePaddingMask(expectedFrames),
+        }
+      };
+      processedSegments.push(updatedSegment);
     }
-    writeSegments(bulkSegments);
+    writeSegments(processedSegments);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json(
