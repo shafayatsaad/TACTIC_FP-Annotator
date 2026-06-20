@@ -160,21 +160,7 @@ function modelCertainty(confidence: number): "low" | "medium" | "high" {
   return "high";
 }
 
-// Padding mask: always 150 elements. The first `tensorFrames` entries are
-// 1 (real frame) and the rest are 0 (padded, masked out by the model).
-// Without this distinction the model treats padded slots as real frames.
-const PADDING_MASK_LENGTH = 150;
-const buildPaddingMask = (tensorFrames: number) => {
-  const realFrames = Math.max(0, Math.min(tensorFrames, PADDING_MASK_LENGTH));
-  return Array.from({ length: PADDING_MASK_LENGTH }, (_, i) => i < realFrames);
-};
 
-// NPZ path is built deterministically from match + clip id so the export
-// always points at the right trajectory file, regardless of the manifest.
-const buildNpzPath = (clip: Clip) => {
-  const matchId = clip.match_id || "unknown";
-  return `data/trajectories/${matchId}/${clip.clip_id}.npz`;
-};
 
 function validateBeforeSubmit(
   clip: Clip,
@@ -564,8 +550,6 @@ export default function AnnotatorClient() {
       reconstruction: {
         ...ann.reconstruction,
         npz_path: clip.reconstruction?.npz_path || generateNpzPath(clip.match_id, clip.clip_id),
-        tensor_shape: [tensorFrames, 23, 4],
-        padding_mask: buildPaddingMask(tensorFrames),
       }
     };
   }, []);
@@ -1673,8 +1657,6 @@ export default function AnnotatorClient() {
               },
               reconstruction: {
                 ...ann.reconstruction,
-                tensor_shape: [tensorFrames, 23, 4],
-                padding_mask: buildPaddingMask(tensorFrames),
               }
             };
           });
@@ -1735,8 +1717,6 @@ export default function AnnotatorClient() {
         },
         reconstruction: {
           ...ann.reconstruction,
-          tensor_shape: [tensorFrames, 23, 4],
-          padding_mask: buildPaddingMask(tensorFrames),
         }
       } as Annotation;
     });
@@ -2186,12 +2166,9 @@ export default function AnnotatorClient() {
               tensor_frame_count: tensorFrames,
             },
             reconstruction: {
-              npz_path: buildNpzPath(newClip),
-              tensor_shape: [tensorFrames, 23, 4],
-              tensor_fps: 10,
+              npz_path: generateNpzPath(newClip.match_id, newClip.clip_id),
               quality_pass: qualityPass,
               tracked_players: trackedPlayers,
-              padding_mask: buildPaddingMask(tensorFrames),
             },
             team_a: {
               team_id: "Team_A",
@@ -2416,12 +2393,9 @@ export default function AnnotatorClient() {
             tensor_frame_count: tensorFrames,
           },
           reconstruction: {
-            npz_path: buildNpzPath(newClip),
-            tensor_shape: [tensorFrames, 23, 4],
-            tensor_fps: 10,
+            npz_path: generateNpzPath(newClip.match_id, newClip.clip_id),
             quality_pass: qualityPass,
             tracked_players: trackedPlayers,
-            padding_mask: buildPaddingMask(tensorFrames),
           },
           team_a: {
             team_id: "Team_A",
