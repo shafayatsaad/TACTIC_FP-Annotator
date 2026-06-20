@@ -261,8 +261,6 @@ export interface GameState {
   score_away: number;
   set_piece?: boolean;
   set_piece_type?: "corner" | "free_kick" | "throw_in" | "penalty";
-  dead_ball?: boolean;
-  dead_ball_reason?: string;
 }
 
 export function normalizeClip(raw: Partial<Clip> & Record<string, any>): Clip {
