@@ -166,6 +166,47 @@ const buildNpzPath = (clip: Clip) => {
   return `data/trajectories/${matchId}/${clip.clip_id}.npz`;
 };
 
+function validateBeforeSubmit(
+  clip: Clip,
+  teamAIntent: string | null,
+  teamBIntent: string | null,
+  coverageEstimate: number,
+  usedNpzPaths: Set<string>
+): { valid: boolean; error?: string } {
+  const duration = (clip.annotation_end ?? clip.end) - (clip.annotation_start ?? clip.start);
+  
+  // 1. Duration gate
+  if (duration < 2.0) {
+    return { valid: false, error: `Segment too short (${duration.toFixed(2)}s). Minimum is 2.0s.` };
+  }
+  if (duration > MAX_SEGMENT_DURATION) {
+    return { valid: false, error: `Segment too long (${duration.toFixed(2)}s). Maximum is ${MAX_SEGMENT_DURATION}s.` };
+  }
+
+  // 2. Exclusion gate (symmetrical check)
+  const isExclusion = isExclusionIntent(teamAIntent || "") || isExclusionIntent(teamBIntent || "");
+  if (isExclusion) {
+    const isTeamAValid = teamAIntent === "DeadBall" || teamAIntent === "ContestedPlay" || teamAIntent === null || teamAIntent === "";
+    const isTeamBValid = teamBIntent === "DeadBall" || teamBIntent === "ContestedPlay" || teamBIntent === null || teamBIntent === "";
+    if (!isTeamAValid || !isTeamBValid) {
+      return { valid: false, error: "Exclusion intents (DeadBall/ContestedPlay) cannot be mixed with tactical intents." };
+    }
+  }
+
+  // 3. Coverage gate
+  if (coverageEstimate < 0.80) {
+    return { valid: false, error: `Coverage too low (${(coverageEstimate * 100).toFixed(0)}%). Minimum is 80%.` };
+  }
+
+  // 4. NPZ path uniqueness gate
+  const npzPath = clip.trajectory_path || `data/trajectories/${clip.match_id}/${clip.clip_id}.npz`;
+  if (usedNpzPaths.has(npzPath)) {
+    return { valid: false, error: `Duplicate trajectory path: ${npzPath}. Regenerate clip ID.` };
+  }
+
+  return { valid: true };
+}
+
 // Returns the first clip that would overlap with [newStart, newEnd), excluding
 // the clip with `excludeClipId` if provided. Returns null if no overlap.
 function findOverlap(
@@ -514,6 +555,8 @@ export default function AnnotatorClient() {
       ...ann,
       clip_id: clip.clip_id,
       segment_metadata: {
+        coverage_estimate: ann.segment_metadata?.coverage_estimate ?? 1.0,
+        is_mixed_phase: ann.segment_metadata?.is_mixed_phase ?? false,
         ...ann.segment_metadata,
         start_sec: clip.annotation_start,
         end_sec: clip.annotation_end,
@@ -1626,6 +1669,8 @@ export default function AnnotatorClient() {
             return {
               ...ann,
               segment_metadata: {
+                coverage_estimate: ann.segment_metadata?.coverage_estimate ?? 1.0,
+                is_mixed_phase: ann.segment_metadata?.is_mixed_phase ?? false,
                 ...ann.segment_metadata,
                 start_sec: updatedClip!.annotation_start,
                 end_sec: updatedClip!.annotation_end,
@@ -1985,6 +2030,38 @@ export default function AnnotatorClient() {
           "Forced session break due. Click Resume After Break before continuing.",
         );
         return;
+      }
+      if (!skipped) {
+        const intentLabelA = getIntentLabel(selectedIntentA);
+        const intentLabelB = getIntentLabel(selectedIntentB);
+        const isDraft = currentClip.clip_id === "Draft Segment";
+        const matchId = currentClip.match_id || "manual";
+        const realClipId = isDraft
+          ? `${matchId}_seg${String(clips.length).padStart(3, "0")}`
+          : currentClip.clip_id;
+
+        const newClip: Clip = isDraft
+          ? { ...currentClip, clip_id: realClipId }
+          : currentClip;
+
+        const usedNpzPaths = new Set(
+          clips
+            .filter((c) => c.clip_id !== currentClip.clip_id && c.clip_id !== realClipId)
+            .map((c) => c.trajectory_path || `data/trajectories/${c.match_id}/${c.clip_id}.npz`)
+        );
+
+        const validation = validateBeforeSubmit(
+          newClip,
+          intentLabelA,
+          intentLabelB,
+          coverageEstimate / 100,
+          usedNpzPaths
+        );
+
+        if (!validation.valid) {
+          setStatusMessage(validation.error || "Validation failed.");
+          return;
+        }
       }
       try {
         const fps = currentClip.resolution?.fps ?? 25;
