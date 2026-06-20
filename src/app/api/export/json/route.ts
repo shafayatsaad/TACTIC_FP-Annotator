@@ -43,13 +43,13 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
 
     // Intents mapping
     const home_label = {
-      intent_class: team_home?.label?.intent_class ?? "Skipped",
+      intent_class: team_home?.label?.intent_class,
       confidence: team_home?.label?.confidence ?? 0,
       certainty: team_home?.label?.certainty ?? "low"
     };
 
     const away_label = {
-      intent_class: team_away?.label?.intent_class ?? "Skipped",
+      intent_class: team_away?.label?.intent_class,
       confidence: team_away?.label?.confidence ?? 0,
       certainty: team_away?.label?.certainty ?? "low"
     };
@@ -60,7 +60,9 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
 
     // Phase mixture estimation
     let buildup = 0.25, press = 0.25, block = 0.25, transition = 0.25;
-    const combinedIntents = [home_label.intent_class, away_label.intent_class];
+    const combinedIntents = [home_label.intent_class, away_label.intent_class].filter(
+      (i): i is string => typeof i === "string"
+    );
     if (combinedIntents.some(i => i.includes("BuildUp") || i.includes("PossCirculation"))) {
       buildup = 0.6; press = 0.15; block = 0.15; transition = 0.1;
     } else if (combinedIntents.some(i => i.includes("Press"))) {
@@ -83,6 +85,12 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
         tia_delta_ms: 5000
       };
     }
+
+    const teamAIntent = team_home?.label?.intent_class;
+    const teamBIntent = team_away?.label?.intent_class;
+    const isExclusion = (teamAIntent && ["DeadBall", "ContestedPlay"].includes(teamAIntent)) || 
+                        (teamBIntent && ["DeadBall", "ContestedPlay"].includes(teamBIntent));
+    const assignedSplit = isExclusion ? "excluded" : (ann.model_split?.assigned_split || "train");
 
     return {
       segment_id: ann.clip_id || `${match_id}_seg${String(idx).padStart(3, "0")}`,
@@ -110,20 +118,20 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
       },
       team_home: {
         label: home_label,
-        is_primary: home_label.intent_class !== "Skipped" ? team_home?.is_primary !== false : false,
+        is_primary: (home_label.intent_class && home_label.intent_class !== "Skipped") ? team_home?.is_primary !== false : false,
         possession: team_home?.possession === true,
         formation_estimate: home_formation,
         players_visible: Number(team_home?.players_visible || 11)
       },
       team_away: {
         label: away_label,
-        is_primary: away_label.intent_class !== "Skipped" ? team_away?.is_primary === true : false,
+        is_primary: (away_label.intent_class && away_label.intent_class !== "Skipped") ? team_away?.is_primary === true : false,
         possession: team_away?.possession === true,
         formation_estimate: away_formation,
         players_visible: Number(team_away?.players_visible || 10)
       },
       exclusion: ann.exclusion || null,
-      model_split: ann.model_split?.assigned_split || "train",
+      model_split: assignedSplit,
       dag_features: {
         phase_mixture: [
           Number(buildup.toFixed(2)),
