@@ -21,6 +21,9 @@ import {
   type GameState,
   type TeamConfig,
   type Clip,
+  MODEL_FPS,
+  MAX_MODEL_FRAMES,
+  computeTensorFrames,
 } from "@/lib/constants";
 
 export type ManualPossession = "A" | "B" | "contested" | null;
@@ -348,10 +351,28 @@ export default function AnnotationPanel({
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-[10px] text-slate-400 bg-white/[0.02] border border-white/5 rounded-md p-2 font-mono">
-              <span>Duration:</span>
-              <span className="text-white font-bold">{(currentClip.annotation_end - currentClip.annotation_start).toFixed(1)}s</span>
-            </div>
+            {(() => {
+              const durationSec = (currentClip.annotation_end ?? currentClip.end) - (currentClip.annotation_start ?? currentClip.start);
+              const computedFrames = computeTensorFrames(durationSec);
+              const isOverMax = computedFrames > MAX_MODEL_FRAMES;
+              return (
+                <div className="flex flex-col gap-1 text-[10px] text-slate-400 bg-white/[0.02] border border-white/5 rounded-md p-2 font-mono">
+                  <div className="flex items-center justify-between">
+                    <span>Duration:</span>
+                    <span className="text-white font-bold">{durationSec.toFixed(2)}s</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Frames:</span>
+                    <span className="text-white font-bold">{computedFrames} frames @ {MODEL_FPS} fps</span>
+                  </div>
+                  {isOverMax && (
+                    <div className="text-rose-400 text-[9px] mt-1 flex items-center gap-1">
+                      <span>⚠️ Exceeds {MAX_MODEL_FRAMES} frame max — will be truncated</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         ) : (
           <div className="text-center py-4 bg-white/[0.01] border border-dashed border-white/10 rounded-lg">
