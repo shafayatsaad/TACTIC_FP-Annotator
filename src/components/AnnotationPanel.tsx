@@ -705,34 +705,7 @@ export default function AnnotationPanel({
             <option value="penalty">Penalty</option>
           </select>
         )}
-        <label className="flex items-center gap-2 mb-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={gameState.dead_ball === true}
-            onChange={(e) =>
-              updateGameState({
-                dead_ball: e.target.checked,
-                dead_ball_reason: e.target.checked
-                  ? gameState.dead_ball_reason || "stoppage"
-                  : undefined,
-              })
-            }
-            className="w-3.5 h-3.5 rounded border-white/20 bg-white/5 text-indigo-500 focus:ring-indigo-500/30"
-          />
-          <span className="text-[10px] text-slate-400">Dead ball</span>
-        </label>
-        {gameState.dead_ball && (
-          <input
-            value={gameState.dead_ball_reason || ""}
-            onChange={(e) =>
-              updateGameState({
-                dead_ball_reason: e.target.value || "stoppage",
-              })
-            }
-            placeholder="injury_stoppage"
-            className="w-full rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-white/30"
-          />
-        )}
+
       </div>
 
       <div className="p-3 border-b border-white/5">
