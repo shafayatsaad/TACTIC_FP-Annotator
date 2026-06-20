@@ -32,6 +32,7 @@ import {
   type GameState,
   type TeamConfig,
   type AnnotatorState,
+  type ModelSplit,
 } from "@/lib/constants";
 
 import { formatTime, formatMatchClock } from "@/lib/utils";
@@ -171,7 +172,8 @@ function validateBeforeSubmit(
   teamAIntent: string | null,
   teamBIntent: string | null,
   coverageEstimate: number,
-  usedNpzPaths: Set<string>
+  usedNpzPaths: Set<string>,
+  exclusion: string | null
 ): { valid: boolean; error?: string } {
   const duration = (clip.annotation_end ?? clip.end) - (clip.annotation_start ?? clip.start);
   
@@ -184,12 +186,11 @@ function validateBeforeSubmit(
   }
 
   // 2. Exclusion gate (symmetrical check)
-  const isExclusion = isExclusionIntent(teamAIntent || "") || isExclusionIntent(teamBIntent || "");
-  if (isExclusion) {
-    const isTeamAValid = teamAIntent === "DeadBall" || teamAIntent === "ContestedPlay" || teamAIntent === null || teamAIntent === "";
-    const isTeamBValid = teamBIntent === "DeadBall" || teamBIntent === "ContestedPlay" || teamBIntent === null || teamBIntent === "";
+  if (exclusion) {
+    const isTeamAValid = !teamAIntent || isExclusionIntent(teamAIntent);
+    const isTeamBValid = !teamBIntent || isExclusionIntent(teamBIntent);
     if (!isTeamAValid || !isTeamBValid) {
-      return { valid: false, error: "Exclusion intents (DeadBall/ContestedPlay) cannot be mixed with tactical intents." };
+      return { valid: false, error: "Exclusion intents cannot be mixed with tactical intents." };
     }
   }
 
@@ -251,6 +252,8 @@ export default function AnnotatorClient() {
   const [manualPossession, setManualPossession] = useState<
     "A" | "B" | "contested" | null
   >(null);
+  const [exclusion, setExclusion] = useState<"DeadBall" | "ContestedPlay" | null>(null);
+  const [modelSplit, setModelSplit] = useState<string>("train");
 
   // Core data state
   const [clips, setClips] = useState<Clip[]>([]);
@@ -1238,6 +1241,8 @@ export default function AnnotatorClient() {
       else if (bPoss && !aPoss) setManualPossession("B");
       else if (!aPoss && !bPoss) setManualPossession("contested");
       else setManualPossession(null);
+      setExclusion((existing.exclusion as "DeadBall" | "ContestedPlay" | null) || null);
+      setModelSplit(existing.model_split?.assigned_split || "train");
     } else {
       setSelectedIntentA("");
       setSelectedIntentB("");
@@ -1252,6 +1257,8 @@ export default function AnnotatorClient() {
       setIsUncertain(false);
       setGameState((prev) => defaultGameStateForClip(currentClip, prev));
       setManualPossession(null);
+      setExclusion(null);
+      setModelSplit("train");
     }
   }, [
     currentClipIndex,
@@ -1260,12 +1267,6 @@ export default function AnnotatorClient() {
     currentClip,
     detectedPossessionTeam,
   ]);
-
-  useEffect(() => {
-    if (!gameState.dead_ball) return;
-    setSelectedIntentA(getIntentId("DeadBall"));
-    setSelectedIntentB(getIntentId("DeadBall"));
-  }, [gameState.dead_ball]);
 
   useEffect(() => {
     if (isContestedPossessionSuggested) {
@@ -1411,12 +1412,12 @@ export default function AnnotatorClient() {
     const disabled = new Set<string>();
     const intentA = getIntentLabel(selectedIntentA);
     const intentB = getIntentLabel(selectedIntentB);
-    if (intentA === "DeadBall" || gameState.dead_ball) {
-      TACTIC_INTENTS.forEach((g) =>
-        g.items.forEach((i) => {
-          if (i.label !== "DeadBall") disabled.add(i.id);
-        }),
-      );
+    if (exclusion) {
+      TACTIC_INTENTS.forEach((g) => {
+        if (g.group !== "EXCLUSION") {
+          g.items.forEach((i) => disabled.add(i.id));
+        }
+      });
       return Array.from(disabled);
     }
     if (!gameState.set_piece) {
@@ -1468,7 +1469,7 @@ export default function AnnotatorClient() {
   }, [
     selectedIntentA,
     selectedIntentB,
-    gameState.dead_ball,
+    exclusion,
     gameState.set_piece,
     effectivePossessionTeam,
   ]);
@@ -1477,12 +1478,12 @@ export default function AnnotatorClient() {
     const disabled = new Set<string>();
     const intentA = getIntentLabel(selectedIntentA);
     const intentB = getIntentLabel(selectedIntentB);
-    if (intentB === "DeadBall" || gameState.dead_ball) {
-      TACTIC_INTENTS.forEach((g) =>
-        g.items.forEach((i) => {
-          if (i.label !== "DeadBall") disabled.add(i.id);
-        }),
-      );
+    if (exclusion) {
+      TACTIC_INTENTS.forEach((g) => {
+        if (g.group !== "EXCLUSION") {
+          g.items.forEach((i) => disabled.add(i.id));
+        }
+      });
       return Array.from(disabled);
     }
     if (!gameState.set_piece) {
@@ -1534,7 +1535,7 @@ export default function AnnotatorClient() {
   }, [
     selectedIntentA,
     selectedIntentB,
-    gameState.dead_ball,
+    exclusion,
     gameState.set_piece,
     effectivePossessionTeam,
   ]);
@@ -1542,28 +1543,38 @@ export default function AnnotatorClient() {
   const disabledIntentIds =
     currentTeam === "A" ? disabledIntentIdsA : disabledIntentIdsB;
 
+  const handleToggleExclusion = useCallback((type: "DeadBall" | "ContestedPlay" | null) => {
+    setExclusion((prev) => {
+      const next = prev === type ? null : type;
+      if (next) {
+        setSelectedIntentA("");
+        setSelectedIntentB("");
+        setModelSplit("excluded");
+      } else {
+        setModelSplit("train");
+      }
+      return next;
+    });
+  }, []);
+
   // ─── Intent handler ───
   const handleIntentClick = useCallback(
     (id: string) => {
       if (disabledIntentIds.includes(id)) return;
       const label = getIntentLabel(id);
-      if (label === "DeadBall")
-        setGameState((prev) => ({
-          ...prev,
-          dead_ball: true,
-          dead_ball_reason: prev.dead_ball_reason || "stoppage",
-        }));
+      if (isExclusionIntent(label)) {
+        handleToggleExclusion(label as "DeadBall" | "ContestedPlay");
+        return;
+      }
       if (currentTeam === "A") {
         const newVal = selectedIntentA === id ? "" : id;
         setSelectedIntentA(newVal);
-        if (isExclusionIntent(label)) setSelectedIntentB("");
       } else {
         const newVal = selectedIntentB === id ? "" : id;
         setSelectedIntentB(newVal);
-        if (isExclusionIntent(label)) setSelectedIntentA("");
       }
     },
-    [currentTeam, selectedIntentA, selectedIntentB, disabledIntentIds],
+    [currentTeam, selectedIntentA, selectedIntentB, disabledIntentIds, handleToggleExclusion],
   );
 
   // ─── Segment adjustment handlers ───
@@ -2024,7 +2035,8 @@ export default function AnnotatorClient() {
           intentLabelA,
           intentLabelB,
           coverageEstimate / 100,
-          usedNpzPaths
+          usedNpzPaths,
+          exclusion
         );
 
         if (!validation.valid) {
@@ -2056,12 +2068,6 @@ export default function AnnotatorClient() {
                 set_piece_type: gameState.set_piece_type || "corner",
               }
             : {}),
-          ...(gameState.dead_ball
-            ? {
-                dead_ball: true,
-                dead_ball_reason: gameState.dead_ball_reason || "stoppage",
-              }
-            : {}),
         };
 
         const isDraft = currentClip.clip_id === "Draft Segment";
@@ -2086,14 +2092,7 @@ export default function AnnotatorClient() {
 
           const intentLabelA = getIntentLabel(selectedIntentA);
           const intentLabelB = getIntentLabel(selectedIntentB);
-          const exclusionLabel = gameState.dead_ball
-            ? "DeadBall"
-            : isExclusionIntent(intentLabelA)
-              ? intentLabelA
-              : isExclusionIntent(intentLabelB)
-                ? intentLabelB
-                : null;
-          const effectiveExclusion = skipped ? "ContestedPlay" : exclusionLabel;
+          const effectiveExclusion = skipped ? "ContestedPlay" : exclusion;
           let teamAIntentClass: string | null = effectiveExclusion
             ? null
             : intentLabelA;
@@ -2230,7 +2229,7 @@ export default function AnnotatorClient() {
               flagged_review: isUncertain,
               skipped,
             },
-            model_split: { assigned_split: "train" },
+            model_split: { assigned_split: effectiveExclusion ? "excluded" : modelSplit },
           };
 
           const newAnns = buildSplitAnnotations(splitClips, templateAnn);
@@ -2297,14 +2296,7 @@ export default function AnnotatorClient() {
 
         const intentLabelA = getIntentLabel(selectedIntentA);
         const intentLabelB = getIntentLabel(selectedIntentB);
-        const exclusionLabel = gameState.dead_ball
-          ? "DeadBall"
-          : isExclusionIntent(intentLabelA)
-            ? intentLabelA
-            : isExclusionIntent(intentLabelB)
-              ? intentLabelB
-              : null;
-        const effectiveExclusion = skipped ? "ContestedPlay" : exclusionLabel;
+        const effectiveExclusion = skipped ? "ContestedPlay" : exclusion;
         let teamAIntentClass: string | null = effectiveExclusion
           ? null
           : intentLabelA;
@@ -2467,7 +2459,7 @@ export default function AnnotatorClient() {
             flagged_review: isUncertain,
             skipped,
           },
-          model_split: { assigned_split: "train" },
+          model_split: { assigned_split: effectiveExclusion ? "excluded" : modelSplit },
         };
 
         const updated = [
@@ -2561,6 +2553,8 @@ export default function AnnotatorClient() {
       manualPossession,
       createSegmentsFromBoundary,
       saveSegmentToServer,
+      exclusion,
+      modelSplit,
     ],
   );
 
@@ -2791,13 +2785,24 @@ export default function AnnotatorClient() {
           const teamBObj = ann.team_b || {};
           const team_home = aIsHome ? teamAObj : teamBObj;
           const team_away = aIsHome ? teamBObj : teamAObj;
-          const home_label = {
-            intent_class: team_home?.label?.intent_class ?? "Skipped",
+
+          const isExcl = ann.exclusion ? true : false;
+
+          const home_label = isExcl ? {
+            intent_class: null,
+            confidence: null,
+            certainty: null
+          } : {
+            intent_class: team_home?.label?.intent_class ?? null,
             confidence: team_home?.label?.confidence ?? 0,
             certainty: team_home?.label?.certainty ?? "low"
           };
-          const away_label = {
-            intent_class: team_away?.label?.intent_class ?? "Skipped",
+          const away_label = isExcl ? {
+            intent_class: null,
+            confidence: null,
+            certainty: null
+          } : {
+            intent_class: team_away?.label?.intent_class ?? null,
             confidence: team_away?.label?.confidence ?? 0,
             certainty: team_away?.label?.certainty ?? "low"
           };
@@ -2806,13 +2811,13 @@ export default function AnnotatorClient() {
 
           let buildup = 0.25, press = 0.25, block = 0.25, transition = 0.25;
           const combinedIntents = [home_label.intent_class, away_label.intent_class];
-          if (combinedIntents.some(i => i.includes("BuildUp") || i.includes("PossCirculation"))) {
+          if (combinedIntents.some(i => i && (i.includes("BuildUp") || i.includes("PossCirculation")))) {
             buildup = 0.6; press = 0.15; block = 0.15; transition = 0.1;
-          } else if (combinedIntents.some(i => i.includes("Press"))) {
+          } else if (combinedIntents.some(i => i && i.includes("Press"))) {
             press = 0.6; buildup = 0.15; block = 0.15; transition = 0.1;
-          } else if (combinedIntents.some(i => i.includes("Block"))) {
+          } else if (combinedIntents.some(i => i && i.includes("Block"))) {
             block = 0.6; press = 0.15; buildup = 0.15; transition = 0.1;
-          } else if (combinedIntents.some(i => i.includes("Trans"))) {
+          } else if (combinedIntents.some(i => i && i.includes("Trans"))) {
             transition = 0.6; buildup = 0.15; press = 0.15; block = 0.1;
           }
 
@@ -2854,21 +2859,21 @@ export default function AnnotatorClient() {
             },
             team_home: {
               label: home_label,
-              is_primary: home_label.intent_class !== "Skipped" ? team_home?.is_primary !== false : false,
-              possession: team_home?.possession === true,
+              is_primary: home_label.intent_class ? team_home?.is_primary !== false : false,
+              possession: isExcl ? false : team_home?.possession === true,
               formation_estimate: home_formation,
               players_visible: Number(team_home?.players_visible || 11)
             },
             team_away: {
               label: away_label,
-              is_primary: away_label.intent_class !== "Skipped" ? team_away?.is_primary === true : false,
-              possession: team_away?.possession === true,
+              is_primary: away_label.intent_class ? team_away?.is_primary === true : false,
+              possession: isExcl ? false : team_away?.possession === true,
               formation_estimate: away_formation,
               players_visible: Number(team_away?.players_visible || 10)
             },
             exclusion: ann.exclusion || null,
-            model_split: ann.model_split?.assigned_split || "train",
-            dag_features: {
+            model_split: isExcl ? "excluded" : (ann.model_split?.assigned_split || "train"),
+            dag_features: isExcl ? null : {
               phase_mixture: [
                 Number(buildup.toFixed(2)),
                 Number(press.toFixed(2)),
@@ -3156,6 +3161,10 @@ export default function AnnotatorClient() {
   handleSetSegmentStartRef.current = handleSetSegmentStart;
   const handleSetSegmentEndRef = useRef(handleSetSegmentEnd);
   handleSetSegmentEndRef.current = handleSetSegmentEnd;
+  const handleToggleExclusionRef = useRef(handleToggleExclusion);
+  handleToggleExclusionRef.current = handleToggleExclusion;
+  const exclusionRef = useRef(exclusion);
+  exclusionRef.current = exclusion;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -3177,6 +3186,8 @@ export default function AnnotatorClient() {
       }
       if (key === "escape") {
         e.preventDefault();
+        setExclusion(null);
+        setModelSplit("train");
         handleCancelSegmentCreateRef.current();
         setShowHelpRef.current(false);
         return;
@@ -3293,6 +3304,12 @@ export default function AnnotatorClient() {
         e.preventDefault();
         const intentId = HOTKEY_MAP[key];
         if (disabledIntentIds.includes(intentId)) return;
+        const label = getIntentLabel(intentId);
+        if (isExclusionIntent(label)) {
+          handleToggleExclusionRef.current?.(label as "DeadBall" | "ContestedPlay");
+          return;
+        }
+        if (exclusionRef.current) return;
         if (currentTeamRef.current === "A")
           setSelectedIntentA((prev) => (prev === intentId ? "" : intentId));
         else setSelectedIntentB((prev) => (prev === intentId ? "" : intentId));
@@ -3566,6 +3583,17 @@ export default function AnnotatorClient() {
             onIntentClick={handleIntentClick}
             onSubmit={() => saveAnnotation(false)}
             onSkip={() => saveAnnotation(true)}
+            exclusion={exclusion}
+            setExclusion={(val) => {
+              setExclusion(val);
+              if (val) {
+                setSelectedIntentA("");
+                setSelectedIntentB("");
+                setModelSplit("excluded");
+              } else {
+                setModelSplit("train");
+              }
+            }}
           />
         </main>
         <AnnotationPanel
@@ -3840,7 +3868,7 @@ function toModelSamples(annotations: Annotation[]) {
       return {
         ...common,
         exclusion: ann.exclusion,
-        model_split: ann.model_split?.assigned_split || "train",
+        model_split: ann.model_split?.assigned_split || "excluded",
       };
     }
 
