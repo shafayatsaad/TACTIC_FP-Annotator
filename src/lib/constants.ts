@@ -467,13 +467,6 @@ export interface Annotation {
     tool_version: string;
     re_annotation_count?: number;
   };
-  dag_features?: {
-    formation_compactness?: number;
-    pressing_speed?: number;
-    pitch_control_share?: number;
-    xg_estimate?: number;
-    phase_mixture?: number[];
-  };
   agreement: {
     annotated_at: string;
     flagged_review: boolean;
