@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { getExportsDir } from "@/lib/server-utils";
+import { generateNpzPath } from "@/lib/constants";
 
 function validateNpzExists(npzPath: string): boolean {
   const fullPath = path.join(process.cwd(), "public", npzPath);
@@ -107,7 +108,7 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
       annotation_duration_sec: Number(ann.annotation_meta?.annotation_duration_sec || 20),
       re_annotation_count: Number(ann.annotation_meta?.re_annotation_count || 0),
       reconstruction: {
-        npz_path: ann.reconstruction?.npz_path || `data/trajectories/${match_id}/${ann.clip_id}.npz`,
+        npz_path: generateNpzPath(match_id, ann.clip_id),
         tensor_shape: ann.reconstruction?.tensor_shape || [tensorFrames, 23, 4],
         tensor_fps: tensorFps,
         quality_pass: ann.reconstruction?.quality_pass !== false,
