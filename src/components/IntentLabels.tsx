@@ -19,6 +19,8 @@ interface Props {
   onIntentClick: (id: string) => void;
   onSubmit?: () => void;
   onSkip?: () => void;
+  exclusion: "DeadBall" | "ContestedPlay" | null;
+  setExclusion: (val: "DeadBall" | "ContestedPlay" | null) => void;
 }
 
 export default function IntentLabels({
@@ -33,6 +35,8 @@ export default function IntentLabels({
   onIntentClick,
   onSubmit,
   onSkip,
+  exclusion,
+  setExclusion,
 }: Props) {
   const selectedId = currentTeam === "A" ? selectedIntentA : selectedIntentB;
   const activeTeam =
@@ -61,76 +65,91 @@ export default function IntentLabels({
       </div>
 
       <div className="grid grid-cols-6 gap-3">
-        {TACTIC_INTENTS.map((group) => (
-          <div key={group.group} className="flex flex-col gap-1.5">
-            <span
-              className={`text-[9px] font-bold uppercase tracking-widest ${group.color}`}
+        {TACTIC_INTENTS.map((group) => {
+          const isTacticalGroup = group.group !== "EXCLUSION";
+          return (
+            <div
+              key={group.group}
+              className={`flex flex-col gap-1.5 ${isTacticalGroup && exclusion ? "opacity-30 pointer-events-none" : ""}`}
             >
-              {group.group}
-            </span>
-            <div className="flex flex-col gap-1">
-              {group.items.map((item) => {
-                const isSelected = selectedId === item.id;
-                const selectedByA = selectedIntentA === item.id;
-                const selectedByB = selectedIntentB === item.id;
-                const isDisabled = disabledIntentIds.includes(item.id);
-                return (
-                  <button
-                    key={item.id}
-                    disabled={isDisabled}
-                    onClick={() => onIntentClick(item.id)}
-                    className={`relative flex items-center gap-2 px-2 py-1.5 rounded-md border text-left transition-all ${
-                      isDisabled
-                        ? "cursor-not-allowed bg-white/[0.01] border-white/[0.03] opacity-40"
-                        : isSelected
-                          ? "bg-white/[0.08] shadow-[inset_2px_0_0_0_currentColor]"
-                          : "bg-white/[0.02] border-white/5 hover:bg-white/10 hover:border-white/20"
-                    }`}
-                    style={
-                      isSelected
-                        ? {
-                            color: activeTeam.jersey_color,
-                            borderColor: `${activeTeam.jersey_color}88`,
-                          }
-                        : {}
-                    }
-                    title={`${item.label} (${item.hotkey})`}
-                  >
-                    <span
-                      className={`text-[10px] font-bold font-mono min-w-[14px] text-center ${isSelected ? group.color : "text-slate-500"}`}
+              <span
+                className={`text-[9px] font-bold uppercase tracking-widest ${group.color}`}
+              >
+                {group.group}
+              </span>
+              <div className="flex flex-col gap-1">
+                {group.items.map((item) => {
+                  const isSelected = selectedId === item.id;
+                  const selectedByA = selectedIntentA === item.id;
+                  const selectedByB = selectedIntentB === item.id;
+                  const isDisabled = disabledIntentIds.includes(item.id);
+                  return (
+                    <button
+                      key={item.id}
+                      disabled={isDisabled}
+                      onClick={() => onIntentClick(item.id)}
+                      className={`relative flex items-center gap-2 px-2 py-1.5 rounded-md border text-left transition-all ${
+                        isDisabled
+                          ? "cursor-not-allowed bg-white/[0.01] border-white/[0.03] opacity-40"
+                          : isSelected
+                            ? "bg-white/[0.08] shadow-[inset_2px_0_0_0_currentColor]"
+                            : "bg-white/[0.02] border-white/5 hover:bg-white/10 hover:border-white/20"
+                      }`}
+                      style={
+                        isSelected
+                          ? {
+                              color: activeTeam.jersey_color,
+                              borderColor: `${activeTeam.jersey_color}88`,
+                            }
+                          : {}
+                      }
+                      title={`${item.label} (${item.hotkey})`}
                     >
-                      {item.hotkey}
-                    </span>
-                    <span
-                      className={`text-[11px] truncate ${isSelected ? "text-white font-medium" : "text-slate-300"}`}
-                    >
-                      {item.label}
-                    </span>
-                    {(selectedByA || selectedByB) && (
-                      <span className="ml-auto flex items-center gap-0.5">
-                        {selectedByA && (
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: teamAColor }}
-                            title={`${teamConfig.team_a.name} selected`}
-                          />
-                        )}
-                        {selectedByB && (
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: teamBColor }}
-                            title={`${teamConfig.team_b.name} selected`}
-                          />
-                        )}
+                      <span
+                        className={`text-[10px] font-bold font-mono min-w-[14px] text-center ${isSelected ? group.color : "text-slate-500"}`}
+                      >
+                        {item.hotkey}
                       </span>
-                    )}
-                  </button>
-                );
-              })}
+                      <span
+                        className={`text-[11px] truncate ${isSelected ? "text-white font-medium" : "text-slate-300"}`}
+                      >
+                        {item.label}
+                      </span>
+                      {(selectedByA || selectedByB) && (
+                        <span className="ml-auto flex items-center gap-0.5">
+                          {selectedByA && (
+                            <span
+                              className="h-2 w-2 rounded-full"
+                              style={{ backgroundColor: teamAColor }}
+                              title={`${teamConfig.team_a.name} selected`}
+                            />
+                          )}
+                          {selectedByB && (
+                            <span
+                              className="h-2 w-2 rounded-full"
+                              style={{ backgroundColor: teamBColor }}
+                              title={`${teamConfig.team_b.name} selected`}
+                            />
+                          )}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
+
+      {exclusion && (
+        <div className="mt-3 rounded border border-slate-500 bg-slate-800/50 p-2 text-xs text-slate-300">
+          EXCLUSION: <span className="font-semibold text-slate-100">{exclusion}</span>
+          <button onClick={() => setExclusion(null)} className="ml-2 text-rose-400 hover:underline">
+            Clear (Esc)
+          </button>
+        </div>
+      )}
 
       <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-4 text-[10px] text-slate-500">
         <span>
