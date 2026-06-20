@@ -35,7 +35,7 @@ import {
 } from "@/lib/constants";
 
 import { formatTime, formatMatchClock } from "@/lib/utils";
-import { MAX_SEGMENT_DURATION } from "@/lib/constants";
+import { MAX_SEGMENT_DURATION, generateClipId, generateNpzPath } from "@/lib/constants";
 
 const SERVER_URL = "/api";
 interface MatchConfig {
