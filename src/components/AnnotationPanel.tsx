@@ -903,6 +903,9 @@ export default function AnnotationPanel({
             <FileSpreadsheet className="w-3.5 h-3.5" /> CSV
           </motion.button>
         </div>
+        <div className="mt-2 text-xs text-slate-500 italic">
+          Causal features computed during model preprocessing.
+        </div>
       </div>
 
       <div className="p-3">
