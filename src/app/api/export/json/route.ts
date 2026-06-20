@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { execSync } from "child_process";
 import { getExportsDir } from "@/lib/server-utils";
-import { generateNpzPath } from "@/lib/constants";
+import {
+  generateNpzPath,
+  MODEL_FPS,
+  MAX_MODEL_FRAMES,
+  computeTensorFrames,
+  computePaddingMask,
+  computeTensorShape,
+} from "@/lib/constants";
 
 function validateNpzExists(npzPath: string): boolean {
   const fullPath = path.join(process.cwd(), "public", npzPath);
@@ -10,6 +18,14 @@ function validateNpzExists(npzPath: string): boolean {
   // also check relative to cwd directly
   const altPath = path.join(process.cwd(), npzPath);
   return fs.existsSync(altPath);
+}
+
+function getNpzFullPath(npzPath: string): string | null {
+  const fullPath = path.join(process.cwd(), "public", npzPath);
+  if (fs.existsSync(fullPath)) return fullPath;
+  const altPath = path.join(process.cwd(), npzPath);
+  if (fs.existsSync(altPath)) return altPath;
+  return null;
 }
 
 function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
@@ -28,11 +44,35 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
     const end_sec = Number(ann.segment_metadata?.end_sec ?? ann.video_source?.label_end_sec ?? 0);
     const duration_sec = Number(ann.segment_metadata?.duration_sec ?? (end_sec - start_sec));
     const coverage_estimate = Number(ann.segment_metadata?.coverage_estimate ?? 1);
-    const tensorFrames = ann.reconstruction?.tensor_shape?.[0] ?? Math.max(20, Math.min(150, Math.round(duration_sec * 10)));
-    const tensorFps = ann.reconstruction?.tensor_fps || 10;
+    // Dynamic frames based on actual duration and capped at MAX_MODEL_FRAMES
+    const rawFrames = computeTensorFrames(duration_sec);
+    const tensorFrames = Math.min(rawFrames, MAX_MODEL_FRAMES);
+    let tensorShape = [tensorFrames, 23, 4];
+    let padding_mask = computePaddingMask(tensorFrames);
+    const tensorFps = MODEL_FPS;
+    let qualityPass = ann.reconstruction?.quality_pass !== false;
 
-    // Detect padding mask
-    const padding_mask = Array.from({ length: 150 }, (_, i) => (i < tensorFrames ? 1 : 0));
+    // Validate trajectory file shape if it exists
+    const npzPath = generateNpzPath(match_id, ann.clip_id);
+    const fullPath = getNpzFullPath(npzPath);
+    if (fullPath) {
+      try {
+        const safePath = fullPath.replace(/\\/g, "/");
+        const cmd = `python -c "import numpy as np; d = np.load('${safePath}'); print(list(d['trajectory'].shape))"`;
+        const stdout = execSync(cmd, { encoding: "utf-8" }).trim();
+        const actualShape = JSON.parse(stdout);
+        if (Array.isArray(actualShape) && actualShape.length === 3) {
+          if (actualShape[0] !== tensorShape[0] || actualShape[1] !== 23 || actualShape[2] !== 4) {
+            qualityPass = false;
+            tensorShape = [actualShape[0], actualShape[1], actualShape[2]];
+            padding_mask = computePaddingMask(actualShape[0]);
+          }
+        }
+      } catch (error) {
+        console.error(`Failed to validate NPZ shape for ${fullPath}:`, error);
+        qualityPass = false;
+      }
+    }
 
     // Map team_a and team_b to team_home and team_away
     const aIsHome = teamConfig?.team_a?.is_home === true || ann.team_a?.is_home === true;
@@ -115,9 +155,9 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
       re_annotation_count: Number(ann.annotation_meta?.re_annotation_count || 0),
       reconstruction: {
         npz_path: generateNpzPath(match_id, ann.clip_id),
-        tensor_shape: ann.reconstruction?.tensor_shape || [tensorFrames, 23, 4],
+        tensor_shape: tensorShape,
         tensor_fps: tensorFps,
-        quality_pass: ann.reconstruction?.quality_pass !== false,
+        quality_pass: qualityPass,
         tracked_players: Number(ann.reconstruction?.tracked_players || 22),
         tracked_ball: true,
         tracking_confidence_mean: Number(ann.reconstruction?.tracking_confidence_mean || 0.85),
