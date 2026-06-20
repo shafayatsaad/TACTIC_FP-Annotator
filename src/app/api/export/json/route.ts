@@ -42,15 +42,25 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
     const team_home = aIsHome ? teamAObj : teamBObj;
     const team_away = aIsHome ? teamBObj : teamAObj;
 
+    const isExclusion = ann.exclusion ? true : false;
+
     // Intents mapping
-    const home_label = {
-      intent_class: team_home?.label?.intent_class,
+    const home_label = isExclusion ? {
+      intent_class: null,
+      confidence: null,
+      certainty: null
+    } : {
+      intent_class: team_home?.label?.intent_class ?? null,
       confidence: team_home?.label?.confidence ?? 0,
       certainty: team_home?.label?.certainty ?? "low"
     };
 
-    const away_label = {
-      intent_class: team_away?.label?.intent_class,
+    const away_label = isExclusion ? {
+      intent_class: null,
+      confidence: null,
+      certainty: null
+    } : {
+      intent_class: team_away?.label?.intent_class ?? null,
       confidence: team_away?.label?.confidence ?? 0,
       certainty: team_away?.label?.certainty ?? "low"
     };
@@ -87,10 +97,6 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
       };
     }
 
-    const teamAIntent = team_home?.label?.intent_class;
-    const teamBIntent = team_away?.label?.intent_class;
-    const isExclusion = (teamAIntent && ["DeadBall", "ContestedPlay"].includes(teamAIntent)) || 
-                        (teamBIntent && ["DeadBall", "ContestedPlay"].includes(teamBIntent));
     const assignedSplit = isExclusion ? "excluded" : (ann.model_split?.assigned_split || "train");
 
     return {
@@ -119,21 +125,21 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
       },
       team_home: {
         label: home_label,
-        is_primary: (home_label.intent_class && home_label.intent_class !== "Skipped") ? team_home?.is_primary !== false : false,
-        possession: team_home?.possession === true,
+        is_primary: home_label.intent_class ? team_home?.is_primary !== false : false,
+        possession: isExclusion ? false : team_home?.possession === true,
         formation_estimate: home_formation,
         players_visible: Number(team_home?.players_visible || 11)
       },
       team_away: {
         label: away_label,
-        is_primary: (away_label.intent_class && away_label.intent_class !== "Skipped") ? team_away?.is_primary === true : false,
-        possession: team_away?.possession === true,
+        is_primary: away_label.intent_class ? team_away?.is_primary === true : false,
+        possession: isExclusion ? false : team_away?.possession === true,
         formation_estimate: away_formation,
         players_visible: Number(team_away?.players_visible || 10)
       },
       exclusion: ann.exclusion || null,
       model_split: assignedSplit,
-      dag_features: {
+      dag_features: isExclusion ? null : {
         phase_mixture: [
           Number(buildup.toFixed(2)),
           Number(press.toFixed(2)),
