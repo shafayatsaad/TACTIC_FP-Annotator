@@ -1,5 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readSegments, writeSegments, deleteSegment } from "@/lib/server-utils";
+import { MAX_SEGMENT_DURATION, isExclusionIntent } from "@/lib/constants";
+
+function validateSegment(segment: any): { error: string; detail: string } | null {
+  const duration = (segment.annotation_end ?? segment.end) - (segment.annotation_start ?? segment.start);
+  if (duration < 2.0) {
+    return { error: "Segment too short", detail: `Duration ${duration.toFixed(2)}s < 2.0s minimum` };
+  }
+  if (duration > MAX_SEGMENT_DURATION) {
+    return { error: "Segment too long", detail: `Duration ${duration.toFixed(2)}s > ${MAX_SEGMENT_DURATION}s maximum` };
+  }
+  if (duration <= 0) {
+    return { error: "Invalid duration", detail: "End time must be after start time" };
+  }
+
+  const teamAIntent = segment.team_a?.label?.intent_class ?? null;
+  const teamBIntent = segment.team_b?.label?.intent_class ?? null;
+  const isExclusion = isExclusionIntent(teamAIntent || "") || isExclusionIntent(teamBIntent || "");
+  if (isExclusion) {
+    const isTeamAValid = teamAIntent === "DeadBall" || teamAIntent === "ContestedPlay" || teamAIntent === null || teamAIntent === "";
+    const isTeamBValid = teamBIntent === "DeadBall" || teamBIntent === "ContestedPlay" || teamBIntent === null || teamBIntent === "";
+    if (!isTeamAValid || !isTeamBValid) {
+      return { error: "Mixed exclusion", detail: "Exclusion intents cannot coexist with tactical intents" };
+    }
+  }
+
+  const coverage = segment.segment_metadata?.coverage_estimate ?? segment.tracking_coverage?.team_a_avg ?? 1.0;
+  if (coverage < 0.80) {
+    return { error: "Coverage too low", detail: `${coverage} < 0.80 minimum` };
+  }
+
+  return null;
+}
 
 export async function GET() {
   try {
@@ -18,6 +50,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     if (body.clip_id) {
       // Save single segment
+      const err = validateSegment(body);
+      if (err) {
+        return NextResponse.json(err, { status: 400 });
+      }
       const segments = readSegments();
       const existing = segments.findIndex(
         (s: any) => s.clip_id === body.clip_id,
@@ -31,7 +67,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
     // Save all segments
-    writeSegments(body.segments || []);
+    const bulkSegments = body.segments || [];
+    for (const segment of bulkSegments) {
+      const err = validateSegment(segment);
+      if (err) {
+        return NextResponse.json(err, { status: 400 });
+      }
+    }
+    writeSegments(bulkSegments);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json(
