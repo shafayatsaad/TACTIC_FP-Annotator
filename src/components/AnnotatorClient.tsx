@@ -36,7 +36,16 @@ import {
 } from "@/lib/constants";
 
 import { formatTime, formatMatchClock } from "@/lib/utils";
-import { MAX_SEGMENT_DURATION, generateClipId, generateNpzPath } from "@/lib/constants";
+import {
+  MAX_SEGMENT_DURATION,
+  generateClipId,
+  generateNpzPath,
+  MODEL_FPS,
+  MAX_MODEL_FRAMES,
+  computeTensorFrames,
+  computePaddingMask,
+  computeTensorShape,
+} from "@/lib/constants";
 
 const SERVER_URL = "/api";
 interface MatchConfig {
@@ -605,9 +614,6 @@ export default function AnnotatorClient() {
         trajectory_path: generateNpzPath(matchId, clipId),
         reconstruction: {
           npz_path: generateNpzPath(matchId, clipId),
-          tensor_fps: 10,
-          quality_pass: true,
-          tracked_players: 22,
         },
       };
       
