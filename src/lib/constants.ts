@@ -368,6 +368,22 @@ export function generateClipId(
   return suffix ? `${base}_${suffix}` : base;
 }
 
+export const MODEL_FPS = 10;
+export const MAX_MODEL_FRAMES = 150;
+
+export function computeTensorFrames(durationSec: number, fps: number = MODEL_FPS): number {
+  return Math.round(durationSec * fps);
+}
+
+export function computePaddingMask(actualFrames: number, maxFrames: number = MAX_MODEL_FRAMES): number[] {
+  return Array.from({ length: maxFrames }, (_, i) => (i < actualFrames ? 1 : 0));
+}
+
+export function computeTensorShape(durationSec: number, fps: number = MODEL_FPS): [number, number, number] {
+  const frames = computeTensorFrames(durationSec, fps);
+  return [frames, 23, 4];
+}
+
 export interface Annotation {
   schema_version: string;
   dataset: string;
