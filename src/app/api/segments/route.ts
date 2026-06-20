@@ -16,11 +16,21 @@ function validateSegment(segment: any): { error: string; detail: string; status?
 
   const teamAIntent = segment.team_a?.label?.intent_class ?? null;
   const teamBIntent = segment.team_b?.label?.intent_class ?? null;
-  const isExclusion = isExclusionIntent(teamAIntent || "") || isExclusionIntent(teamBIntent || "");
-  if (isExclusion) {
-    const isTeamAValid = teamAIntent === "DeadBall" || teamAIntent === "ContestedPlay" || teamAIntent === null || teamAIntent === "";
-    const isTeamBValid = teamBIntent === "DeadBall" || teamBIntent === "ContestedPlay" || teamBIntent === null || teamBIntent === "";
-    if (!isTeamAValid || !isTeamBValid) {
+  const exclusion = segment.exclusion ?? null;
+
+  const hasExclusionIntent = isExclusionIntent(teamAIntent || "") || isExclusionIntent(teamBIntent || "");
+  
+  if (hasExclusionIntent) {
+    if (teamAIntent !== teamBIntent) {
+      return { error: "Exclusion inconsistency", detail: "Both teams must have the same exclusion intent" };
+    }
+  }
+  
+  if (exclusion) {
+    if (!isExclusionIntent(exclusion)) {
+      return { error: "Invalid exclusion", detail: `Exclusion '${exclusion}' is not a valid exclusion intent` };
+    }
+    if ((teamAIntent && !isExclusionIntent(teamAIntent)) || (teamBIntent && !isExclusionIntent(teamBIntent))) {
       return { error: "Mixed exclusion", detail: "Exclusion intents cannot coexist with tactical intents" };
     }
   }
