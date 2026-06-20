@@ -199,7 +199,7 @@ function validateBeforeSubmit(
   }
 
   // 4. NPZ path uniqueness gate
-  const npzPath = clip.trajectory_path || `data/trajectories/${clip.match_id}/${clip.clip_id}.npz`;
+  const npzPath = generateNpzPath(clip.match_id, clip.clip_id);
   if (usedNpzPaths.has(npzPath)) {
     return { valid: false, error: `Duplicate trajectory path: ${npzPath}. Regenerate clip ID.` };
   }
@@ -2016,7 +2016,7 @@ export default function AnnotatorClient() {
         const usedNpzPaths = new Set(
           clips
             .filter((c) => c.clip_id !== currentClip.clip_id && c.clip_id !== realClipId)
-            .map((c) => c.trajectory_path || `data/trajectories/${c.match_id}/${c.clip_id}.npz`)
+            .map((c) => generateNpzPath(c.match_id, c.clip_id))
         );
 
         const validation = validateBeforeSubmit(
