@@ -783,7 +783,7 @@ export default function AnnotationPanel({
             />
           </label>
         </div>
-        <label className="flex items-center gap-2 mb-2 cursor-pointer">
+        <label className="flex items-center gap-3 mb-2 cursor-pointer bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 rounded-lg px-3 py-2 transition-colors">
           <input
             type="checkbox"
             checked={gameState.set_piece === true}
@@ -795,9 +795,16 @@ export default function AnnotationPanel({
                   : undefined,
               })
             }
-            className="w-3.5 h-3.5 rounded border-white/20 bg-white/5 text-indigo-500 focus:ring-indigo-500/30"
+            className="w-5 h-5 rounded border-white/30 bg-white/10 text-indigo-500 focus:ring-indigo-500/50 accent-indigo-500"
           />
-          <span className="text-[10px] text-slate-400">Set piece</span>
+          <span className="text-xs font-semibold text-slate-200 uppercase tracking-wider">
+            Set piece
+          </span>
+          {gameState.set_piece && (
+            <span className="ml-auto text-[9px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+              Active
+            </span>
+          )}
         </label>
         {gameState.set_piece && (
           <select
