@@ -2240,7 +2240,7 @@ export default function AnnotatorClient() {
           Math.min(150, Math.round(labelDur * 10)),
         );
 
-        if (!skipped && labelDur > MAX_SEGMENT_DURATION) {
+        if (labelDur > MAX_SEGMENT_DURATION) {
           // Auto-split at 15s
           const splitClips = createSegmentsFromBoundary(
             newClip.match_id,
@@ -2253,7 +2253,7 @@ export default function AnnotatorClient() {
 
           const intentLabelA = getIntentLabel(selectedIntentA);
           const intentLabelB = getIntentLabel(selectedIntentB);
-          const effectiveExclusion = skipped ? "ContestedPlay" : exclusion;
+          const effectiveExclusion = exclusion;
           let teamAIntentClass: string | null = effectiveExclusion
             ? null
             : intentLabelA;
@@ -2355,8 +2355,8 @@ export default function AnnotatorClient() {
               is_primary: teamAPossession,
               label: {
                 intent_class: teamAIntentClass,
-                confidence: skipped ? 0 : confidenceA,
-                certainty: skipped ? "low" : certaintyA,
+                confidence: confidenceA,
+                certainty: certaintyA,
               },
               possession: teamAPossession,
             },
@@ -2368,8 +2368,8 @@ export default function AnnotatorClient() {
               is_primary: teamBPossession,
               label: {
                 intent_class: teamBIntentClass,
-                confidence: skipped ? 0 : confidenceB,
-                certainty: skipped ? "low" : certaintyB,
+                confidence: confidenceB,
+                certainty: certaintyB,
               },
               possession: teamBPossession,
             },
@@ -2387,7 +2387,7 @@ export default function AnnotatorClient() {
             agreement: {
               annotated_at: new Date().toISOString(),
               flagged_review: isUncertain,
-              skipped,
+              skipped: false,
             },
             model_split: {
               assigned_split: effectiveExclusion ? "excluded" : modelSplit,
@@ -2462,7 +2462,7 @@ export default function AnnotatorClient() {
 
         const intentLabelA = getIntentLabel(selectedIntentA);
         const intentLabelB = getIntentLabel(selectedIntentB);
-        const effectiveExclusion = skipped ? "ContestedPlay" : exclusion;
+        const effectiveExclusion = exclusion;
         let teamAIntentClass: string | null = effectiveExclusion
           ? null
           : intentLabelA;
@@ -2590,8 +2590,8 @@ export default function AnnotatorClient() {
             is_primary: teamAPrimary,
             label: {
               intent_class: teamAIntentClass,
-              confidence: skipped ? 0 : confidenceA,
-              certainty: skipped ? "low" : certaintyA,
+              confidence: confidenceA,
+              certainty: certaintyA,
             },
             possession: teamAPossession,
           },
@@ -2603,8 +2603,8 @@ export default function AnnotatorClient() {
             is_primary: teamBPrimary,
             label: {
               intent_class: teamBIntentClass,
-              confidence: skipped ? 0 : confidenceB,
-              certainty: skipped ? "low" : certaintyB,
+              confidence: confidenceB,
+              certainty: certaintyB,
             },
             possession: teamBPossession,
           },
@@ -2622,7 +2622,7 @@ export default function AnnotatorClient() {
           agreement: {
             annotated_at: new Date().toISOString(),
             flagged_review: isUncertain,
-            skipped,
+              skipped: false,
           },
           model_split: {
             assigned_split: effectiveExclusion ? "excluded" : modelSplit,
@@ -3454,7 +3454,7 @@ export default function AnnotatorClient() {
   // Stable refs for handlers invoked from the global keydown listener.
   const togglePlaybackRef = useRef(togglePlayback);
   togglePlaybackRef.current = togglePlayback;
-  const saveAnnotationRef = useRef<(s: boolean) => void>(saveAnnotation);
+  const saveAnnotationRef = useRef<() => void>(saveAnnotation);
   saveAnnotationRef.current = saveAnnotation;
   const handleStartSegmentCreateRef = useRef(handleStartSegmentCreate);
   handleStartSegmentCreateRef.current = handleStartSegmentCreate;
@@ -3594,19 +3594,14 @@ export default function AnnotatorClient() {
         return;
       }
 
-      // Save / Skip
-      if (key === "s") {
-        e.preventDefault();
-        saveAnnotationRef.current(true); // skip
-        return;
-      }
+      // Submit
       if (key === "enter") {
         e.preventDefault();
         // If we're in the segment-create workflow, confirm it; otherwise submit
         if (creatingSegment) {
           handleConfirmSegmentCreateRef.current();
         } else {
-          saveAnnotationRef.current(false);
+          saveAnnotationRef.current();
         }
         return;
       }
@@ -3916,8 +3911,7 @@ export default function AnnotatorClient() {
             contestedPossessionSuggested={isContestedPossessionSuggested}
             hasManualPossessionOverride={hasManualPossessionOverride}
             onIntentClick={handleIntentClick}
-            onSubmit={() => saveAnnotation(false)}
-            onSkip={() => saveAnnotation(true)}
+            onSubmit={() => saveAnnotation()}
             exclusion={exclusion}
             setExclusion={(val) => {
               setExclusion(val);
@@ -3975,8 +3969,7 @@ export default function AnnotatorClient() {
           annotationsCount={annotations.length}
           totalClips={clips.length}
           classDistribution={classDistribution}
-          onSkip={() => saveAnnotation(true)}
-          onSubmit={() => saveAnnotation(false)}
+          onSubmit={() => saveAnnotation()}
           onExportJSON={exportJSON}
           onExportCSV={exportCSV}
           onReset={resetSession}
