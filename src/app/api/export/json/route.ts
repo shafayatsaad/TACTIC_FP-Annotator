@@ -338,7 +338,6 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
       detected: true,
       home_shift: home_tactic_shift || "None",
       away_shift: away_tactic_shift || "None",
-      wasserstein_distance: 0.42,
     };
   }
 
@@ -381,7 +380,6 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
       halftime_tactical_change_detected: halftime_tactical_change !== null,
       home_team_tactic_shift: home_tactic_shift,
       away_team_tactic_shift: away_tactic_shift,
-      camera_quality_score: 0.85,
       tracking_quality_mean: Number(
         (
           segmentsList.reduce(
