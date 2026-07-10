@@ -2204,7 +2204,7 @@ export default function AnnotatorClient() {
         const clipDur = currentClip.end - currentClip.start;
         const labelDur =
           currentClip.annotation_end - currentClip.annotation_start;
-        if (!skipped && labelDur < 2) {
+        if (labelDur < 2) {
           setStatusMessage(
             "Segment length blocked: submit requires at least 2.0s.",
           );
