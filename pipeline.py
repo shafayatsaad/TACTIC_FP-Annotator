@@ -1,5 +1,16 @@
 #!/usr/bin/env python3
-"""pipeline.py - TACTIC-FP Event-Anchored Multi-Video Processing Pipeline"""
+"""pipeline.py - TACTIC-FP Event-Anchored Multi-Video Processing Pipeline
+
+WARNING: This is a PLACEHOLDER trajectory generator for UI testing only.
+         It generates synthetic sine-wave player motion, NOT real tracking data.
+         
+         To produce real trajectories for model training:
+         1. Replace generate_mock_trajectory_with_event() with YOLOv11 + Deep-EIoU
+         2. Process actual broadcast video files
+         3. See README.md for integration instructions
+         
+         DO NOT use the output of this script for scientific results or model training.
+"""
 import os, sys, json, argparse, random
 from pathlib import Path
 import numpy as np
@@ -63,7 +74,7 @@ def generate_mock_trajectory_with_event(T, event_type, fps=25.0):
     return traj
 
 def process_pipeline():
-    parser = argparse.ArgumentParser(description="TACTIC-FP Event-Anchored Pipeline")
+    parser = argparse.ArgumentParser(description="TACTIC-FP Event-Anchored Pipeline (PLACEHOLDER - uses mock sine-wave trajectories)")
     parser.add_argument("--input-dir", default="raw_videos")
     parser.add_argument("--clip-duration", type=int, default=30, choices=[10, 18, 30])
     parser.add_argument("--annotation-window", type=int, default=6)
