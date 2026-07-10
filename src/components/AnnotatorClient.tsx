@@ -2198,7 +2198,6 @@ export default function AnnotatorClient() {
           setStatusMessage(validation.error || "Validation failed.");
           return;
         }
-      }
       try {
         const fps = currentClip.resolution?.fps ?? 25;
         const clipDur = currentClip.end - currentClip.start;
