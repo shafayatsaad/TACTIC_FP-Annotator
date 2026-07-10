@@ -277,11 +277,15 @@ export default function AnnotationPanel({
             Active Segment Timing
           </h3>
           {currentClip && (
-            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-              currentClip.annotator_state === "accepted" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-              currentClip.annotator_state === "modified" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
-              "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
-            }`}>
+            <span
+              className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                currentClip.annotator_state === "accepted"
+                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                  : currentClip.annotator_state === "modified"
+                    ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                    : "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+              }`}
+            >
               {currentClip.annotator_state || "manual"}
             </span>
           )}
@@ -290,12 +294,17 @@ export default function AnnotationPanel({
         {currentClip ? (
           <div className="space-y-3">
             <div className="text-[11px] text-slate-400 font-mono">
-              ID: <span className="text-white font-bold">{currentClip.clip_id}</span>
+              ID:{" "}
+              <span className="text-white font-bold">
+                {currentClip.clip_id}
+              </span>
             </div>
 
             {/* Start Time Control */}
             <div>
-              <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Start Time (sec)</span>
+              <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+                Start Time (sec)
+              </span>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
@@ -324,7 +333,9 @@ export default function AnnotationPanel({
 
             {/* End Time Control */}
             <div>
-              <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">End Time (sec)</span>
+              <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+                End Time (sec)
+              </span>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
@@ -352,22 +363,31 @@ export default function AnnotationPanel({
             </div>
 
             {(() => {
-              const durationSec = (currentClip.annotation_end ?? currentClip.end) - (currentClip.annotation_start ?? currentClip.start);
+              const durationSec =
+                (currentClip.annotation_end ?? currentClip.end) -
+                (currentClip.annotation_start ?? currentClip.start);
               const computedFrames = computeTensorFrames(durationSec);
               const isOverMax = computedFrames > MAX_MODEL_FRAMES;
               return (
                 <div className="flex flex-col gap-1 text-[10px] text-slate-400 bg-white/[0.02] border border-white/5 rounded-md p-2 font-mono">
                   <div className="flex items-center justify-between">
                     <span>Duration:</span>
-                    <span className="text-white font-bold">{durationSec.toFixed(2)}s</span>
+                    <span className="text-white font-bold">
+                      {durationSec.toFixed(2)}s
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>Frames:</span>
-                    <span className="text-white font-bold">{computedFrames} frames @ {MODEL_FPS} fps</span>
+                    <span className="text-white font-bold">
+                      {computedFrames} frames @ {MODEL_FPS} fps
+                    </span>
                   </div>
                   {isOverMax && (
                     <div className="text-rose-400 text-[9px] mt-1 flex items-center gap-1">
-                      <span>⚠️ Exceeds {MAX_MODEL_FRAMES} frame max — will be truncated</span>
+                      <span>
+                        ⚠️ Exceeds {MAX_MODEL_FRAMES} frame max — will be
+                        truncated
+                      </span>
                     </div>
                   )}
                 </div>
@@ -376,7 +396,9 @@ export default function AnnotationPanel({
           </div>
         ) : (
           <div className="text-center py-4 bg-white/[0.01] border border-dashed border-white/10 rounded-lg">
-            <span className="text-[10px] text-slate-500">No active segment</span>
+            <span className="text-[10px] text-slate-500">
+              No active segment
+            </span>
           </div>
         )}
       </div>
@@ -398,17 +420,26 @@ export default function AnnotationPanel({
         {showMatchDetails && (
           <div className="space-y-2.5 mt-3">
             <label className="block">
-              <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Match ID</span>
+              <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+                Match ID
+              </span>
               <input
                 type="text"
                 value={matchConfig.match_id}
-                onChange={(e) => onMatchConfigChange({ ...matchConfig, match_id: e.target.value })}
+                onChange={(e) =>
+                  onMatchConfigChange({
+                    ...matchConfig,
+                    match_id: e.target.value,
+                  })
+                }
                 className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
               />
             </label>
             <div className="grid grid-cols-2 gap-2">
               <label className="block">
-                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Home Team</span>
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+                  Home Team
+                </span>
                 <input
                   type="text"
                   value={matchConfig.home_team}
@@ -417,14 +448,16 @@ export default function AnnotationPanel({
                     onMatchConfigChange({ ...matchConfig, home_team: val });
                     onTeamConfigChange({
                       ...teamConfig,
-                      team_a: { ...teamConfig.team_a, name: val }
+                      team_a: { ...teamConfig.team_a, name: val },
                     });
                   }}
                   className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
                 />
               </label>
               <label className="block">
-                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Away Team</span>
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+                  Away Team
+                </span>
                 <input
                   type="text"
                   value={matchConfig.away_team}
@@ -433,7 +466,7 @@ export default function AnnotationPanel({
                     onMatchConfigChange({ ...matchConfig, away_team: val });
                     onTeamConfigChange({
                       ...teamConfig,
-                      team_b: { ...teamConfig.team_b, name: val }
+                      team_b: { ...teamConfig.team_b, name: val },
                     });
                   }}
                   className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
@@ -442,80 +475,136 @@ export default function AnnotationPanel({
             </div>
             <div className="grid grid-cols-2 gap-2">
               <label className="block">
-                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Competition</span>
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+                  Competition
+                </span>
                 <input
                   type="text"
                   value={matchConfig.competition}
-                  onChange={(e) => onMatchConfigChange({ ...matchConfig, competition: e.target.value })}
+                  onChange={(e) =>
+                    onMatchConfigChange({
+                      ...matchConfig,
+                      competition: e.target.value,
+                    })
+                  }
                   className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
                 />
               </label>
               <label className="block">
-                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Season</span>
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+                  Season
+                </span>
                 <input
                   type="text"
                   value={matchConfig.season}
-                  onChange={(e) => onMatchConfigChange({ ...matchConfig, season: e.target.value })}
+                  onChange={(e) =>
+                    onMatchConfigChange({
+                      ...matchConfig,
+                      season: e.target.value,
+                    })
+                  }
                   className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
                 />
               </label>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <label className="block">
-                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Match Date</span>
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+                  Match Date
+                </span>
                 <input
                   type="text"
                   value={matchConfig.match_date}
-                  onChange={(e) => onMatchConfigChange({ ...matchConfig, match_date: e.target.value })}
+                  onChange={(e) =>
+                    onMatchConfigChange({
+                      ...matchConfig,
+                      match_date: e.target.value,
+                    })
+                  }
                   className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
                 />
               </label>
               <label className="block">
-                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Final Score</span>
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+                  Final Score
+                </span>
                 <input
                   type="text"
                   value={matchConfig.final_score}
-                  onChange={(e) => onMatchConfigChange({ ...matchConfig, final_score: e.target.value })}
+                  onChange={(e) =>
+                    onMatchConfigChange({
+                      ...matchConfig,
+                      final_score: e.target.value,
+                    })
+                  }
                   className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
                 />
               </label>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <label className="block">
-                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Halftime Score</span>
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+                  Halftime Score
+                </span>
                 <input
                   type="text"
                   value={matchConfig.halftime_score}
-                  onChange={(e) => onMatchConfigChange({ ...matchConfig, halftime_score: e.target.value })}
+                  onChange={(e) =>
+                    onMatchConfigChange({
+                      ...matchConfig,
+                      halftime_score: e.target.value,
+                    })
+                  }
                   className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
                 />
               </label>
               <label className="block">
-                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Annotator</span>
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+                  Annotator
+                </span>
                 <input
                   type="text"
                   value={matchConfig.annotator}
-                  onChange={(e) => onMatchConfigChange({ ...matchConfig, annotator: e.target.value })}
+                  onChange={(e) =>
+                    onMatchConfigChange({
+                      ...matchConfig,
+                      annotator: e.target.value,
+                    })
+                  }
                   className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
                 />
               </label>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <label className="block">
-                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">License</span>
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+                  License
+                </span>
                 <input
                   type="text"
                   value={matchConfig.annotator_license}
-                  onChange={(e) => onMatchConfigChange({ ...matchConfig, annotator_license: e.target.value })}
+                  onChange={(e) =>
+                    onMatchConfigChange({
+                      ...matchConfig,
+                      annotator_license: e.target.value,
+                    })
+                  }
                   className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
                 />
               </label>
               <label className="block">
-                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">Session ID</span>
+                <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+                  Session ID
+                </span>
                 <input
                   type="text"
                   value={matchConfig.session_id}
-                  onChange={(e) => onMatchConfigChange({ ...matchConfig, session_id: e.target.value })}
+                  onChange={(e) =>
+                    onMatchConfigChange({
+                      ...matchConfig,
+                      session_id: e.target.value,
+                    })
+                  }
                   className="w-full rounded border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
                 />
               </label>
@@ -726,7 +815,6 @@ export default function AnnotationPanel({
             <option value="penalty">Penalty</option>
           </select>
         )}
-
       </div>
 
       <div className="p-3 border-b border-white/5">
@@ -821,16 +909,8 @@ export default function AnnotationPanel({
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={onSkip}
-            className="flex-1 flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 py-2 rounded-lg text-[10px] font-bold text-slate-300 uppercase tracking-wider transition-colors"
-          >
-            <SkipForward className="w-3.5 h-3.5" /> Skip (S)
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
             onClick={onSubmit}
-            className="flex-[2] flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-bold text-white uppercase tracking-wider transition-colors shadow-lg"
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-bold text-white uppercase tracking-wider transition-colors shadow-lg"
             style={{
               backgroundColor: activeTeam.jersey_color,
               boxShadow: `0 10px 30px ${activeTeam.jersey_color}22`,
