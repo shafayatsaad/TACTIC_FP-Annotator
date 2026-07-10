@@ -4012,7 +4012,6 @@ export default function AnnotatorClient() {
                   ["U", "Mute / unmute"],
                   ["F", "Toggle fullscreen"],
                   ["1–9, 0, Q, W, R, T", "Pick intent for active team"],
-                  ["S", "Skip clip"],
                   ["Enter", "Submit / confirm mark → create segment"],
                   ["Esc", "Cancel marks / close help"],
                   ["?", "Show this help"],
