@@ -1,6 +1,6 @@
 "use client";
 
-import { Layers, Check, SkipForward } from "lucide-react";
+import { Layers, Check } from "lucide-react";
 import {
   TACTIC_INTENTS,
   getIntentLabel,
@@ -18,7 +18,6 @@ interface Props {
   hasManualPossessionOverride?: boolean;
   onIntentClick: (id: string) => void;
   onSubmit?: () => void;
-  onSkip?: () => void;
   exclusion: "DeadBall" | "ContestedPlay" | null;
   setExclusion: (val: "DeadBall" | "ContestedPlay" | null) => void;
 }
@@ -34,7 +33,6 @@ export default function IntentLabels({
   hasManualPossessionOverride = false,
   onIntentClick,
   onSubmit,
-  onSkip,
   exclusion,
   setExclusion,
 }: Props) {
@@ -144,8 +142,12 @@ export default function IntentLabels({
 
       {exclusion && (
         <div className="mt-3 rounded border border-slate-500 bg-slate-800/50 p-2 text-xs text-slate-300">
-          EXCLUSION: <span className="font-semibold text-slate-100">{exclusion}</span>
-          <button onClick={() => setExclusion(null)} className="ml-2 text-rose-400 hover:underline">
+          EXCLUSION:{" "}
+          <span className="font-semibold text-slate-100">{exclusion}</span>
+          <button
+            onClick={() => setExclusion(null)}
+            className="ml-2 text-rose-400 hover:underline"
+          >
             Clear (Esc)
           </button>
         </div>
@@ -196,35 +198,20 @@ export default function IntentLabels({
         </span>
       </div>
 
-      {/* Submit / Skip buttons for easy access */}
-      {(onSubmit || onSkip) && (
+      {/* Submit button for easy access */}
+      {onSubmit && (
         <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-3">
-          {onSubmit && (
-            <button
-              onClick={onSubmit}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-semibold transition-colors"
-              title="Submit annotation (Enter)"
-            >
-              <Check className="w-3.5 h-3.5" />
-              Submit
-              <kbd className="ml-1 bg-black/30 px-1 py-0.5 rounded text-[9px] font-mono">
-                Enter
-              </kbd>
-            </button>
-          )}
-          {onSkip && (
-            <button
-              onClick={onSkip}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-medium transition-colors"
-              title="Skip clip (S)"
-            >
-              <SkipForward className="w-3.5 h-3.5" />
-              Skip
-              <kbd className="ml-1 bg-black/30 px-1 py-0.5 rounded text-[9px] font-mono">
-                S
-              </kbd>
-            </button>
-          )}
+          <button
+            onClick={onSubmit}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-semibold transition-colors"
+            title="Submit annotation (Enter)"
+          >
+            <Check className="w-3.5 h-3.5" />
+            Submit
+            <kbd className="ml-1 bg-black/30 px-1 py-0.5 rounded text-[9px] font-mono">
+              Enter
+            </kbd>
+          </button>
         </div>
       )}
     </div>
