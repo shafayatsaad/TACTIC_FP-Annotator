@@ -2138,20 +2138,18 @@ export default function AnnotatorClient() {
   );
 
   // ─── Save annotation ───
-  const saveAnnotation = useCallback(
-    (skipped = false) => {
+  const saveAnnotation = useCallback(() => {
       if (!currentClip) {
         console.warn("[saveAnnotation] No current clip");
         return;
       }
-      if (!skipped && !selectedIntentA && !selectedIntentB) {
+      if (!selectedIntentA && !selectedIntentB) {
         setStatusMessage(
-          "Select at least one label or use ContestedPlay/Skip.",
+          "Select at least one label or use ContestedPlay.",
         );
         return;
       }
       if (
-        !skipped &&
         annotations.length >= 50 &&
         !hasAnnotated(currentClip.clip_id)
       ) {
@@ -2160,13 +2158,12 @@ export default function AnnotatorClient() {
         );
         return;
       }
-      if (!skipped && sessionBreakDue) {
+      if (sessionBreakDue) {
         setStatusMessage(
           "Forced session break due. Click Resume After Break before continuing.",
         );
         return;
       }
-      if (!skipped) {
         const intentLabelA = getIntentLabel(selectedIntentA);
         const intentLabelB = getIntentLabel(selectedIntentB);
         const isDraft = currentClip.clip_id === "Draft Segment";
