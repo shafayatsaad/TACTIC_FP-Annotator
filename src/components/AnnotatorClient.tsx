@@ -2960,7 +2960,32 @@ export default function AnnotatorClient() {
           return sorted.length > 0 ? sorted[0][0] : "None";
         };
 
-        const segmentsList = annotations.map((ann, idx) => {
+        // Sort annotations chronologically for temporal linking
+        const sortedAnnotations = [...annotations].sort((a, b) => {
+          const halfCmp = String(a.half).localeCompare(String(b.half));
+          if (halfCmp !== 0) return halfCmp;
+          const aStart =
+            a.segment_metadata?.start_sec ??
+            a.video_source?.label_start_sec ??
+            0;
+          const bStart =
+            b.segment_metadata?.start_sec ??
+            b.video_source?.label_start_sec ??
+            0;
+          return Number(aStart) - Number(bStart);
+        });
+
+        const segmentsList = sortedAnnotations.map((ann, idx, arr) => {
+          const prevAnn = idx > 0 ? arr[idx - 1] : null;
+          const nextAnn = idx < arr.length - 1 ? arr[idx + 1] : null;
+          const prevSegId = prevAnn
+            ? prevAnn.clip_id ||
+              `${matchConfig.match_id}_seg${String(idx - 1).padStart(3, "0")}`
+            : null;
+          const nextSegId = nextAnn
+            ? nextAnn.clip_id ||
+              `${matchConfig.match_id}_seg${String(idx + 1).padStart(3, "0")}`
+            : null;
           const start_sec = Number(
             ann.segment_metadata?.start_sec ??
               ann.video_source?.label_start_sec ??
@@ -3048,6 +3073,8 @@ export default function AnnotatorClient() {
             segment_id:
               ann.clip_id ||
               `${matchConfig.match_id}_seg${String(idx).padStart(3, "0")}`,
+            previous_segment: prevSegId,
+            next_segment: nextSegId,
             half: Number(ann.half) || (ann.half === "2nd" ? 2 : 1),
             start_ms: Math.round(start_sec * 1000),
             end_ms: Math.round(end_sec * 1000),
@@ -3191,7 +3218,6 @@ export default function AnnotatorClient() {
             detected: true,
             home_shift: home_tactic_shift || "None",
             away_shift: away_tactic_shift || "None",
-            wasserstein_distance: 0.42,
           };
         }
         if (
@@ -3233,7 +3259,6 @@ export default function AnnotatorClient() {
               halftime_tactical_change !== null,
             home_team_tactic_shift: home_tactic_shift,
             away_team_tactic_shift: away_tactic_shift,
-            camera_quality_score: 0.85,
             tracking_quality_mean: Number(
               (
                 segmentsList.reduce(
