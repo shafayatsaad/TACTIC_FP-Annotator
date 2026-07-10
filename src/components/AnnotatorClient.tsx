@@ -47,6 +47,7 @@ import {
   computePaddingMask,
   computeTensorShape,
 } from "@/lib/constants";
+import { splitSegmentBounds } from "@/lib/splitSegmentBounds";
 
 const SERVER_URL = "/api";
 interface MatchConfig {
@@ -276,7 +277,7 @@ export default function AnnotatorClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [loopClip, setLoopClip] = useState(false);
+  const [loopClip, setLoopClip] = useState(true);
   const [videoError, setVideoError] = useState("");
   const [isConverting, setIsConverting] = useState(false);
   const [convertProgress, setConvertProgress] = useState(0);
@@ -602,6 +603,8 @@ export default function AnnotatorClient() {
     [],
   );
 
+  const splitCounterRef = useRef(0);
+
   const createSegmentsFromBoundary = useCallback(
     (
       matchId: string,
@@ -613,26 +616,27 @@ export default function AnnotatorClient() {
       const totalDuration = endSec - startSec;
       const chunks: Clip[] = [];
 
-      let currentStart = startSec;
-      let partIdx = 1;
+      // Use the robust splitSegmentBounds algorithm from the library
+      const bounds = splitSegmentBounds(
+        Math.round(startSec * 1000),
+        Math.round(endSec * 1000),
+      );
 
-      while (currentStart < endSec) {
-        const chunkEnd = Math.min(currentStart + MAX_SEGMENT_DURATION, endSec);
-        const chunkDuration = chunkEnd - currentStart;
+      for (let i = 0; i < bounds.length; i++) {
+        const bound = bounds[i];
+        const chunkStartSec = bound.start / 1000;
+        const chunkEndSec = bound.end / 1000;
+        const chunkDuration = chunkEndSec - chunkStartSec;
+        const isMultiPart = bounds.length > 1;
 
-        if (chunkDuration < 2.0 && chunks.length > 0) {
-          const prev = chunks[chunks.length - 1];
-          prev.annotation_end = chunkEnd;
-          prev.end = Math.min(videoDurationSec, chunkEnd + 4);
-          prev.annotation_window = prev.annotation_end - prev.annotation_start;
-          break;
-        }
-
+        // Generate unique clip ID with counter to avoid duplicates
+        splitCounterRef.current += 1;
+        const counter = splitCounterRef.current;
         const clipId = generateClipId(
           matchId,
           half,
-          currentStart,
-          totalDuration > MAX_SEGMENT_DURATION ? `p${partIdx}` : undefined,
+          chunkStartSec,
+          isMultiPart ? `p${i + 1}_${counter}` : undefined,
         );
 
         const chunk: Clip = {
@@ -641,12 +645,12 @@ export default function AnnotatorClient() {
           match_id: matchId,
           path: baseClip.path || "",
           half,
-          start: Math.max(0, currentStart - 4),
-          end: Math.min(videoDurationSec, chunkEnd + 4),
-          annotation_start: currentStart,
-          annotation_end: chunkEnd,
+          start: Math.max(0, chunkStartSec - 4),
+          end: Math.min(videoDurationSec, chunkEndSec + 4),
+          annotation_start: chunkStartSec,
+          annotation_end: chunkEndSec,
           annotation_window: chunkDuration,
-          game_clock: formatMatchClock(half, currentStart),
+          game_clock: formatMatchClock(half, chunkStartSec),
           trajectory_path: generateNpzPath(matchId, clipId),
           reconstruction: {
             npz_path: generateNpzPath(matchId, clipId),
@@ -654,8 +658,6 @@ export default function AnnotatorClient() {
         };
 
         chunks.push(chunk);
-        currentStart = chunkEnd;
-        partIdx++;
       }
 
       return chunks;
@@ -1375,6 +1377,9 @@ export default function AnnotatorClient() {
 
   // Imperatively push currentTime updates through rAF so React doesn't
   // re-render on every browser `timeupdate` event (~4 Hz).
+  // The video loops within the annotation window [annotation_start, annotation_end],
+  // not the full video context [start, end]. This ensures the user only sees
+  // the segment they are labeling.
   const handleTimeUpdate = useCallback(() => {
     const video = videoRef.current;
     const clip = clips[currentClipIndex];
@@ -1384,9 +1389,10 @@ export default function AnnotatorClient() {
       rafRef.current = null;
       const t = video.currentTime;
       setVideoCurrentTime(t);
-      if (t >= clip.end) {
+      // Loop within the annotation window, not the full video context
+      if (t >= clip.annotation_end) {
         if (loopClip) {
-          video.currentTime = clip.start;
+          video.currentTime = clip.annotation_start;
           video.play().catch(() => {});
         } else {
           video.pause();
@@ -3789,6 +3795,35 @@ export default function AnnotatorClient() {
     hasShownSplitPromptRef.current = true;
   }, []);
 
+  // Stable video event handlers to prevent infinite re-render loops
+  const handleToggleLoop = useCallback(() => {
+    setLoopClip((prev) => !prev);
+  }, []);
+
+  const handleVideoPlay = useCallback(() => {
+    setIsPlaying(true);
+  }, []);
+
+  const handleVideoPause = useCallback(() => {
+    setIsPlaying(false);
+  }, []);
+
+  const handleVideoWaiting = useCallback(() => {
+    setIsBuffering(true);
+  }, []);
+
+  const handleVideoPlaying = useCallback(() => {
+    setIsBuffering(false);
+  }, []);
+
+  const handleVideoError = useCallback(() => {
+    setIsPlaying(false);
+    const isMkv = (currentClip?.path ?? activeVideoPath)?.endsWith(".mkv");
+    setVideoError(
+      isMkv ? 'MKV not supported. Click "Convert to MP4".' : "Video load error",
+    );
+  }, [currentClip?.path, activeVideoPath]);
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#0a0c10] text-slate-200 font-sans selection:bg-indigo-500/30">
       <Header
@@ -3854,22 +3889,12 @@ export default function AnnotatorClient() {
             onProgressClick={handleProgressClick}
             onCycleSpeed={cycleSpeed}
             onToggleMute={toggleMute}
-            onToggleLoop={() => setLoopClip(!loopClip)}
-            onVideoPlay={() => setIsPlaying(true)}
-            onVideoPause={() => setIsPlaying(false)}
-            onVideoWaiting={() => setIsBuffering(true)}
-            onVideoPlaying={() => setIsBuffering(false)}
-            onVideoError={() => {
-              setIsPlaying(false);
-              const isMkv = (currentClip?.path ?? activeVideoPath)?.endsWith(
-                ".mkv",
-              );
-              setVideoError(
-                isMkv
-                  ? 'MKV not supported. Click "Convert to MP4".'
-                  : "Video load error",
-              );
-            }}
+            onToggleLoop={handleToggleLoop}
+            onVideoPlay={handleVideoPlay}
+            onVideoPause={handleVideoPause}
+            onVideoWaiting={handleVideoWaiting}
+            onVideoPlaying={handleVideoPlaying}
+            onVideoError={handleVideoError}
             onConvertVideo={handleConvertVideo}
             onLoadVideoDirect={handleLoadVideoDirect}
             onBoundaryNudge={handleBoundaryNudge}
