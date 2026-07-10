@@ -816,10 +816,30 @@ export default function AnnotationPanel({
             }
             className="mb-2 w-full rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-white/30"
           >
-            <option value="corner">Corner</option>
-            <option value="free_kick">Free kick</option>
-            <option value="throw_in">Throw in</option>
-            <option value="penalty">Penalty</option>
+            <option
+              value="corner"
+              style={{ background: "#1e1e2e", color: "#e2e8f0" }}
+            >
+              Corner
+            </option>
+            <option
+              value="free_kick"
+              style={{ background: "#1e1e2e", color: "#e2e8f0" }}
+            >
+              Free kick
+            </option>
+            <option
+              value="throw_in"
+              style={{ background: "#1e1e2e", color: "#e2e8f0" }}
+            >
+              Throw in
+            </option>
+            <option
+              value="penalty"
+              style={{ background: "#1e1e2e", color: "#e2e8f0" }}
+            >
+              Penalty
+            </option>
           </select>
         )}
       </div>
@@ -870,9 +890,24 @@ export default function AnnotationPanel({
               onChange={(e) => onCertaintyChange(e.target.value as Certainty)}
               className="w-full rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-white/30"
             >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
+              <option
+                value="low"
+                style={{ background: "#1e1e2e", color: "#e2e8f0" }}
+              >
+                Low
+              </option>
+              <option
+                value="medium"
+                style={{ background: "#1e1e2e", color: "#e2e8f0" }}
+              >
+                Medium
+              </option>
+              <option
+                value="high"
+                style={{ background: "#1e1e2e", color: "#e2e8f0" }}
+              >
+                High
+              </option>
             </select>
           </label>
           <label className="block">
