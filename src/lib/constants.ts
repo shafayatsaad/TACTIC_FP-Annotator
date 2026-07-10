@@ -161,6 +161,9 @@ export function HALF_LABEL(h: number): string {
 // Maximum segment duration in seconds. No single intent segment should
 // exceed this. Segments longer than 15s are auto-split on save.
 export const MAX_SEGMENT_DURATION = 15;
+// Minimum segment duration in seconds. Segments shorter than this are
+// rejected at the validation gate and cannot be submitted.
+export const MIN_SEGMENT_DURATION = 2;
 
 export type AnnotatorState =
   | "unseen"
