@@ -3941,6 +3941,7 @@ export default function AnnotatorClient() {
           annotationsCount={annotations.length}
           totalClips={clips.length}
           classDistribution={classDistribution}
+          onSkip={() => {}}
           onSubmit={() => saveAnnotation()}
           onExportJSON={exportJSON}
           onExportCSV={exportCSV}
