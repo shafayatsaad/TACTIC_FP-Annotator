@@ -2058,32 +2058,19 @@ export default function AnnotatorClient() {
   // ─── Delete segment ───
   const handleDeleteSegment = useCallback(
     (clipId: string) => {
+      if (!window.confirm(`Delete segment ${clipId}? This cannot be undone.`)) {
+        return;
+      }
       setClips((prev) => {
         const filtered = prev.filter((c) => c.clip_id !== clipId);
+        // Don't re-chain timestamps — keep original times intact.
+        // Just remove the clip. Annotations for other clips remain valid.
 
-        // Re-chain remaining clips
-        let currentStart = 0;
-        const rechained = filtered.map((clip) => {
-          const duration = clip.annotation_end - clip.annotation_start;
-          const newStart = currentStart;
-          const newEnd = newStart + duration;
-          currentStart = newEnd;
-          return {
-            ...clip,
-            annotation_start: newStart,
-            annotation_end: newEnd,
-            annotation_window: duration,
-            start: Math.max(0, newStart - 4),
-            end: Math.min(videoDurationSec, newEnd + 4),
-            game_clock: formatMatchClock(clip.half ?? 1, newStart),
-          };
-        });
-
-        // Update annotations and sync to server
+        // Update annotations: remove the deleted clip's annotation
         setAnnotations((prevAnn) => {
-          const updatedAnn = syncAnnotationsWithClips(rechained, prevAnn);
+          const filteredAnn = prevAnn.filter((a) => a.clip_id !== clipId);
           // Sort chronologically by half and start time
-          const sortedAnn = [...updatedAnn].sort((a, b) => {
+          const sortedAnn = [...filteredAnn].sort((a, b) => {
             const halfCmp = String(a.half).localeCompare(String(b.half));
             if (halfCmp !== 0) return halfCmp;
             const aStart =
@@ -2116,348 +2103,133 @@ export default function AnnotatorClient() {
         fetch(`${SERVER_URL}/segments`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ segments: rechained }),
+          body: JSON.stringify({ segments: filtered }),
         }).catch(() => console.warn("Failed to sync segments on server"));
 
         // Select appropriate index
-        if (rechained.length > 0) {
+        if (filtered.length > 0) {
           setCurrentClipIndex((prevIdx) =>
-            Math.min(prevIdx, rechained.length - 1),
+            Math.min(prevIdx, filtered.length - 1),
           );
         } else {
           setCurrentClipIndex(0);
           setCreatingSegment({ start: 0, end: 2 });
         }
 
-        return rechained;
+        return filtered;
       });
 
-      setStatusMessage(`Segment ${clipId} deleted and chain updated.`);
+      setStatusMessage(`Segment ${clipId} deleted.`);
     },
-    [videoDurationSec, teamConfig, matchConfig, syncAnnotationsWithClips],
+    [teamConfig, matchConfig],
   );
 
   // ─── Save annotation ───
   const saveAnnotation = useCallback(() => {
-      if (!currentClip) {
-        console.warn("[saveAnnotation] No current clip");
-        return;
-      }
-      if (!selectedIntentA && !selectedIntentB) {
+    if (!currentClip) {
+      console.warn("[saveAnnotation] No current clip");
+      return;
+    }
+    if (!selectedIntentA && !selectedIntentB) {
+      setStatusMessage("Select at least one label or use ContestedPlay.");
+      return;
+    }
+    if (annotations.length >= 50 && !hasAnnotated(currentClip.clip_id)) {
+      setStatusMessage(
+        "Session hard cap reached at 50 clips. Export or reset before continuing.",
+      );
+      return;
+    }
+    if (sessionBreakDue) {
+      setStatusMessage(
+        "Forced session break due. Click Resume After Break before continuing.",
+      );
+      return;
+    }
+    const intentLabelA = getIntentLabel(selectedIntentA);
+    const intentLabelB = getIntentLabel(selectedIntentB);
+    const isDraft = currentClip.clip_id === "Draft Segment";
+    const matchId = currentClip.match_id || "manual";
+    const realClipId = isDraft
+      ? `${matchId}_seg${String(clips.length).padStart(3, "0")}`
+      : currentClip.clip_id;
+
+    const newClip: Clip = isDraft
+      ? { ...currentClip, clip_id: realClipId }
+      : currentClip;
+
+    const usedNpzPaths = new Set(
+      clips
+        .filter(
+          (c) => c.clip_id !== currentClip.clip_id && c.clip_id !== realClipId,
+        )
+        .map((c) => generateNpzPath(c.match_id, c.clip_id)),
+    );
+
+    const validation = validateBeforeSubmit(
+      newClip,
+      intentLabelA,
+      intentLabelB,
+      coverageEstimate / 100,
+      usedNpzPaths,
+      exclusion,
+    );
+
+    if (!validation.valid) {
+      setStatusMessage(validation.error || "Validation failed.");
+      return;
+    }
+    try {
+      const fps = currentClip.resolution?.fps ?? 25;
+      const clipDur = currentClip.end - currentClip.start;
+      const labelDur =
+        currentClip.annotation_end - currentClip.annotation_start;
+      if (labelDur < 2) {
         setStatusMessage(
-          "Select at least one label or use ContestedPlay.",
+          "Segment length blocked: submit requires at least 2.0s.",
         );
         return;
       }
-      if (
-        annotations.length >= 50 &&
-        !hasAnnotated(currentClip.clip_id)
-      ) {
-        setStatusMessage(
-          "Session hard cap reached at 50 clips. Export or reset before continuing.",
-        );
-        return;
-      }
-      if (sessionBreakDue) {
-        setStatusMessage(
-          "Forced session break due. Click Resume After Break before continuing.",
-        );
-        return;
-      }
-        const intentLabelA = getIntentLabel(selectedIntentA);
-        const intentLabelB = getIntentLabel(selectedIntentB);
-        const isDraft = currentClip.clip_id === "Draft Segment";
-        const matchId = currentClip.match_id || "manual";
-        const realClipId = isDraft
-          ? `${matchId}_seg${String(clips.length).padStart(3, "0")}`
-          : currentClip.clip_id;
 
-        const newClip: Clip = isDraft
-          ? { ...currentClip, clip_id: realClipId }
-          : currentClip;
-
-        const usedNpzPaths = new Set(
-          clips
-            .filter(
-              (c) =>
-                c.clip_id !== currentClip.clip_id && c.clip_id !== realClipId,
-            )
-            .map((c) => generateNpzPath(c.match_id, c.clip_id)),
-        );
-
-        const validation = validateBeforeSubmit(
-          newClip,
-          intentLabelA,
-          intentLabelB,
-          coverageEstimate / 100,
-          usedNpzPaths,
-          exclusion,
-        );
-
-        if (!validation.valid) {
-          setStatusMessage(validation.error || "Validation failed.");
-          return;
-        }
-      try {
-        const fps = currentClip.resolution?.fps ?? 25;
-        const clipDur = currentClip.end - currentClip.start;
-        const labelDur =
-          currentClip.annotation_end - currentClip.annotation_start;
-        if (labelDur < 2) {
-          setStatusMessage(
-            "Segment length blocked: submit requires at least 2.0s.",
-          );
-          return;
-        }
-
-        // Build cleanedGameState early so auto-split can use it
-        const cleanedGameState: GameState = {
-          half: gameState.half,
-          match_clock_sec: gameState.match_clock_sec,
-          score_home: gameState.score_home,
-          score_away: gameState.score_away,
-          ...(gameState.set_piece
-            ? {
-                set_piece: true,
-                set_piece_type: gameState.set_piece_type || "corner",
-              }
-            : {}),
-        };
-
-        const isDraft = currentClip.clip_id === "Draft Segment";
-        const matchId = currentClip.match_id || "manual";
-        const realClipId = isDraft
-          ? `${matchId}_seg${String(clips.length).padStart(3, "0")}`
-          : currentClip.clip_id;
-
-        const newClip: Clip = isDraft
-          ? { ...currentClip, clip_id: realClipId }
-          : currentClip;
-
-        const tensorFrames = Math.max(
-          20,
-          Math.min(150, Math.round(labelDur * 10)),
-        );
-
-        if (labelDur > MAX_SEGMENT_DURATION) {
-          // Auto-split at 15s
-          const splitClips = createSegmentsFromBoundary(
-            newClip.match_id,
-            newClip.half,
-            newClip.annotation_start,
-            newClip.annotation_end,
-            newClip,
-          );
-          const remainderId = splitClips[splitClips.length - 1].clip_id;
-
-          const intentLabelA = getIntentLabel(selectedIntentA);
-          const intentLabelB = getIntentLabel(selectedIntentB);
-          const effectiveExclusion = exclusion;
-          let teamAIntentClass: string | null = effectiveExclusion
-            ? null
-            : intentLabelA;
-          let teamBIntentClass: string | null = effectiveExclusion
-            ? null
-            : intentLabelB;
-
-          // Derive possession for Segment A
-          let teamAPossession =
-            !effectiveExclusion && detectedPossessionTeam === "A";
-          let teamBPossession =
-            !effectiveExclusion && detectedPossessionTeam === "B";
-          if (!effectiveExclusion && manualPossession === "A") {
-            teamAPossession = true;
-            teamBPossession = false;
-          } else if (!effectiveExclusion && manualPossession === "B") {
-            teamAPossession = false;
-            teamBPossession = true;
-          } else if (!effectiveExclusion && manualPossession === "contested") {
-            teamAPossession = false;
-            teamBPossession = false;
-          } else if (!effectiveExclusion && !detectedPossessionTeam) {
-            if (intentLabelA && isAttackIntent(intentLabelA))
-              teamAPossession = true;
-            if (intentLabelA && isDefenseIntent(intentLabelA))
-              teamAPossession = false;
-            if (intentLabelB && isAttackIntent(intentLabelB))
-              teamBPossession = true;
-            if (intentLabelB && isDefenseIntent(intentLabelB))
-              teamBPossession = false;
-            if (teamAPossession === teamBPossession) {
-              if (teamAIntentClass && isAttackIntent(teamAIntentClass)) {
-                teamAPossession = true;
-                teamBPossession = false;
-              } else if (teamBIntentClass && isAttackIntent(teamBIntentClass)) {
-                teamAPossession = false;
-                teamBPossession = true;
-              } else if (
-                teamAIntentClass &&
-                isDefenseIntent(teamAIntentClass)
-              ) {
-                teamAPossession = false;
-                teamBPossession = true;
-              } else if (
-                teamBIntentClass &&
-                isDefenseIntent(teamBIntentClass)
-              ) {
-                teamAPossession = true;
-                teamBPossession = false;
-              } else {
-                teamAPossession = currentTeam === "A";
-                teamBPossession = currentTeam === "B";
-              }
+      // Build cleanedGameState early so auto-split can use it
+      const cleanedGameState: GameState = {
+        half: gameState.half,
+        match_clock_sec: gameState.match_clock_sec,
+        score_home: gameState.score_home,
+        score_away: gameState.score_away,
+        ...(gameState.set_piece
+          ? {
+              set_piece: true,
+              set_piece_type: gameState.set_piece_type || "corner",
             }
-          }
+          : {}),
+      };
 
-          const templateAnn: Annotation = {
-            schema_version: "1.0.0",
-            dataset: "TACTIC-Bench",
-            clip_id: realClipId,
-            match_id: newClip.match_id,
-            match_name: newClip.match_name || newClip.match_id,
-            half: HALF_LABEL(newClip.half),
-            window_idx: isDraft
-              ? clips.length
-              : (newClip.window_idx ?? currentClipIndex),
-            segment_metadata: {
-              start_sec: newClip.annotation_start,
-              end_sec: newClip.annotation_end,
-              duration_sec: Number(labelDur.toFixed(3)),
-              tensor_frames: tensorFrames,
-              preceding_event: newClip.anchor_event?.type,
-              following_event: newClip.following_event,
-              coverage_estimate: Number((coverageEstimate / 100).toFixed(3)),
-              is_mixed_phase: isMixedPhase,
-            },
-            game_state: cleanedGameState,
-            video_source: {
-              video_path: newClip.path,
-              seek_start_sec: newClip.start,
-              label_start_sec: newClip.annotation_start,
-              label_end_sec: newClip.annotation_end,
-              seek_end_sec: newClip.end,
-              fps,
-              tensor_fps: 10,
-              source_frame_count: Math.round(clipDur * fps),
-              tensor_frame_count: tensorFrames,
-            },
-            reconstruction: {
-              npz_path: generateNpzPath(newClip.match_id, newClip.clip_id),
-              quality_pass: qualityPass,
-              tracked_players: trackedPlayers,
-            },
-            team_a: {
-              team_id: "Team_A",
-              team_name: teamConfig.team_a.name,
-              jersey_color: teamConfig.team_a.jersey_color,
-              is_home: teamConfig.team_a.is_home,
-              is_primary: teamAPossession,
-              label: {
-                intent_class: teamAIntentClass,
-                confidence: confidenceA,
-                certainty: certaintyA,
-              },
-              possession: teamAPossession,
-            },
-            team_b: {
-              team_id: "Team_B",
-              team_name: teamConfig.team_b.name,
-              jersey_color: teamConfig.team_b.jersey_color,
-              is_home: teamConfig.team_b.is_home,
-              is_primary: teamBPossession,
-              label: {
-                intent_class: teamBIntentClass,
-                confidence: confidenceB,
-                certainty: certaintyB,
-              },
-              possession: teamBPossession,
-            },
-            team_config: teamConfig,
-            exclusion: effectiveExclusion,
-            annotation_meta: {
-              annotator_id: "coach_001",
-              session_id: `sess_${new Date().toISOString().slice(0, 10).replace(/-/g, "")}`,
-              annotation_timestamp: new Date().toISOString(),
-              annotation_duration_sec: Math.round(
-                (Date.now() - annotationStartTimeRef.current) / 1000,
-              ),
-              tool_version: "tactic-annotator-v3.0",
-            },
-            agreement: {
-              annotated_at: new Date().toISOString(),
-              flagged_review: isUncertain,
-              skipped: false,
-            },
-            model_split: {
-              assigned_split: effectiveExclusion ? "excluded" : modelSplit,
-            },
-          };
+      const isDraft = currentClip.clip_id === "Draft Segment";
+      const matchId = currentClip.match_id || "manual";
+      const realClipId = isDraft
+        ? `${matchId}_seg${String(clips.length).padStart(3, "0")}`
+        : currentClip.clip_id;
 
-          const newAnns = buildSplitAnnotations(splitClips, templateAnn);
+      const newClip: Clip = isDraft
+        ? { ...currentClip, clip_id: realClipId }
+        : currentClip;
 
-          const updated = [
-            ...annotations.filter(
-              (a) =>
-                a.clip_id !== currentClip.clip_id && a.clip_id !== realClipId,
-            ),
-            ...newAnns,
-          ];
-          updated.sort((a, b) => {
-            const halfCmp = String(a.half).localeCompare(String(b.half));
-            if (halfCmp !== 0) return halfCmp;
-            const windowCmp = (a.window_idx ?? 0) - (b.window_idx ?? 0);
-            if (windowCmp !== 0) return windowCmp;
-            return String(a.video_source?.video_path || "").localeCompare(
-              String(b.video_source?.video_path || ""),
-            );
-          });
-          setAnnotations(updated);
+      const tensorFrames = Math.max(
+        20,
+        Math.min(150, Math.round(labelDur * 10)),
+      );
 
-          setClips((prev) => {
-            const filtered = prev.filter(
-              (c) =>
-                c.clip_id !== currentClip.clip_id && c.clip_id !== realClipId,
-            );
-            const next = [...filtered, ...splitClips].sort(
-              (a, b) => a.annotation_start - b.annotation_start,
-            );
-
-            // Always advance to draft mode for next segment
-            setCurrentClipIndex(next.length);
-
-            // Sync segments to server
-            fetch(`${SERVER_URL}/segments`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ segments: next }),
-            }).catch(() => console.warn("Failed to sync segments"));
-
-            return next;
-          });
-
-          splitClips.forEach((c) => saveSegmentToServer(c));
-          // Auto-chain: create new segment draft from end of last split
-          const lastSplitEnd = splitClips[splitClips.length - 1].annotation_end;
-          setCreatingSegment({ start: lastSplitEnd, end: lastSplitEnd + 2 });
-          setStatusMessage(
-            `Auto-split: ${splitClips.length} segments saved. Next segment starts at ${formatTime(lastSplitEnd)}. Press O to mark end.`,
-          );
-
-          // Sync annotations to server
-          fetch(`${SERVER_URL}/annotations`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              schema_version: "1.0.0",
-              dataset: "TACTIC-Bench",
-              team_config: teamConfig,
-              match_config: matchConfig,
-              annotations: updated,
-            }),
-          }).catch(() => console.warn("Sync failed"));
-
-          return;
-        }
+      if (labelDur > MAX_SEGMENT_DURATION) {
+        // Auto-split at 15s
+        const splitClips = createSegmentsFromBoundary(
+          newClip.match_id,
+          newClip.half,
+          newClip.annotation_start,
+          newClip.annotation_end,
+          newClip,
+        );
+        const remainderId = splitClips[splitClips.length - 1].clip_id;
 
         const intentLabelA = getIntentLabel(selectedIntentA);
         const intentLabelB = getIntentLabel(selectedIntentB);
@@ -2468,9 +2240,8 @@ export default function AnnotatorClient() {
         let teamBIntentClass: string | null = effectiveExclusion
           ? null
           : intentLabelB;
-        // ─── Possession / primary derivation ───
-        // Start from the trajectory-detected team, but let the annotator's
-        // manual override ("A" | "B" | "contested") be the source of truth.
+
+        // Derive possession for Segment A
         let teamAPossession =
           !effectiveExclusion && detectedPossessionTeam === "A";
         let teamBPossession =
@@ -2485,8 +2256,6 @@ export default function AnnotatorClient() {
           teamAPossession = false;
           teamBPossession = false;
         } else if (!effectiveExclusion && !detectedPossessionTeam) {
-          // Fall back to intent-based heuristic when no manual selection and
-          // no trajectory signal. Keep the original auto-derivation.
           if (intentLabelA && isAttackIntent(intentLabelA))
             teamAPossession = true;
           if (intentLabelA && isDefenseIntent(intentLabelA))
@@ -2514,37 +2283,8 @@ export default function AnnotatorClient() {
             }
           }
         }
-        // is_primary mirrors the user-selected possession: the team with the
-        // ball is primary. Contested / no-team selections yield primary=false
-        // for both sides (matches the existing ContestedPlay exclusion case).
-        const teamAPrimary = teamAPossession;
-        const teamBPrimary = teamBPossession;
-        if (
-          !effectiveExclusion &&
-          teamAIntentClass === "CounterAttack" &&
-          teamBIntentClass === "CounterAttack"
-        ) {
-          setStatusMessage("CounterAttack cannot be assigned to both teams.");
-          return;
-        }
-        if (!effectiveExclusion && (!teamAIntentClass || !teamBIntentClass)) {
-          setStatusMessage(
-            "Both teams need an intent before submit, unless this is an exclusion.",
-          );
-          return;
-        }
-        if (
-          !effectiveExclusion &&
-          ((teamAPossession && isAttackIntent(teamBIntentClass || "")) ||
-            (teamBPossession && isAttackIntent(teamAIntentClass || "")))
-        ) {
-          setStatusMessage(
-            "Offensive intents are disabled for the team without possession.",
-          );
-          return;
-        }
 
-        const ann: Annotation = {
+        const templateAnn: Annotation = {
           schema_version: "1.0.0",
           dataset: "TACTIC-Bench",
           clip_id: realClipId,
@@ -2586,7 +2326,7 @@ export default function AnnotatorClient() {
             team_name: teamConfig.team_a.name,
             jersey_color: teamConfig.team_a.jersey_color,
             is_home: teamConfig.team_a.is_home,
-            is_primary: teamAPrimary,
+            is_primary: teamAPossession,
             label: {
               intent_class: teamAIntentClass,
               confidence: confidenceA,
@@ -2599,7 +2339,7 @@ export default function AnnotatorClient() {
             team_name: teamConfig.team_b.name,
             jersey_color: teamConfig.team_b.jersey_color,
             is_home: teamConfig.team_b.is_home,
-            is_primary: teamBPrimary,
+            is_primary: teamBPossession,
             label: {
               intent_class: teamBIntentClass,
               confidence: confidenceB,
@@ -2621,16 +2361,21 @@ export default function AnnotatorClient() {
           agreement: {
             annotated_at: new Date().toISOString(),
             flagged_review: isUncertain,
-              skipped: false,
+            skipped: false,
           },
           model_split: {
             assigned_split: effectiveExclusion ? "excluded" : modelSplit,
           },
         };
 
+        const newAnns = buildSplitAnnotations(splitClips, templateAnn);
+
         const updated = [
-          ...annotations.filter((a) => a.clip_id !== realClipId),
-          ann,
+          ...annotations.filter(
+            (a) =>
+              a.clip_id !== currentClip.clip_id && a.clip_id !== realClipId,
+          ),
+          ...newAnns,
         ];
         updated.sort((a, b) => {
           const halfCmp = String(a.half).localeCompare(String(b.half));
@@ -2643,41 +2388,37 @@ export default function AnnotatorClient() {
         });
         setAnnotations(updated);
 
-        if (isDraft) {
-          saveSegmentToServer(newClip);
-          setClips((prev) => {
-            const next = [...prev, newClip];
-            setCurrentClipIndex(next.length);
-            return next;
-          });
-        } else if (currentClipIndex === clips.length - 1) {
-          // Submitted the last segment -> transition to new draft segment
-          setCurrentClipIndex(clips.length);
-        } else if (autoNext && currentClipIndex < clips.length - 1) {
-          setCurrentClipIndex((i) => {
-            let next = i + 1;
-            while (
-              next < clips.length - 1 &&
-              clips[next]?.annotator_state === "rejected"
-            ) {
-              next++;
-            }
-            return next;
-          });
-        }
-
-        const nextStartSec = newClip.annotation_end;
-        if (isDraft || currentClipIndex === clips.length - 1) {
-          // Auto-chain: create new segment draft from end of this segment
-          setCreatingSegment({ start: nextStartSec, end: nextStartSec + 2 });
-          setStatusMessage(
-            `Segment saved (${labelDur.toFixed(1)}s). Next segment starts at ${formatTime(nextStartSec)}. Press O to mark end.`,
+        setClips((prev) => {
+          const filtered = prev.filter(
+            (c) =>
+              c.clip_id !== currentClip.clip_id && c.clip_id !== realClipId,
           );
-        } else {
-          setCreatingSegment(null);
-          setStatusMessage(`Segment updated (${labelDur.toFixed(1)}s).`);
-        }
+          const next = [...filtered, ...splitClips].sort(
+            (a, b) => a.annotation_start - b.annotation_start,
+          );
 
+          // Always advance to draft mode for next segment
+          setCurrentClipIndex(next.length);
+
+          // Sync segments to server
+          fetch(`${SERVER_URL}/segments`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ segments: next }),
+          }).catch(() => console.warn("Failed to sync segments"));
+
+          return next;
+        });
+
+        splitClips.forEach((c) => saveSegmentToServer(c));
+        // Auto-chain: create new segment draft from end of last split
+        const lastSplitEnd = splitClips[splitClips.length - 1].annotation_end;
+        setCreatingSegment({ start: lastSplitEnd, end: lastSplitEnd + 2 });
+        setStatusMessage(
+          `Auto-split: ${splitClips.length} segments saved. Next segment starts at ${formatTime(lastSplitEnd)}. Press O to mark end.`,
+        );
+
+        // Sync annotations to server
         fetch(`${SERVER_URL}/annotations`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2689,40 +2430,272 @@ export default function AnnotatorClient() {
             annotations: updated,
           }),
         }).catch(() => console.warn("Sync failed"));
-      } catch (err) {
-        console.error("[saveAnnotation] Error:", err);
-        setStatusMessage(`Save error: ${(err as Error).message}`);
+
+        return;
       }
-    },
-    [
-      currentClip,
-      selectedIntentA,
-      selectedIntentB,
-      annotations,
-      hasAnnotated,
-      sessionBreakDue,
-      qualityPass,
-      confidenceA,
-      confidenceB,
-      certaintyA,
-      certaintyB,
-      coverageEstimate,
-      isMixedPhase,
-      isUncertain,
-      autoNext,
-      currentClipIndex,
-      clips,
-      teamConfig,
-      matchConfig,
-      gameState,
-      currentTeam,
-      manualPossession,
-      createSegmentsFromBoundary,
-      saveSegmentToServer,
-      exclusion,
-      modelSplit,
-    ],
-  );
+
+      const intentLabelA = getIntentLabel(selectedIntentA);
+      const intentLabelB = getIntentLabel(selectedIntentB);
+      const effectiveExclusion = exclusion;
+      let teamAIntentClass: string | null = effectiveExclusion
+        ? null
+        : intentLabelA;
+      let teamBIntentClass: string | null = effectiveExclusion
+        ? null
+        : intentLabelB;
+      // ─── Possession / primary derivation ───
+      // Start from the trajectory-detected team, but let the annotator's
+      // manual override ("A" | "B" | "contested") be the source of truth.
+      let teamAPossession =
+        !effectiveExclusion && detectedPossessionTeam === "A";
+      let teamBPossession =
+        !effectiveExclusion && detectedPossessionTeam === "B";
+      if (!effectiveExclusion && manualPossession === "A") {
+        teamAPossession = true;
+        teamBPossession = false;
+      } else if (!effectiveExclusion && manualPossession === "B") {
+        teamAPossession = false;
+        teamBPossession = true;
+      } else if (!effectiveExclusion && manualPossession === "contested") {
+        teamAPossession = false;
+        teamBPossession = false;
+      } else if (!effectiveExclusion && !detectedPossessionTeam) {
+        // Fall back to intent-based heuristic when no manual selection and
+        // no trajectory signal. Keep the original auto-derivation.
+        if (intentLabelA && isAttackIntent(intentLabelA))
+          teamAPossession = true;
+        if (intentLabelA && isDefenseIntent(intentLabelA))
+          teamAPossession = false;
+        if (intentLabelB && isAttackIntent(intentLabelB))
+          teamBPossession = true;
+        if (intentLabelB && isDefenseIntent(intentLabelB))
+          teamBPossession = false;
+        if (teamAPossession === teamBPossession) {
+          if (teamAIntentClass && isAttackIntent(teamAIntentClass)) {
+            teamAPossession = true;
+            teamBPossession = false;
+          } else if (teamBIntentClass && isAttackIntent(teamBIntentClass)) {
+            teamAPossession = false;
+            teamBPossession = true;
+          } else if (teamAIntentClass && isDefenseIntent(teamAIntentClass)) {
+            teamAPossession = false;
+            teamBPossession = true;
+          } else if (teamBIntentClass && isDefenseIntent(teamBIntentClass)) {
+            teamAPossession = true;
+            teamBPossession = false;
+          } else {
+            teamAPossession = currentTeam === "A";
+            teamBPossession = currentTeam === "B";
+          }
+        }
+      }
+      // is_primary mirrors the user-selected possession: the team with the
+      // ball is primary. Contested / no-team selections yield primary=false
+      // for both sides (matches the existing ContestedPlay exclusion case).
+      const teamAPrimary = teamAPossession;
+      const teamBPrimary = teamBPossession;
+      if (
+        !effectiveExclusion &&
+        teamAIntentClass === "CounterAttack" &&
+        teamBIntentClass === "CounterAttack"
+      ) {
+        setStatusMessage("CounterAttack cannot be assigned to both teams.");
+        return;
+      }
+      if (!effectiveExclusion && (!teamAIntentClass || !teamBIntentClass)) {
+        setStatusMessage(
+          "Both teams need an intent before submit, unless this is an exclusion.",
+        );
+        return;
+      }
+      if (
+        !effectiveExclusion &&
+        ((teamAPossession && isAttackIntent(teamBIntentClass || "")) ||
+          (teamBPossession && isAttackIntent(teamAIntentClass || "")))
+      ) {
+        setStatusMessage(
+          "Offensive intents are disabled for the team without possession.",
+        );
+        return;
+      }
+
+      const ann: Annotation = {
+        schema_version: "1.0.0",
+        dataset: "TACTIC-Bench",
+        clip_id: realClipId,
+        match_id: newClip.match_id,
+        match_name: newClip.match_name || newClip.match_id,
+        half: HALF_LABEL(newClip.half),
+        window_idx: isDraft
+          ? clips.length
+          : (newClip.window_idx ?? currentClipIndex),
+        segment_metadata: {
+          start_sec: newClip.annotation_start,
+          end_sec: newClip.annotation_end,
+          duration_sec: Number(labelDur.toFixed(3)),
+          tensor_frames: tensorFrames,
+          preceding_event: newClip.anchor_event?.type,
+          following_event: newClip.following_event,
+          coverage_estimate: Number((coverageEstimate / 100).toFixed(3)),
+          is_mixed_phase: isMixedPhase,
+        },
+        game_state: cleanedGameState,
+        video_source: {
+          video_path: newClip.path,
+          seek_start_sec: newClip.start,
+          label_start_sec: newClip.annotation_start,
+          label_end_sec: newClip.annotation_end,
+          seek_end_sec: newClip.end,
+          fps,
+          tensor_fps: 10,
+          source_frame_count: Math.round(clipDur * fps),
+          tensor_frame_count: tensorFrames,
+        },
+        reconstruction: {
+          npz_path: generateNpzPath(newClip.match_id, newClip.clip_id),
+          quality_pass: qualityPass,
+          tracked_players: trackedPlayers,
+        },
+        team_a: {
+          team_id: "Team_A",
+          team_name: teamConfig.team_a.name,
+          jersey_color: teamConfig.team_a.jersey_color,
+          is_home: teamConfig.team_a.is_home,
+          is_primary: teamAPrimary,
+          label: {
+            intent_class: teamAIntentClass,
+            confidence: confidenceA,
+            certainty: certaintyA,
+          },
+          possession: teamAPossession,
+        },
+        team_b: {
+          team_id: "Team_B",
+          team_name: teamConfig.team_b.name,
+          jersey_color: teamConfig.team_b.jersey_color,
+          is_home: teamConfig.team_b.is_home,
+          is_primary: teamBPrimary,
+          label: {
+            intent_class: teamBIntentClass,
+            confidence: confidenceB,
+            certainty: certaintyB,
+          },
+          possession: teamBPossession,
+        },
+        team_config: teamConfig,
+        exclusion: effectiveExclusion,
+        annotation_meta: {
+          annotator_id: "coach_001",
+          session_id: `sess_${new Date().toISOString().slice(0, 10).replace(/-/g, "")}`,
+          annotation_timestamp: new Date().toISOString(),
+          annotation_duration_sec: Math.round(
+            (Date.now() - annotationStartTimeRef.current) / 1000,
+          ),
+          tool_version: "tactic-annotator-v3.0",
+        },
+        agreement: {
+          annotated_at: new Date().toISOString(),
+          flagged_review: isUncertain,
+          skipped: false,
+        },
+        model_split: {
+          assigned_split: effectiveExclusion ? "excluded" : modelSplit,
+        },
+      };
+
+      const updated = [
+        ...annotations.filter((a) => a.clip_id !== realClipId),
+        ann,
+      ];
+      updated.sort((a, b) => {
+        const halfCmp = String(a.half).localeCompare(String(b.half));
+        if (halfCmp !== 0) return halfCmp;
+        const windowCmp = (a.window_idx ?? 0) - (b.window_idx ?? 0);
+        if (windowCmp !== 0) return windowCmp;
+        return String(a.video_source?.video_path || "").localeCompare(
+          String(b.video_source?.video_path || ""),
+        );
+      });
+      setAnnotations(updated);
+
+      if (isDraft) {
+        saveSegmentToServer(newClip);
+        setClips((prev) => {
+          const next = [...prev, newClip];
+          setCurrentClipIndex(next.length);
+          return next;
+        });
+      } else if (currentClipIndex === clips.length - 1) {
+        // Submitted the last segment -> transition to new draft segment
+        setCurrentClipIndex(clips.length);
+      } else if (autoNext && currentClipIndex < clips.length - 1) {
+        setCurrentClipIndex((i) => {
+          let next = i + 1;
+          while (
+            next < clips.length - 1 &&
+            clips[next]?.annotator_state === "rejected"
+          ) {
+            next++;
+          }
+          return next;
+        });
+      }
+
+      const nextStartSec = newClip.annotation_end;
+      if (isDraft || currentClipIndex === clips.length - 1) {
+        // Auto-chain: create new segment draft from end of this segment
+        setCreatingSegment({ start: nextStartSec, end: nextStartSec + 2 });
+        setStatusMessage(
+          `Segment saved (${labelDur.toFixed(1)}s). Next segment starts at ${formatTime(nextStartSec)}. Press O to mark end.`,
+        );
+      } else {
+        setCreatingSegment(null);
+        setStatusMessage(`Segment updated (${labelDur.toFixed(1)}s).`);
+      }
+
+      fetch(`${SERVER_URL}/annotations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          schema_version: "1.0.0",
+          dataset: "TACTIC-Bench",
+          team_config: teamConfig,
+          match_config: matchConfig,
+          annotations: updated,
+        }),
+      }).catch(() => console.warn("Sync failed"));
+    } catch (err) {
+      console.error("[saveAnnotation] Error:", err);
+      setStatusMessage(`Save error: ${(err as Error).message}`);
+    }
+  }, [
+    currentClip,
+    selectedIntentA,
+    selectedIntentB,
+    annotations,
+    hasAnnotated,
+    sessionBreakDue,
+    qualityPass,
+    confidenceA,
+    confidenceB,
+    certaintyA,
+    certaintyB,
+    coverageEstimate,
+    isMixedPhase,
+    isUncertain,
+    autoNext,
+    currentClipIndex,
+    clips,
+    teamConfig,
+    matchConfig,
+    gameState,
+    currentTeam,
+    manualPossession,
+    createSegmentsFromBoundary,
+    saveSegmentToServer,
+    exclusion,
+    modelSplit,
+  ]);
 
   // ─── Load manifest (JSON clips definition) ───
   const handleLoadManifest = useCallback(() => {
