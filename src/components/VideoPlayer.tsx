@@ -434,39 +434,7 @@ export default function VideoPlayer(props: Props) {
         )}
       </div>
 
-      {creatingSegment && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 bg-indigo-600/95 border border-indigo-400/40 rounded-full text-[10px] font-bold uppercase tracking-widest text-white shadow-lg shadow-indigo-600/30 flex items-center gap-2 backdrop-blur">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
-          New Segment · drag on timeline
-        </div>
-      )}
 
-      {creatingSegment && (
-        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 bg-emerald-600/95 border border-emerald-400/40 rounded-full text-[10px] font-bold text-white shadow-lg flex items-center gap-2 backdrop-blur">
-          <Check className="w-3 h-3" />
-          <span className="font-mono normal-case">
-            {formatSec(Math.min(creatingSegment.start, creatingSegment.end))} →{" "}
-            {formatSec(Math.max(creatingSegment.start, creatingSegment.end))} ·{" "}
-            {Math.abs(creatingSegment.end - creatingSegment.start).toFixed(1)}s
-          </span>
-          <button
-            type="button"
-            onClick={onConfirmSegmentCreate}
-            className="ml-1 px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded text-white"
-            title="Add this segment (Enter)"
-          >
-            Add Segment
-          </button>
-          <button
-            type="button"
-            onClick={onCancelSegmentCreate}
-            className="ml-1 text-white/70 hover:text-white"
-            title="Cancel (Esc)"
-          >
-            ×
-          </button>
-        </div>
-      )}
 
       <div
         className={`absolute bottom-0 left-0 right-0 z-20 transition-opacity duration-300 ${controlsVisible || !isPlaying ? "opacity-100" : "opacity-0 pointer-events-none"}`}
