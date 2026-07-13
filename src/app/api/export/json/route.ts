@@ -77,14 +77,18 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
     const tensorFps = MODEL_FPS;
     let qualityPass = ann.reconstruction?.quality_pass !== false;
 
-    // Validate trajectory file shape if it exists
+    // Validate trajectory file shape if it exists (best-effort, never blocks export)
     const npzPath = generateNpzPath(match_id, ann.clip_id);
     const fullPath = getNpzFullPath(npzPath);
     if (fullPath) {
       try {
         const safePath = fullPath.replace(/\\/g, "/");
         const cmd = `python -c "import numpy as np; d = np.load('${safePath}'); print(list(d['trajectory'].shape))"`;
-        const stdout = execSync(cmd, { encoding: "utf-8" }).trim();
+        const stdout = execSync(cmd, {
+          encoding: "utf-8",
+          timeout: 5000,
+          stdio: ["pipe", "pipe", "pipe"],
+        }).trim();
         const actualShape = JSON.parse(stdout);
         if (Array.isArray(actualShape) && actualShape.length === 3) {
           if (
@@ -321,10 +325,11 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
     });
   }
   if (h2Segments.length > 0) {
+    const h2EndMs = h2Segments.map((s) => s.end_ms);
     halves.push({
       half: 2,
       video_source: h2VideoSource,
-      duration_ms: Math.max(...h2Segments.map((s) => s.end_ms)),
+      duration_ms: h2EndMs.length > 0 ? Math.max(...h2EndMs) : 2700000,
       score_at_start: halftime_score,
       score_at_end: final_score,
       segments: h2Segments,
