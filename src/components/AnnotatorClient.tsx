@@ -3261,7 +3261,9 @@ export default function AnnotatorClient() {
           URL.revokeObjectURL(url);
         }, 1000);
       } else {
-        setStatusMessage(`JSON export failed: ${data.error || "Server error"}`);
+        setStatusMessage(
+          `JSON export failed: ${data.error || "Server error"}${data.detail ? ` — ${data.detail}` : ""}`,
+        );
       }
     } catch (err: any) {
       setStatusMessage(`JSON export failed: ${err.message}`);
@@ -3286,7 +3288,21 @@ export default function AnnotatorClient() {
         annotations: exportAnnotations,
         team_config: teamConfig,
       }),
-    }).catch(() => {});
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          console.error(
+            "CSV export failed:",
+            errData.error || errData.detail || res.statusText,
+          );
+        } else {
+          setStatusMessage("CSV exported to server exports/ directory.");
+        }
+      })
+      .catch((err) => {
+        console.error("CSV export network error:", err);
+      });
     const headers = [
       "clip_id",
       "match_id",
