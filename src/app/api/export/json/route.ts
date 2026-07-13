@@ -10,7 +10,7 @@ import {
   computeTensorFrames,
   computePaddingMask,
   computeTensorShape,
-} from "@/lib/constants";
+} from "@/lib/tensor-utils";
 
 function validateNpzExists(npzPath: string): boolean {
   const fullPath = path.join(process.cwd(), "public", npzPath);
