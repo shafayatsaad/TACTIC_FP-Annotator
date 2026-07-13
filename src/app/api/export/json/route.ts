@@ -28,6 +28,103 @@ function getNpzFullPath(npzPath: string): string | null {
   return null;
 }
 
+/**
+ * Quantize a millisecond timestamp to the nearest 100ms (10 fps grid).
+ */
+function quantizeMs(ms: number): number {
+  return Math.round(ms / 100) * 100;
+}
+
+/**
+ * Remove orphaned parent segments whose time span fully contains another segment.
+ * A segment A is an orphaned parent if there exists a segment B such that
+ * B.start_ms >= A.start_ms and B.end_ms <= A.end_ms and B !== A.
+ * The child segments represent the refined, final annotation.
+ */
+function removeOrphanedParents(segments: any[]): any[] {
+  const sorted = [...segments].sort((a, b) => a.start_ms - b.start_ms);
+  const toRemove = new Set<number>();
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = 0; j < sorted.length; j++) {
+      if (i === j) continue;
+      const a = sorted[i];
+      const b = sorted[j];
+      // A is a parent of B if A fully contains B
+      if (
+        a.start_ms <= b.start_ms &&
+        a.end_ms >= b.end_ms &&
+        (a.start_ms < b.start_ms || a.end_ms > b.end_ms)
+      ) {
+        toRemove.add(i);
+        break;
+      }
+    }
+  }
+  return sorted.filter((_, idx) => !toRemove.has(idx));
+}
+
+/**
+ * Fill temporal gaps between consecutive segments within a half.
+ * Gaps < 2000ms are merged into the preceding segment.
+ * Gaps >= 2000ms get a new exclusion segment (ContestedPlay) inserted.
+ */
+function fillGaps(segments: any[], half: number): any[] {
+  if (segments.length === 0) return segments;
+  const sorted = [...segments].sort((a, b) => a.start_ms - b.start_ms);
+  const result: any[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    const current = sorted[i];
+    result.push(current);
+    if (i < sorted.length - 1) {
+      const next = sorted[i + 1];
+      const gapMs = next.start_ms - current.end_ms;
+      if (gapMs > 0 && gapMs < 2000) {
+        // Merge gap into current segment by extending its end
+        current.end_ms = next.start_ms;
+        current.duration_ms = current.end_ms - current.start_ms;
+        // Recompute tensor metadata for the merged segment
+        const durationSec = current.duration_ms / 1000;
+        const rawFrames = computeTensorFrames(durationSec);
+        const tensorFrames = Math.min(rawFrames, MAX_MODEL_FRAMES);
+        current.reconstruction.tensor_shape = [tensorFrames, 23, 4];
+        current.reconstruction.padding_mask = computePaddingMask(tensorFrames);
+      } else if (gapMs >= 2000) {
+        // Insert exclusion segment
+        const gapDurationMs = gapMs;
+        const gapDurationSec = gapDurationMs / 1000;
+        const rawFrames = computeTensorFrames(gapDurationSec);
+        const tensorFrames = Math.min(rawFrames, MAX_MODEL_FRAMES);
+        const gapSegId = `gap_fill_${half}_${current.end_ms}`;
+        result.push({
+          segment_id: gapSegId,
+          half,
+          start_ms: current.end_ms,
+          end_ms: next.start_ms,
+          duration_ms: gapDurationMs,
+          time_from_kickoff_ms: current.end_ms,
+          coverage_estimate: 0,
+          exclusion: "ContestedPlay",
+          model_split: "excluded",
+          reconstruction: {
+            npz_path: "",
+            tensor_shape: [tensorFrames, 23, 4],
+            tensor_fps: MODEL_FPS,
+            quality_pass: false,
+            tracked_players: 0,
+            tracked_ball: false,
+            tracking_confidence_mean: 0,
+            padding_mask: computePaddingMask(tensorFrames),
+          },
+        });
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * Convert annotations to the full annotator export schema.
+ */
 function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
   const match_id = matchConfig?.match_id || "manual_match";
   const competition = matchConfig?.competition || "england_epl";
@@ -399,6 +496,118 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
   };
 }
 
+/**
+ * Convert the full annotator schema to the training schema.
+ * This prunes all non-essential metadata, quantizes timestamps,
+ * removes orphaned parent segments, fills gaps, and keeps only
+ * the primary team block.
+ */
+function convertToTrainSchema(fullData: any): any {
+  // Process each half's segments
+  const trainHalves = fullData.halves.map((half: any) => {
+    let segments = [...half.segments];
+
+    // 1. Remove orphaned parent segments (superset time spans)
+    segments = removeOrphanedParents(segments);
+
+    // 2. Sort by start_ms
+    segments.sort((a: any, b: any) => a.start_ms - b.start_ms);
+
+    // 3. Fill temporal gaps
+    segments = fillGaps(segments, half.half);
+
+    // 4. Sort again after gap filling
+    segments.sort((a: any, b: any) => a.start_ms - b.start_ms);
+
+    // 5. Transform each segment to training format
+    const trainSegments = segments.map((seg: any) => {
+      // Quantize timestamps to 100ms grid
+      const startMs = quantizeMs(seg.start_ms);
+      const endMs = quantizeMs(seg.end_ms);
+
+      // Determine tensor frames from the reconstruction block
+      const tensorFrames = seg.reconstruction?.tensor_shape?.[0] || 0;
+
+      // Duration is derived from tensor shape: tensor_shape[0] × 100
+      const durationMs = tensorFrames * 100;
+
+      // Recompute end_ms from start_ms + duration_ms
+      const alignedEndMs = startMs + durationMs;
+
+      // Validate padding mask: must be exactly 150 elements,
+      // with tensorFrames leading 1s and the rest 0s
+      let paddingMask = seg.reconstruction?.padding_mask;
+      if (!paddingMask || paddingMask.length !== MAX_MODEL_FRAMES) {
+        paddingMask = computePaddingMask(tensorFrames);
+      } else {
+        // Ensure the mask matches the tensor shape
+        const onesCount = paddingMask.filter((v: number) => v === 1).length;
+        if (onesCount !== tensorFrames) {
+          paddingMask = computePaddingMask(tensorFrames);
+        }
+      }
+
+      // Determine primary team (the one with is_primary: true)
+      const teamHome = seg.team_home || {};
+      const teamAway = seg.team_away || {};
+      const primaryTeam = teamHome.is_primary ? teamHome : teamAway;
+      const hasPrimary = teamHome.is_primary || teamAway.is_primary;
+
+      // Build the training segment — only essential fields
+      const trainSeg: any = {
+        segment_id: seg.segment_id,
+        half: seg.half,
+        start_ms: startMs,
+        end_ms: alignedEndMs,
+        duration_ms: durationMs,
+        time_from_kickoff_ms: startMs,
+        coverage_estimate: seg.coverage_estimate,
+        exclusion: seg.exclusion || null,
+        model_split: seg.model_split || "train",
+        reconstruction: {
+          npz_path: seg.reconstruction?.npz_path || "",
+          tensor_shape: seg.reconstruction?.tensor_shape || [
+            tensorFrames,
+            23,
+            4,
+          ],
+          tensor_fps: seg.reconstruction?.tensor_fps || MODEL_FPS,
+          padding_mask: paddingMask,
+        },
+      };
+
+      // Only include the primary team block if one exists and it's not an exclusion
+      if (!seg.exclusion && hasPrimary) {
+        trainSeg.team = {
+          intent_class: primaryTeam.label?.intent_class ?? null,
+          confidence: primaryTeam.label?.confidence ?? 0,
+          is_primary: true,
+          possession: primaryTeam.possession === true,
+        };
+      }
+
+      return trainSeg;
+    });
+
+    // Recompute half duration_ms from the last segment's end_ms
+    const halfDurationMs =
+      trainSegments.length > 0
+        ? trainSegments[trainSegments.length - 1].end_ms
+        : half.duration_ms || 2700000;
+
+    return {
+      half: half.half,
+      duration_ms: halfDurationMs,
+      segments: trainSegments,
+    };
+  });
+
+  return {
+    match_id: fullData.match_id,
+    halves: trainHalves,
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -406,17 +615,32 @@ export async function POST(request: NextRequest) {
     const matchConfig = body.match_config;
     const teamConfig = body.team_config;
 
+    // Determine export mode from query parameter
+    const url = new URL(request.url);
+    const mode = url.searchParams.get("mode") || "annotator";
+
     const matchId = matchConfig?.match_id || "unknown";
-    const fileName = `TACTIC_FP_Annotated_${matchId}.json`;
+    const modeSuffix = mode === "train" ? "_TRAIN" : "";
+    const fileName = `TACTIC_FP_Annotated_${matchId}${modeSuffix}.json`;
     const filePath = path.join(getExportsDir(), fileName);
 
-    const exportedData = convertToMatchSchema(anns, matchConfig, teamConfig);
+    const fullData = convertToMatchSchema(anns, matchConfig, teamConfig);
+
+    let exportedData: any;
+    if (mode === "train") {
+      exportedData = convertToTrainSchema(fullData);
+    } else {
+      exportedData = fullData;
+    }
 
     // Validate that NPZ files exist for all samples (collect warnings but don't block export)
     const missingNpz: string[] = [];
     for (const half of exportedData.halves) {
       for (const segment of half.segments) {
-        if (!validateNpzExists(segment.reconstruction.npz_path)) {
+        if (
+          segment.reconstruction?.npz_path &&
+          !validateNpzExists(segment.reconstruction.npz_path)
+        ) {
           missingNpz.push(segment.reconstruction.npz_path);
         }
       }
@@ -427,7 +651,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       fileName,
-      segmentCount: anns.length,
+      mode,
+      segmentCount: exportedData.halves.reduce(
+        (acc: number, h: any) => acc + h.segments.length,
+        0,
+      ),
       warning:
         missingNpz.length > 0
           ? `Exported successfully, but ${missingNpz.length} NPZ file(s) are missing from trajectories directory.`
