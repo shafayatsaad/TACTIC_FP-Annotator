@@ -970,6 +970,4 @@ export default function AnnotationPanel({
       </div>
     </aside>
   );
-}  </aside>
-  );
 }
