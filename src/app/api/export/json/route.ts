@@ -109,10 +109,6 @@ function fillGaps(segments: any[], half: number): any[] {
             npz_path: "",
             tensor_shape: [tensorFrames, 23, 4],
             tensor_fps: MODEL_FPS,
-            quality_pass: false,
-            tracked_players: 0,
-            tracked_ball: false,
-            tracking_confidence_mean: 0,
             padding_mask: computePaddingMask(tensorFrames),
           },
         });
