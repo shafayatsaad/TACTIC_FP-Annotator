@@ -170,7 +170,6 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
     let tensorShape = [tensorFrames, 23, 4];
     let padding_mask = computePaddingMask(tensorFrames);
     const tensorFps = MODEL_FPS;
-    let qualityPass = ann.reconstruction?.quality_pass !== false;
 
     // Validate trajectory file shape if it exists (best-effort, never blocks export)
     const npzPath = generateNpzPath(match_id, ann.clip_id);
@@ -191,14 +190,12 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
             actualShape[1] !== 23 ||
             actualShape[2] !== 4
           ) {
-            qualityPass = false;
             tensorShape = [actualShape[0], actualShape[1], actualShape[2]];
             padding_mask = computePaddingMask(actualShape[0]);
           }
         }
       } catch (error) {
         console.error(`Failed to validate NPZ shape for ${fullPath}:`, error);
-        qualityPass = false;
       }
     }
 
@@ -286,12 +283,6 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
         npz_path: generateNpzPath(match_id, ann.clip_id),
         tensor_shape: tensorShape,
         tensor_fps: tensorFps,
-        quality_pass: qualityPass,
-        tracked_players: Number(ann.reconstruction?.tracked_players || 22),
-        tracked_ball: true,
-        tracking_confidence_mean: Number(
-          ann.reconstruction?.tracking_confidence_mean || 0.85,
-        ),
         padding_mask,
       },
       team_home: {
@@ -454,14 +445,6 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
       halftime_tactical_change_detected: halftime_tactical_change !== null,
       home_team_tactic_shift: home_tactic_shift,
       away_team_tactic_shift: away_tactic_shift,
-      tracking_quality_mean: Number(
-        (
-          segmentsList.reduce(
-            (acc, s) => acc + s.reconstruction.tracking_confidence_mean,
-            0,
-          ) / (segmentsList.length || 1)
-        ).toFixed(2),
-      ),
       set_piece_count: setPieceCount,
       contested_play_count: contestedPlayCount,
     },
@@ -537,14 +520,10 @@ function convertToTrainSchema(fullData: any): any {
         exclusion: seg.exclusion || null,
         model_split: seg.model_split || "train",
         reconstruction: {
-          npz_path: seg.reconstruction?.npz_path || "",
-          tensor_shape: seg.reconstruction?.tensor_shape || [
-            tensorFrames,
-            23,
-            4,
-          ],
-          tensor_fps: seg.reconstruction?.tensor_fps || MODEL_FPS,
-          padding_mask: paddingMask,
+          npz_path: "",
+          tensor_shape: [tensorFrames, 23, 4],
+          tensor_fps: MODEL_FPS,
+          padding_mask: computePaddingMask(tensorFrames),
         },
       };
 
