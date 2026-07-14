@@ -7,16 +7,14 @@ import {
   VolumeX,
   Maximize,
   Flag,
-  Plus,
   HelpCircle,
-  Check,
-  SkipBack,
   SkipForward,
   FolderOpen,
 } from "lucide-react";
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import type { Clip, AnnotatorState } from "@/lib/constants";
 import { formatMatchClock, formatSec } from "@/lib/utils";
+import { getIntentGroupHex } from "@/lib/constants";
 
 // New segment creation: { start, end } both in match-seconds.
 export type CreatingSegment = { start: number; end: number } | null;
@@ -43,7 +41,7 @@ interface Props {
   onTogglePlayback: () => void;
   onReplayClip: () => void;
   onToggleFullscreen: () => void;
-  onProgressClick: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onProgressClick: (timeSec: number) => void;
   onCycleSpeed: () => void;
   onToggleMute: () => void;
   onToggleLoop: () => void;
@@ -66,13 +64,17 @@ interface Props {
   onSetSegmentStart: () => void;
   onSetSegmentEnd: () => void;
   onFileDrop?: (file: File) => void;
+  
+  // Optional annotations & add contiguous segment callbacks
+  annotations?: any[];
+  onAddNextSegment?: (start: number, end: number) => void;
 }
 
 const STATE_COLORS: Record<string, string> = {
-  accepted: "bg-emerald-400/70",
-  modified: "bg-amber-400/60",
+  accepted: "bg-emerald-500/70",
+  modified: "bg-amber-500/60",
   rejected: "bg-slate-500/25",
-  manual: "bg-emerald-400/85",
+  manual: "bg-emerald-500/85",
 };
 
 export default function VideoPlayer(props: Props) {
@@ -108,10 +110,7 @@ export default function VideoPlayer(props: Props) {
     onConvertVideo,
     onLoadVideoDirect,
     onBoundaryNudge,
-    onStartSegmentCreate,
     onUpdateSegmentDraft,
-    onCancelSegmentCreate,
-    onConfirmSegmentCreate,
     onHelp,
     getAnnotatorState,
     formatTime,
@@ -119,6 +118,8 @@ export default function VideoPlayer(props: Props) {
     onSetSegmentStart,
     onSetSegmentEnd,
     onFileDrop,
+    annotations,
+    onAddNextSegment,
   } = props;
   const convertProgress = props.convertProgress ?? 0;
 
@@ -139,7 +140,8 @@ export default function VideoPlayer(props: Props) {
     }
   };
 
-  const progressBarRef = useRef<HTMLDivElement>(null);
+  const macroBarRef = useRef<HTMLDivElement>(null);
+  const zoomProgressBarRef = useRef<HTMLDivElement>(null);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [draggingEdge, setDraggingEdge] = useState<{
     clipId: string;
@@ -148,8 +150,7 @@ export default function VideoPlayer(props: Props) {
   const [controlsVisible, setControlsVisible] = useState(true);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Local drag state for "+ New Segment" mode. Lives here so the timeline
-  // can be a one-shot interaction without round-tripping through the parent.
+  // Local drag state for "+ New Segment" mode
   const [dragStart, setDragStart] = useState<number | null>(null);
   const [dragCurrent, setDragCurrent] = useState<number | null>(null);
 
@@ -174,7 +175,12 @@ export default function VideoPlayer(props: Props) {
     };
   }, [isPlaying, videoContainerRef]);
 
-  // Boundary drag for existing clips
+  // Viewport center / span config for the Precision Zoom timeline
+  const zoomWindow = 60; // 60 seconds viewport span
+  const zoomStart = Math.max(0, Math.min(matchDurationSec - zoomWindow, videoCurrentTime - zoomWindow / 2));
+  const zoomEnd = Math.min(matchDurationSec, zoomStart + zoomWindow);
+
+  // Boundary drag for existing clips inside the zoomed viewport coordinates
   const handleEdgeMouseDown = useCallback(
     (e: React.MouseEvent, clipId: string, edge: "start" | "end") => {
       if (creatingSegment) return; // don't fight with segment-create mode
@@ -188,18 +194,19 @@ export default function VideoPlayer(props: Props) {
   useEffect(() => {
     if (!draggingEdge) return;
     const handleMouseMove = (e: MouseEvent) => {
-      if (!progressBarRef.current) return;
-      const rect = progressBarRef.current.getBoundingClientRect();
-      const p = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const timeSec = p * matchDurationSec;
+      if (!zoomProgressBarRef.current) return;
+      const rect = zoomProgressBarRef.current.getBoundingClientRect();
+      const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const timeSec = zoomStart + fraction * zoomWindow;
       const clip = clips.find((c) => c.clip_id === draggingEdge.clipId);
       if (!clip) return;
       const deltaSec =
         draggingEdge.edge === "start"
           ? timeSec - clip.annotation_start
           : timeSec - clip.annotation_end;
-      const snappedDelta = Math.round(deltaSec);
-      if (Math.abs(snappedDelta) >= 1) {
+      
+      const snappedDelta = Math.round(deltaSec * 2) / 2; // snap to nearest 0.5s for precise feedback
+      if (Math.abs(snappedDelta) >= 0.5) {
         onBoundaryNudge(draggingEdge.edge, snappedDelta);
       }
     };
@@ -210,7 +217,7 @@ export default function VideoPlayer(props: Props) {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [draggingEdge, clips, matchDurationSec, onBoundaryNudge]);
+  }, [draggingEdge, clips, zoomStart, zoomWindow, onBoundaryNudge]);
 
   const pct = (sec: number) =>
     Math.max(0, Math.min(100, (sec / matchDurationSec) * 100));
@@ -220,34 +227,53 @@ export default function VideoPlayer(props: Props) {
     [currentClip?.half, videoCurrentTime],
   );
 
-  const handleProgressHover = useCallback(
+  // Hover indicator time calculation relative to zoomed viewport
+  const handleZoomProgressHover = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!progressBarRef.current) return;
-      const rect = progressBarRef.current.getBoundingClientRect();
-      const p = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      setHoverTime(p * matchDurationSec);
+      if (!zoomProgressBarRef.current) return;
+      const rect = zoomProgressBarRef.current.getBoundingClientRect();
+      const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      setHoverTime(zoomStart + fraction * zoomWindow);
     },
-    [matchDurationSec],
+    [zoomStart, zoomWindow],
   );
 
-  // "+ New Segment" drag-to-create on the timeline. The first click sets
-  // the start, the second click (or the mouseup of a drag) sets the end.
-  // Drag-create works without needing a second click — drag the mouse from
-  // start to end, then release.
-  const handleProgressMouseDown = useCallback(
+  // Click on Overview Macro Bar (percentage of whole match)
+  const handleMacroBarClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      onProgressClick(e);
+      if (!macroBarRef.current) return;
+      const rect = macroBarRef.current.getBoundingClientRect();
+      const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      onProgressClick(fraction * matchDurationSec);
     },
-    [onProgressClick],
+    [matchDurationSec, onProgressClick],
+  );
+
+  // Click / Drag Start on Precision Zoom Bar
+  const handleZoomBarMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!zoomProgressBarRef.current) return;
+      const rect = zoomProgressBarRef.current.getBoundingClientRect();
+      const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const clickTime = zoomStart + fraction * zoomWindow;
+
+      if (creatingSegment) {
+        setDragStart(clickTime);
+        setDragCurrent(clickTime);
+      } else {
+        onProgressClick(clickTime);
+      }
+    },
+    [zoomStart, zoomWindow, creatingSegment, onProgressClick],
   );
 
   useEffect(() => {
     if (dragStart === null) return;
     const onMove = (e: MouseEvent) => {
-      if (!progressBarRef.current) return;
-      const rect = progressBarRef.current.getBoundingClientRect();
-      const p = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      setDragCurrent(p * matchDurationSec);
+      if (!zoomProgressBarRef.current) return;
+      const rect = zoomProgressBarRef.current.getBoundingClientRect();
+      const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      setDragCurrent(zoomStart + fraction * zoomWindow);
     };
     const onUp = () => {
       if (dragStart !== null && dragCurrent !== null) {
@@ -264,9 +290,9 @@ export default function VideoPlayer(props: Props) {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [dragStart, dragCurrent, matchDurationSec, onUpdateSegmentDraft]);
+  }, [dragStart, dragCurrent, zoomStart, zoomWindow, onUpdateSegmentDraft]);
 
-  // Live preview of the drag range (while the user is dragging).
+  // Live preview of the drag range
   const dragPreviewStart =
     dragStart !== null && dragCurrent !== null
       ? Math.min(dragStart, dragCurrent)
@@ -282,6 +308,35 @@ export default function VideoPlayer(props: Props) {
   const endTime = currentClip
     ? formatTime(currentClip.annotation_end)
     : "--:--";
+
+  // Grid tick generation (ticks every 5 seconds inside the viewport)
+  const ticks = useMemo(() => {
+    const list: number[] = [];
+    const firstTick = Math.ceil(zoomStart / 5) * 5;
+    for (let t = firstTick; t <= zoomEnd; t += 5) {
+      list.push(t);
+    }
+    return list;
+  }, [zoomStart, zoomEnd]);
+
+  // Contiguous ghost next segment placeholder
+  const ghostNextSegment = useMemo(() => {
+    if (!currentClip || currentClip.clip_id === "Draft Segment") return null;
+    const end = currentClip.annotation_end;
+
+    // Check if there is already an annotated segment immediately ahead
+    const buffer = 0.5;
+    const hasOverlap = clips.some(
+      (c) => c.clip_id !== currentClip.clip_id && c.annotation_start >= end && c.annotation_start < end + buffer
+    );
+    if (hasOverlap) return null;
+
+    const ghostStart = end;
+    const ghostEnd = Math.min(matchDurationSec, ghostStart + 5.0);
+    if (ghostEnd - ghostStart < 1.0) return null;
+
+    return { start: ghostStart, end: ghostEnd };
+  }, [currentClip, clips, matchDurationSec]);
 
   return (
     <div
@@ -434,12 +489,10 @@ export default function VideoPlayer(props: Props) {
         )}
       </div>
 
-
-
       <div
         className={`absolute bottom-0 left-0 right-0 z-20 transition-opacity duration-300 ${controlsVisible || !isPlaying ? "opacity-100" : "opacity-0 pointer-events-none"}`}
       >
-        <div className="bg-gradient-to-t from-black/95 via-black/70 to-transparent pt-6 pb-3 px-4">
+        <div className="bg-gradient-to-t from-black/95 via-black/80 to-transparent pt-6 pb-3 px-4">
           <div className="flex items-center gap-2 mb-2">
             <button
               type="button"
@@ -458,115 +511,274 @@ export default function VideoPlayer(props: Props) {
               <Flag className="w-3 h-3" /> Replay
             </button>
           </div>
+          
           {/* Current segment time display */}
           {currentClip && (
             <div className="flex items-center gap-2 mb-1 text-[9px] text-slate-400 font-mono">
               <span className="text-emerald-300">S: {startTime}</span>
               <span className="text-slate-600">→</span>
               <span className="text-amber-300">E: {endTime}</span>
-              <span className="text-slate-500 ml-1">
+              <span className="text-slate-500 ml-1 font-semibold">
                 ({segmentDurationStr(currentClip)})s
               </span>
             </div>
           )}
-          <div className="relative mb-2">
-            <div
-              ref={progressBarRef}
-              className={`h-7 bg-white/[0.04] hover:bg-white/[0.07] rounded-md overflow-visible relative transition-colors ${creatingSegment ? "cursor-crosshair" : "cursor-pointer"}`}
-              onClick={handleProgressMouseDown}
-              onMouseMove={handleProgressHover}
-              onMouseLeave={() => {
-                setHoverTime(null);
-              }}
-            >
-              {/* Existing segments */}
-              {clips.map((clip) => {
-                const left = pct(clip.annotation_start);
-                const width = pct(clip.annotation_end - clip.annotation_start);
-                const isActive = currentClip?.clip_id === clip.clip_id;
-                const state = getAnnotatorState(clip);
-                return (
-                  <div
-                    key={clip.clip_id}
-                    className={`absolute top-1 bottom-1 rounded ${STATE_COLORS[state] || "bg-slate-500/30"} ${isActive ? "ring-1 ring-white/40" : ""}`}
-                    style={{ left: `${left}%`, width: `${width}%` }}
-                    title={`${clip.clip_id} (${state})`}
-                  />
-                );
-              })}
 
-              {/* Live drag preview */}
-              {dragPreviewStart !== null && dragPreviewEnd !== null && (
-                <div
-                  className="absolute top-0 bottom-0 bg-indigo-400/30 border-x-2 border-indigo-300 pointer-events-none"
-                  style={{
-                    left: `${pct(dragPreviewStart)}%`,
-                    width: `${pct(dragPreviewEnd - dragPreviewStart)}%`,
-                  }}
-                />
-              )}
-
-              {/* Confirmed creatingSegment preview */}
-              {creatingSegment && (
-                <div
-                  className="absolute top-0 bottom-0 bg-emerald-400/30 border-x-2 border-emerald-300"
-                  style={{
-                    left: `${pct(Math.min(creatingSegment.start, creatingSegment.end))}%`,
-                    width: `${pct(Math.abs(creatingSegment.end - creatingSegment.start))}%`,
-                  }}
-                />
-              )}
-
-              {/* Playhead */}
+          {/* DUAL TIMELINE SYSTEM */}
+          <div className="space-y-2.5 mb-2 select-none">
+            {/* 1. Macro Overview Timeline */}
+            <div className="relative">
               <div
-                className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_8px_rgba(255,255,255,0.7)] pointer-events-none"
-                style={{ left: `${pct(videoCurrentTime)}%` }}
-              />
-
-              {/* Boundary drag handles for active clip */}
-              {currentClip &&
-                (() => {
-                  const left = pct(currentClip.annotation_start);
-                  const right = pct(currentClip.annotation_end);
-                  return (
-                    <>
-                      <div
-                        className="absolute top-0 bottom-0 w-1 bg-white/70 hover:bg-white cursor-ew-resize z-10"
-                        style={{ left: `${left}%` }}
-                        onMouseDown={(e) =>
-                          handleEdgeMouseDown(e, currentClip.clip_id, "start")
-                        }
-                        title="Drag to move start"
-                      />
-                      <div
-                        className="absolute top-0 bottom-0 w-1 bg-white/70 hover:bg-white cursor-ew-resize z-10"
-                        style={{ left: `${right}%` }}
-                        onMouseDown={(e) =>
-                          handleEdgeMouseDown(e, currentClip.clip_id, "end")
-                        }
-                        title="Drag to move end"
-                      />
-                    </>
-                  );
-                })()}
-
-              {/* Hover tooltip */}
-              {hoverTime !== null && !creatingSegment && (
+                ref={macroBarRef}
+                className="h-2 bg-white/[0.04] hover:bg-white/[0.07] rounded-full relative cursor-pointer transition-colors overflow-hidden"
+                onClick={handleMacroBarClick}
+                title="Click to seek coarse timeline"
+              >
+                {/* Viewport Range Overlay representing zoomed viewport */}
                 <div
-                  className="absolute -top-1 px-1.5 py-0.5 bg-black/80 text-[10px] font-mono rounded text-white pointer-events-none -translate-x-1/2"
-                  style={{ left: `${pct(hoverTime)}%` }}
+                  className="absolute top-0 bottom-0 bg-indigo-500/25 border-x border-indigo-500/40"
+                  style={{
+                    left: `${(zoomStart / matchDurationSec) * 100}%`,
+                    width: `${(zoomWindow / matchDurationSec) * 100}%`,
+                  }}
+                />
+                
+                {/* Plots of segments as tiny dots */}
+                {clips.map((clip) => {
+                  const left = pct(clip.annotation_start);
+                  const width = pct(clip.annotation_end - clip.annotation_start);
+                  const isActive = currentClip?.clip_id === clip.clip_id;
+                  const state = getAnnotatorState(clip);
+                  return (
+                    <div
+                      key={`macro-${clip.clip_id}`}
+                      className={`absolute top-0 bottom-0 ${
+                        isActive ? "bg-white z-10" : STATE_COLORS[state] || "bg-slate-500/30"
+                      }`}
+                      style={{ left: `${left}%`, width: `${Math.max(0.5, width)}%` }}
+                    />
+                  );
+                })}
+
+                {/* Macro playhead */}
+                <div
+                  className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
+                  style={{ left: `${pct(videoCurrentTime)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* 2. Precision Zoomed Timeline */}
+            <div className="relative">
+              <div
+                ref={zoomProgressBarRef}
+                className={`h-16 bg-[#090b0e]/90 rounded-xl border border-white/5 overflow-hidden relative ${creatingSegment ? "cursor-crosshair" : "cursor-pointer"}`}
+                onMouseDown={handleZoomBarMouseDown}
+                onMouseMove={handleZoomProgressHover}
+                onMouseLeave={() => setHoverTime(null)}
+              >
+                {/* Second Grid Ticks */}
+                {ticks.map((t) => {
+                  const pctZoom = ((t - zoomStart) / zoomWindow) * 100;
+                  return (
+                    <div
+                      key={`tick-${t}`}
+                      className="absolute top-0 bottom-0 flex flex-col items-center pointer-events-none"
+                      style={{ left: `${pctZoom}%` }}
+                    >
+                      <div className="w-[1px] h-1.5 bg-white/10" />
+                      <span className="text-[8px] text-slate-600 font-mono mt-0.5 font-medium leading-none">
+                        {formatTime(t)}
+                      </span>
+                      <div className="w-[1px] flex-1 border-r border-dashed border-white/[0.02]" />
+                    </div>
+                  );
+                })}
+
+                {/* Plot Zoomed Segments */}
+                {clips.map((clip) => {
+                  const start = clip.annotation_start;
+                  const end = clip.annotation_end;
+                  if (end < zoomStart || start > zoomEnd) return null;
+
+                  const left = ((start - zoomStart) / zoomWindow) * 100;
+                  const width = ((end - start) / zoomWindow) * 100;
+                  const isActive = currentClip?.clip_id === clip.clip_id;
+                  const state = getAnnotatorState(clip);
+
+                  // Extract intent labels to show color coding & text on block
+                  const ann = annotations?.find((a) => a.clip_id === clip.clip_id);
+                  const labelA = ann?.team_a?.label?.intent_class || "";
+                  const labelB = ann?.team_b?.label?.intent_class || "";
+                  const exclusionLabel = ann?.exclusion || "";
+
+                  const hexA = labelA ? getIntentGroupHex(labelA) : null;
+                  const hexB = labelB ? getIntentGroupHex(labelB) : null;
+                  const hexExcl = exclusionLabel ? getIntentGroupHex(exclusionLabel) : null;
+
+                  let blockStyle: React.CSSProperties = {};
+                  if (hexExcl) {
+                    blockStyle = {
+                      background: `linear-gradient(135deg, ${hexExcl}20, ${hexExcl}0d)`,
+                      borderColor: `${hexExcl}50`,
+                      color: hexExcl,
+                    };
+                  } else if (hexA && hexB) {
+                    blockStyle = {
+                      background: `linear-gradient(90deg, ${hexA}20, ${hexB}20)`,
+                      borderColor: `${hexA}45`,
+                      borderRightColor: `${hexB}45`,
+                    };
+                  } else if (hexA) {
+                    blockStyle = {
+                      background: `linear-gradient(135deg, ${hexA}20, ${hexA}0d)`,
+                      borderColor: `${hexA}50`,
+                    };
+                  } else if (hexB) {
+                    blockStyle = {
+                      background: `linear-gradient(135deg, ${hexB}20, ${hexB}0d)`,
+                      borderColor: `${hexB}50`,
+                    };
+                  }
+
+                  let labelText = "";
+                  if (exclusionLabel) {
+                    labelText = exclusionLabel;
+                  } else if (labelA || labelB) {
+                    labelText = `${labelA ? labelA : "-"} / ${labelB ? labelB : "-"}`;
+                  } else {
+                    labelText = "Unlabelled";
+                  }
+
+                  return (
+                    <div
+                      key={`zoom-${clip.clip_id}`}
+                      className={`absolute top-2.5 bottom-2.5 rounded-lg border flex flex-col justify-center px-2 select-none ${
+                        isActive
+                          ? "ring-2 ring-indigo-500 shadow-[0_0_12px_rgba(99,102,241,0.25)]"
+                          : "opacity-60 hover:opacity-90"
+                      }`}
+                      style={{
+                        left: `${left}%`,
+                        width: `${width}%`,
+                        ...blockStyle,
+                      }}
+                      title={`${clip.clip_id} (${state})`}
+                    >
+                      <span className="text-[9px] font-bold text-white truncate max-w-full leading-none mb-0.5">
+                        {labelText}
+                      </span>
+                      <span className="text-[7px] text-slate-400 font-mono truncate max-w-full leading-none">
+                        {formatTime(start)} - {formatTime(end)}
+                      </span>
+
+                      {/* Boundary drag handles for active segment */}
+                      {isActive && (
+                        <>
+                          <div
+                            className="absolute top-0 bottom-0 -left-1 w-2 cursor-ew-resize flex items-center justify-center group/handle z-10"
+                            onMouseDown={(e) =>
+                              handleEdgeMouseDown(e, clip.clip_id, "start")
+                            }
+                            title="Drag to change segment start"
+                          >
+                            <div className="w-[3px] h-3/5 bg-indigo-400 rounded-full group-hover/handle:bg-indigo-300 transition-colors shadow" />
+                          </div>
+                          <div
+                            className="absolute top-0 bottom-0 -right-1 w-2 cursor-ew-resize flex items-center justify-center group/handle z-10"
+                            onMouseDown={(e) =>
+                              handleEdgeMouseDown(e, clip.clip_id, "end")
+                            }
+                            title="Drag to change segment end"
+                          >
+                            <div className="w-[3px] h-3/5 bg-indigo-400 rounded-full group-hover/handle:bg-indigo-300 transition-colors shadow" />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Ghost contiguous segment "+ Next Segment" placeholder */}
+                {ghostNextSegment && (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onAddNextSegment) {
+                        onAddNextSegment(ghostNextSegment.start, ghostNextSegment.end);
+                      }
+                    }}
+                    className="absolute top-2.5 bottom-2.5 rounded-lg border border-dashed border-indigo-500/35 bg-indigo-500/5 hover:bg-indigo-500/15 hover:border-indigo-400 flex flex-col justify-center items-center cursor-pointer transition-all px-2 select-none group/ghost text-indigo-300/80"
+                    style={{
+                      left: `${((ghostNextSegment.start - zoomStart) / zoomWindow) * 100}%`,
+                      width: `${((ghostNextSegment.end - ghostNextSegment.start) / zoomWindow) * 100}%`,
+                    }}
+                    title="Click to instantly create next contiguous segment"
+                  >
+                    <span className="text-[9px] font-bold tracking-wide leading-none mb-0.5">
+                      + Next Segment
+                    </span>
+                    <span className="text-[7px] opacity-60 font-mono leading-none">
+                      {formatTime(ghostNextSegment.start)} - {formatTime(ghostNextSegment.end)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Live drag preview */}
+                {dragPreviewStart !== null && dragPreviewEnd !== null && (
+                  <div
+                    className="absolute top-1.5 bottom-1.5 bg-indigo-400/20 border-x border-indigo-400/50 pointer-events-none"
+                    style={{
+                      left: `${((dragPreviewStart - zoomStart) / zoomWindow) * 100}%`,
+                      width: `${((dragPreviewEnd - dragPreviewStart) / zoomWindow) * 100}%`,
+                    }}
+                  />
+                )}
+
+                {/* Confirmed creatingSegment preview */}
+                {creatingSegment && (
+                  <div
+                    className="absolute top-1.5 bottom-1.5 bg-emerald-400/20 border-x border-emerald-400/50 pointer-events-none"
+                    style={{
+                      left: `${((Math.min(creatingSegment.start, creatingSegment.end) - zoomStart) / zoomWindow) * 100}%`,
+                      width: `${((Math.max(creatingSegment.start, creatingSegment.end) - Math.min(creatingSegment.start, creatingSegment.end)) / zoomWindow) * 100}%`,
+                    }}
+                  />
+                )}
+
+                {/* Zoom Playhead bar (Red glow line) */}
+                <div
+                  className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 shadow-[0_0_8px_rgba(239,68,68,0.8)] pointer-events-none"
+                  style={{ left: `${((videoCurrentTime - zoomStart) / zoomWindow) * 100}%` }}
+                />
+
+                {/* Zoom hover guide line */}
+                {hoverTime !== null && (
+                  <div
+                    className="absolute top-0 bottom-0 w-[1px] bg-white/20 border-r border-dashed border-white/20 pointer-events-none"
+                    style={{ left: `${((hoverTime - zoomStart) / zoomWindow) * 100}%` }}
+                  />
+                )}
+              </div>
+
+              {/* Hover time tooltip overlay */}
+              {hoverTime !== null && (
+                <div
+                  className="absolute -top-6 px-1.5 py-0.5 bg-black/90 border border-white/10 text-[9px] font-mono rounded text-white pointer-events-none -translate-x-1/2 z-30 shadow-lg"
+                  style={{ left: `${((hoverTime - zoomStart) / zoomWindow) * 100}%` }}
                 >
-                  {formatSec(hoverTime)}
+                  {formatTime(hoverTime)} ({hoverTime.toFixed(1)}s)
                 </div>
               )}
             </div>
           </div>
+
           <div className="flex items-center justify-between text-[10px] text-slate-300 font-mono">
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={onTogglePlayback}
-                className="w-7 h-7 flex items-center justify-center rounded-md bg-white/10 hover:bg-white/20 text-white"
+                className="w-7 h-7 flex items-center justify-center rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
                 title="Play / pause (Space)"
               >
                 {isPlaying ? (
@@ -578,7 +790,7 @@ export default function VideoPlayer(props: Props) {
               <button
                 type="button"
                 onClick={onToggleMute}
-                className="w-7 h-7 flex items-center justify-center rounded-md bg-white/10 hover:bg-white/20 text-white"
+                className="w-7 h-7 flex items-center justify-center rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
                 title="Mute (U)"
               >
                 {isMuted ? (
@@ -590,7 +802,7 @@ export default function VideoPlayer(props: Props) {
               <button
                 type="button"
                 onClick={onCycleSpeed}
-                className="px-2 h-7 flex items-center justify-center rounded-md bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold"
+                className="px-2 h-7 flex items-center justify-center rounded-md bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold transition-colors"
                 title="Cycle playback speed"
               >
                 {playbackRate}×
@@ -604,7 +816,7 @@ export default function VideoPlayer(props: Props) {
               <button
                 type="button"
                 onClick={() => onToggleLoop()}
-                className={`w-7 h-7 flex items-center justify-center rounded-md text-[10px] font-bold ${loopClip ? "bg-indigo-500/30 text-indigo-200" : "bg-white/5 hover:bg-white/10 text-slate-300"}`}
+                className={`w-7 h-7 flex items-center justify-center rounded-md text-[10px] font-bold transition-colors ${loopClip ? "bg-indigo-500/30 text-indigo-200" : "bg-white/5 hover:bg-white/10 text-slate-300"}`}
                 title="Loop clip"
               >
                 ⟲
@@ -612,7 +824,7 @@ export default function VideoPlayer(props: Props) {
               <button
                 type="button"
                 onClick={onToggleFullscreen}
-                className="w-7 h-7 flex items-center justify-center rounded-md bg-white/10 hover:bg-white/20 text-white"
+                className="w-7 h-7 flex items-center justify-center rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
                 title="Fullscreen (F)"
               >
                 <Maximize className="w-3.5 h-3.5" />
