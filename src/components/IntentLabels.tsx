@@ -5,6 +5,7 @@ import {
   TACTIC_INTENTS,
   getIntentLabel,
   type TeamConfig,
+  type GameState,
 } from "@/lib/constants";
 
 interface Props {
@@ -20,6 +21,8 @@ interface Props {
   onSubmit?: () => void;
   exclusion: "DeadBall" | "ContestedPlay" | null;
   setExclusion: (val: "DeadBall" | "ContestedPlay" | null) => void;
+  gameState: GameState;
+  onGameStateChange: (state: GameState) => void;
 }
 
 export default function IntentLabels({
@@ -35,6 +38,8 @@ export default function IntentLabels({
   onSubmit,
   exclusion,
   setExclusion,
+  gameState,
+  onGameStateChange,
 }: Props) {
   const selectedId = currentTeam === "A" ? selectedIntentA : selectedIntentB;
   const activeTeam =
@@ -134,6 +139,47 @@ export default function IntentLabels({
                     </button>
                   );
                 })}
+
+                {group.group === "SETPIECE" && (
+                  <div className="mt-2 p-1.5 rounded-lg bg-pink-500/5 border border-pink-500/10 space-y-1.5 transition-all">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={gameState.set_piece === true}
+                        onChange={(e) =>
+                          onGameStateChange({
+                            ...gameState,
+                            set_piece: e.target.checked,
+                            set_piece_type: e.target.checked
+                              ? gameState.set_piece_type || "corner"
+                              : undefined,
+                          })
+                        }
+                        className="w-3.5 h-3.5 rounded border-white/20 bg-white/5 text-pink-500 focus:ring-pink-500/30 accent-pink-500 cursor-pointer"
+                      />
+                      <span className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">
+                        Set Piece
+                      </span>
+                    </label>
+                    {gameState.set_piece && (
+                      <select
+                        value={gameState.set_piece_type || "corner"}
+                        onChange={(e) =>
+                          onGameStateChange({
+                            ...gameState,
+                            set_piece_type: e.target.value as any,
+                          })
+                        }
+                        className="w-full rounded border border-white/10 bg-black/40 px-1.5 py-1 text-[10px] text-slate-200 focus:border-pink-500/50 outline-none cursor-pointer"
+                      >
+                        <option value="corner">Corner</option>
+                        <option value="free_kick">Free Kick</option>
+                        <option value="throw_in">Throw In</option>
+                        <option value="penalty">Penalty</option>
+                      </select>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -217,3 +263,4 @@ export default function IntentLabels({
     </div>
   );
 }
+
