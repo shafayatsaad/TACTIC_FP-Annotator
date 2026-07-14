@@ -3905,7 +3905,7 @@ export default function AnnotatorClient() {
           onBrowseVideo={handleBrowseVideoFile}
         />
         <main className="flex-1 flex flex-col p-4 overflow-hidden">
-          <VideoPlayer
+           <VideoPlayer
             videoRef={videoRef}
             videoContainerRef={videoContainerRef}
             currentClip={currentClip}
@@ -3949,6 +3949,8 @@ export default function AnnotatorClient() {
             setVideoError={setVideoError}
             onSetSegmentStart={handleSetSegmentStart}
             onSetSegmentEnd={handleSetSegmentEnd}
+            annotations={annotations}
+            onAddNextSegment={handleAddNextSegment}
           />
           <IntentLabels
             currentTeam={currentTeam}
