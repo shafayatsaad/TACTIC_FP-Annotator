@@ -141,42 +141,68 @@ export default function IntentLabels({
                 })}
 
                 {group.group === "SETPIECE" && (
-                  <div className="mt-2 p-1.5 rounded-lg bg-pink-500/5 border border-pink-500/10 space-y-1.5 transition-all">
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={gameState.set_piece === true}
-                        onChange={(e) =>
+                  <div
+                    className={`mt-2 p-2.5 rounded-xl border transition-all duration-300 ${
+                      gameState.set_piece
+                        ? "bg-pink-950/20 border-pink-500/30 shadow-[0_0_12px_rgba(244,63,94,0.1)]"
+                        : "bg-white/[0.02] border-white/5"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                        Set Piece Mode
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
                           onGameStateChange({
                             ...gameState,
-                            set_piece: e.target.checked,
-                            set_piece_type: e.target.checked
+                            set_piece: !gameState.set_piece,
+                            set_piece_type: !gameState.set_piece
                               ? gameState.set_piece_type || "corner"
                               : undefined,
                           })
                         }
-                        className="w-3.5 h-3.5 rounded border-white/20 bg-white/5 text-pink-500 focus:ring-pink-500/30 accent-pink-500 cursor-pointer"
-                      />
-                      <span className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">
-                        Set Piece
-                      </span>
-                    </label>
-                    {gameState.set_piece && (
-                      <select
-                        value={gameState.set_piece_type || "corner"}
-                        onChange={(e) =>
-                          onGameStateChange({
-                            ...gameState,
-                            set_piece_type: e.target.value as any,
-                          })
-                        }
-                        className="w-full rounded border border-white/10 bg-black/40 px-1.5 py-1 text-[10px] text-slate-200 focus:border-pink-500/50 outline-none cursor-pointer"
+                        className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider transition-all ${
+                          gameState.set_piece
+                            ? "bg-pink-500 text-white shadow-[0_2px_6px_rgba(244,63,94,0.4)]"
+                            : "bg-white/10 text-slate-300 hover:bg-white/15"
+                        }`}
                       >
-                        <option value="corner">Corner</option>
-                        <option value="free_kick">Free Kick</option>
-                        <option value="throw_in">Throw In</option>
-                        <option value="penalty">Penalty</option>
-                      </select>
+                        {gameState.set_piece ? "Active" : "Off"}
+                      </button>
+                    </div>
+
+                    {gameState.set_piece && (
+                      <div className="grid grid-cols-2 gap-1 mt-1.5">
+                        {([
+                          { value: "corner", label: "Corner" },
+                          { value: "free_kick", label: "Free Kick" },
+                          { value: "throw_in", label: "Throw In" },
+                          { value: "penalty", label: "Penalty" },
+                        ] as const).map((opt) => {
+                          const isSel = gameState.set_piece_type === opt.value;
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() =>
+                                onGameStateChange({
+                                  ...gameState,
+                                  set_piece_type: opt.value,
+                                })
+                              }
+                              className={`py-1 rounded text-[9px] font-semibold transition-all border ${
+                                isSel
+                                  ? "bg-pink-500/20 border-pink-400 text-pink-200"
+                                  : "bg-black/30 border-white/5 text-slate-400 hover:text-slate-200 hover:border-white/10"
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 )}
