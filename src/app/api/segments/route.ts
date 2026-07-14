@@ -14,16 +14,8 @@ function validateSegment(segment: any): { error: string; detail: string; status?
   if (duration < 2.0) {
     return { error: "Segment too short", detail: `Duration ${duration.toFixed(2)}s < 2.0s minimum` };
   }
-  if (duration > MAX_SEGMENT_DURATION) {
-    return { error: "Segment too long", detail: `Duration ${duration.toFixed(2)}s > ${MAX_SEGMENT_DURATION}s maximum` };
-  }
   if (duration <= 0) {
     return { error: "Invalid duration", detail: "End time must be after start time" };
-  }
-
-  const expectedFrames = Math.round(duration * MODEL_FPS);
-  if (expectedFrames > MAX_MODEL_FRAMES) {
-    return { error: "Segment too long", detail: `Expected frame count ${expectedFrames} exceeds ${MAX_MODEL_FRAMES} frames maximum (equivalent to 15s)` };
   }
 
   const teamAIntent = segment.team_a?.label?.intent_class ?? null;
