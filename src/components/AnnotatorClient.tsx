@@ -180,12 +180,7 @@ function validateBeforeSubmit(
       error: `Segment too short (${duration.toFixed(2)}s). Minimum is ${MIN_SEGMENT_DURATION}s.`,
     };
   }
-  if (duration > MAX_SEGMENT_DURATION) {
-    return {
-      valid: false,
-      error: `Segment too long (${duration.toFixed(2)}s). Maximum is ${MAX_SEGMENT_DURATION}s.`,
-    };
-  }
+
 
   // 2. Exclusion gate (symmetrical check)
   if (exclusion) {
@@ -3951,6 +3946,7 @@ export default function AnnotatorClient() {
             onSetSegmentEnd={handleSetSegmentEnd}
             annotations={annotations}
             onAddNextSegment={handleAddNextSegment}
+            onTimeUpdate={handleTimeUpdate}
           />
           <IntentLabels
             currentTeam={currentTeam}
