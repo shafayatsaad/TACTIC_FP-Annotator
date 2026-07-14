@@ -206,36 +206,20 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
 
     const isExclusion = ann.exclusion ? true : false;
 
-    // Intents mapping
-    const home_label = isExclusion
+    // Determine primary team (the one with is_primary: true)
+    const primaryTeam = aIsHome ? team_home : team_away;
+    const isPrimary = primaryTeam?.is_primary !== false;
+
+    // Intents mapping — only the primary team's label
+    const primary_label = isExclusion
       ? {
           intent_class: null,
           confidence: null,
-          certainty: null,
         }
       : {
-          intent_class: team_home?.label?.intent_class ?? null,
-          confidence: team_home?.label?.confidence ?? 0,
-          certainty: team_home?.label?.certainty ?? "low",
+          intent_class: primaryTeam?.label?.intent_class ?? null,
+          confidence: primaryTeam?.label?.confidence ?? 0,
         };
-
-    const away_label = isExclusion
-      ? {
-          intent_class: null,
-          confidence: null,
-          certainty: null,
-        }
-      : {
-          intent_class: team_away?.label?.intent_class ?? null,
-          confidence: team_away?.label?.confidence ?? 0,
-          certainty: team_away?.label?.certainty ?? "low",
-        };
-
-    // Formations
-    const home_formation =
-      team_home?.formation_estimate || (aIsHome ? "4-2-3-1" : "4-4-2");
-    const away_formation =
-      team_away?.formation_estimate || (aIsHome ? "4-4-2" : "4-2-3-1");
 
     // decisive action mapping
     let decisive_action = null;
@@ -281,23 +265,10 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
         tensor_fps: tensorFps,
         padding_mask,
       },
-      team_home: {
-        label: home_label,
-        is_primary: home_label.intent_class
-          ? team_home?.is_primary !== false
-          : false,
-        possession: isExclusion ? false : team_home?.possession === true,
-        formation_estimate: home_formation,
-        players_visible: Number(team_home?.players_visible || 11),
-      },
-      team_away: {
-        label: away_label,
-        is_primary: away_label.intent_class
-          ? team_away?.is_primary === true
-          : false,
-        possession: isExclusion ? false : team_away?.possession === true,
-        formation_estimate: away_formation,
-        players_visible: Number(team_away?.players_visible || 10),
+      team: {
+        label: primary_label,
+        is_primary: isPrimary,
+        possession: isExclusion ? false : primaryTeam?.possession === true,
       },
       exclusion: ann.exclusion || null,
       model_split: assignedSplit,
@@ -320,52 +291,6 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
         .basename(h2Segments[0].reconstruction.npz_path)
         .replace(/\.[^.]+$/, "") + ".mp4"
     : `${home_team.toLowerCase()}_${away_team.toLowerCase()}_h2.mp4`;
-
-  // Halftime shift calculation
-  const getMostFrequentIntent = (segs: any[], team: "home" | "away") => {
-    const counts: Record<string, number> = {};
-    segs.forEach((s) => {
-      const intent =
-        team === "home"
-          ? s.team_home?.label?.intent_class
-          : s.team_away?.label?.intent_class;
-      // Filter out null, "Skipped" (legacy), and empty intent values
-      if (intent && intent !== "Skipped" && intent !== "None") {
-        counts[intent] = (counts[intent] || 0) + 1;
-      }
-    });
-    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-    return sorted.length > 0 ? sorted[0][0] : "None";
-  };
-
-  const h1HomeIntent = getMostFrequentIntent(h1Segments, "home");
-  const h1AwayIntent = getMostFrequentIntent(h1Segments, "away");
-  const h2HomeIntent = getMostFrequentIntent(h2Segments, "home");
-  const h2AwayIntent = getMostFrequentIntent(h2Segments, "away");
-
-  const home_tactic_shift =
-    h1HomeIntent !== h2HomeIntent &&
-    h1HomeIntent !== "None" &&
-    h2HomeIntent !== "None"
-      ? `${h1HomeIntent} → ${h2HomeIntent}`
-      : null;
-  const away_tactic_shift =
-    h1AwayIntent !== h2AwayIntent &&
-    h1AwayIntent !== "None" &&
-    h2AwayIntent !== "None"
-      ? `${h1AwayIntent} → ${h2AwayIntent}`
-      : null;
-
-  const setPieceCount = segmentsList.filter(
-    (s) =>
-      s.team_home?.label?.intent_class?.includes("SetPiece") ||
-      s.team_away?.label?.intent_class?.includes("SetPiece"),
-  ).length;
-  const contestedPlayCount = segmentsList.filter(
-    (s) =>
-      s.team_home?.label?.intent_class === "ContestedPlay" ||
-      s.team_away?.label?.intent_class === "ContestedPlay",
-  ).length;
 
   const halves = [];
   if (h1Segments.length > 0 || h2Segments.length === 0) {
@@ -392,26 +317,6 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
     });
   }
 
-  // Build halftime change details if shifts exist
-  let halftime_tactical_change = null;
-  if (home_tactic_shift || away_tactic_shift) {
-    halftime_tactical_change = {
-      detected: true,
-      home_shift: home_tactic_shift || "None",
-      away_shift: away_tactic_shift || "None",
-    };
-  }
-
-  // If halftime tactical change, add details to half 2 first segment
-  if (
-    halftime_tactical_change &&
-    halves.length > 1 &&
-    halves[1].segments.length > 0
-  ) {
-    (halves[1].segments[0] as any).halftime_tactical_change =
-      halftime_tactical_change;
-  }
-
   return {
     match_id,
     competition,
@@ -422,28 +327,6 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
     final_score,
     halftime_score,
     halves,
-    match_metadata: {
-      total_segments: segmentsList.length,
-      half1_segments: h1Segments.length,
-      half2_segments: h2Segments.length,
-      annotators: [matchConfig?.annotator || "coach_001"],
-      annotation_sessions: [matchConfig?.session_id || "session_042"],
-      total_annotation_time_sec: anns.reduce(
-        (acc, ann) =>
-          acc + Number(ann.annotation_meta?.annotation_duration_sec || 0),
-        0,
-      ),
-      fleiss_kappa: null,
-      inter_annotator_agreement: {
-        completed: false,
-        pending_reviewers: ["coach_002", "coach_003"],
-      },
-      halftime_tactical_change_detected: halftime_tactical_change !== null,
-      home_team_tactic_shift: home_tactic_shift,
-      away_team_tactic_shift: away_tactic_shift,
-      set_piece_count: setPieceCount,
-      contested_play_count: contestedPlayCount,
-    },
   };
 }
 
@@ -498,11 +381,9 @@ function convertToTrainSchema(fullData: any): any {
         }
       }
 
-      // Determine primary team (the one with is_primary: true)
-      const teamHome = seg.team_home || {};
-      const teamAway = seg.team_away || {};
-      const primaryTeam = teamHome.is_primary ? teamHome : teamAway;
-      const hasPrimary = teamHome.is_primary || teamAway.is_primary;
+      // Primary team block is already flattened in the annotator schema
+      const primaryTeam = seg.team || {};
+      const hasPrimary = primaryTeam.is_primary === true;
 
       // Build the training segment — only essential fields
       const trainSeg: any = {
