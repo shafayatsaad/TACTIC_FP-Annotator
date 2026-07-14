@@ -1096,7 +1096,7 @@ export default function AnnotatorClient() {
     setVideoError("");
     video.pause();
 
-    const start = clip ? clip.start : 0;
+    const start = clip ? clip.annotation_start : 0;
 
     // For blob URLs (direct video load), skip server URL construction
     if (isBlobVideoRef.current || videoPath.startsWith("blob:")) {
@@ -2681,20 +2681,21 @@ export default function AnnotatorClient() {
           setCurrentClipIndex(next.length);
           return next;
         });
-      } else if (currentClipIndex === clips.length - 1) {
-        // Submitted the last segment -> transition to new draft segment
-        setCurrentClipIndex(clips.length);
-      } else if (autoNext && currentClipIndex < clips.length - 1) {
+      } else if (currentClipIndex < clips.length - 1) {
+        // Automatically advance to the next non-rejected segment
         setCurrentClipIndex((i) => {
           let next = i + 1;
           while (
-            next < clips.length - 1 &&
+            next < clips.length &&
             clips[next]?.annotator_state === "rejected"
           ) {
             next++;
           }
-          return next;
+          return next >= clips.length ? clips.length : next;
         });
+      } else {
+        // Submitted the last segment -> transition to new draft segment
+        setCurrentClipIndex(clips.length);
       }
 
       const nextStartSec = newClip.annotation_end;
