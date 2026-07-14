@@ -1661,12 +1661,27 @@ export default function AnnotatorClient() {
         handleToggleExclusion(label as "DeadBall" | "ContestedPlay");
         return;
       }
+      const isSetPiece = isSetPieceIntent(label);
       if (currentTeam === "A") {
         const newVal = selectedIntentA === id ? "" : id;
         setSelectedIntentA(newVal);
+        if (isSetPiece && newVal !== "") {
+          setGameState((prev) => ({
+            ...prev,
+            set_piece: true,
+            set_piece_type: prev.set_piece_type || "corner",
+          }));
+        }
       } else {
         const newVal = selectedIntentB === id ? "" : id;
         setSelectedIntentB(newVal);
+        if (isSetPiece && newVal !== "") {
+          setGameState((prev) => ({
+            ...prev,
+            set_piece: true,
+            set_piece_type: prev.set_piece_type || "corner",
+          }));
+        }
       }
     },
     [
@@ -1675,6 +1690,7 @@ export default function AnnotatorClient() {
       selectedIntentB,
       disabledIntentIds,
       handleToggleExclusion,
+      setGameState,
     ],
   );
 
@@ -3911,6 +3927,8 @@ export default function AnnotatorClient() {
                 setModelSplit("train");
               }
             }}
+            gameState={gameState}
+            onGameStateChange={setGameState}
           />
         </main>
         <AnnotationPanel
