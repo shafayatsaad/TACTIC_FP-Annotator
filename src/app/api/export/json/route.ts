@@ -150,10 +150,8 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
     return aStart - bStart;
   });
 
-  // Reconstruct segments with temporal linking
-  const segmentsList = sortedAnns.map((ann, idx, arr) => {
-    const prevSeg = idx > 0 ? arr[idx - 1] : null;
-    const nextSeg = idx < arr.length - 1 ? arr[idx + 1] : null;
+  // Reconstruct segments
+  const segmentsList = sortedAnns.map((ann, idx) => {
     const start_sec = Number(
       ann.segment_metadata?.start_sec ?? ann.video_source?.label_start_sec ?? 0,
     );
@@ -275,41 +273,15 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
       ? "excluded"
       : ann.model_split?.assigned_split || "train";
 
-    const prevSegId = prevSeg
-      ? prevSeg.clip_id || `${match_id}_seg${String(idx - 1).padStart(3, "0")}`
-      : null;
-    const nextSegId = nextSeg
-      ? nextSeg.clip_id || `${match_id}_seg${String(idx + 1).padStart(3, "0")}`
-      : null;
-
     return {
       segment_id:
         ann.clip_id || `${match_id}_seg${String(idx).padStart(3, "0")}`,
-      previous_segment: prevSegId,
-      next_segment: nextSegId,
       half: Number(ann.half) || (ann.half === "2nd" ? 2 : 1),
       start_ms: Math.round(start_sec * 1000),
       end_ms: Math.round(end_sec * 1000),
       duration_ms: Math.round(duration_sec * 1000),
       time_from_kickoff_ms: Math.round(start_sec * 1000),
       coverage_estimate: Number(coverage_estimate.toFixed(3)),
-      annotator:
-        ann.annotation_meta?.annotator_id ||
-        matchConfig?.annotator ||
-        "coach_001",
-      annotator_license: matchConfig?.annotator_license || "UEFA_Pro",
-      session_id:
-        ann.annotation_meta?.session_id ||
-        matchConfig?.session_id ||
-        "session_042",
-      timestamp:
-        ann.annotation_meta?.annotation_timestamp || new Date().toISOString(),
-      annotation_duration_sec: Number(
-        ann.annotation_meta?.annotation_duration_sec || 20,
-      ),
-      re_annotation_count: Number(
-        ann.annotation_meta?.re_annotation_count || 0,
-      ),
       reconstruction: {
         npz_path: generateNpzPath(match_id, ann.clip_id),
         tensor_shape: tensorShape,
