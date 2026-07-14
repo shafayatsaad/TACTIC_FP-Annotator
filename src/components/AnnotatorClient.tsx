@@ -2473,6 +2473,11 @@ export default function AnnotatorClient() {
         // Auto-chain: create new segment draft from end of last split
         const lastSplitEnd = splitClips[splitClips.length - 1].annotation_end;
         setCreatingSegment({ start: lastSplitEnd, end: lastSplitEnd + 2 });
+        if (videoRef.current) {
+          videoRef.current.currentTime = lastSplitEnd;
+          videoRef.current.play().catch(() => {});
+          setIsPlaying(true);
+        }
         setStatusMessage(
           `Auto-split: ${splitClips.length} segments saved. Next segment starts at ${formatTime(lastSplitEnd)}. Press O to mark end.`,
         );
@@ -2705,6 +2710,11 @@ export default function AnnotatorClient() {
       if (isDraft || currentClipIndex === clips.length - 1) {
         // Auto-chain: create new segment draft from end of this segment
         setCreatingSegment({ start: nextStartSec, end: nextStartSec + 2 });
+        if (videoRef.current) {
+          videoRef.current.currentTime = nextStartSec;
+          videoRef.current.play().catch(() => {});
+          setIsPlaying(true);
+        }
         setStatusMessage(
           `Segment saved (${labelDur.toFixed(1)}s). Next segment starts at ${formatTime(nextStartSec)}. Press O to mark end.`,
         );
