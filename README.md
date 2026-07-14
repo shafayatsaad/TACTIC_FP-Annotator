@@ -326,7 +326,7 @@ This clears `data/annotations.json`, `data/clip_manifest.json`, exports, and con
 ```text
 TACTIC_FP-Annotator/
 ├── package.json
-├── pipeline.py                   # Main Python pipeline: raw_videos → manifest + .npz
+├── pipeline.py                   # Main Python pipeline: raw_videos → manifest
 ├── generate_manifest.py          # Heuristic helpers (features, quality, possession, shifts)
 ├── pipeline_validator.py         # Optional manifest validation
 ├── README.md                     # ← you are here
@@ -338,6 +338,20 @@ TACTIC_FP-Annotator/
 │   ├── segments.json
 │   ├── exports/
 │   └── trajectories/<match_id>/*.npz
+├── tools/
+│   └── emergency_json_repair.py  # Repair malformed exports
+├── segment_slicer_npz/           # Jupyter notebook for NPZ slicing
+│   └── TACTIC_FP_Segment_Slicer.ipynb
+├── compute_dag_features.py       # DAG-based feature extraction
+├── CONTEXT.md                    # Project context document
+├── TACTIC_FP_Course_of_Action_Analysis.md
+├── TACTIC_FP_Gap_Analysis.md
+├── tech-spec.md                  # Technical specification
+├── fix_all.py                    # Bulk fix utilities
+├── fix_all_v2.py
+├── fix_brace.py
+├── fix_safe.py
+├── fix_skipped.py
 └── src/
     ├── app/
     │   ├── layout.tsx
@@ -360,11 +374,15 @@ TACTIC_FP-Annotator/
     │   ├── ClipExplorer.tsx
     │   ├── VideoPlayer.tsx       # Video + controls + progress bar
     │   ├── IntentLabels.tsx
-    │   └── AnnotationPanel.tsx
+    │   ├── AnnotationPanel.tsx
+    │   ├── CoverageMeter.tsx      # Tracker coverage visualization
+    │   └── SplitPrompt.tsx        # Segment split confirmation dialog
     └── lib/
         ├── constants.ts          # TACTIC_INTENTS, HOTKEY_MAP, Clip/Annotation types
         ├── utils.ts              # formatTime, formatMatchClock, normalizeClip
-        └── server-utils.ts       # File I/O helpers for API routes
+        ├── server-utils.ts       # File I/O helpers for API routes
+        ├── tensor-utils.ts       # Pure tensor computation utilities (MODEL_FPS, etc.)
+        └── splitSegmentBounds.ts # Segment boundary splitting logic
 ```
 
 ---
@@ -522,35 +540,87 @@ interface Annotation {
   dataset: "TACTIC-Bench";
   clip_id: string;
   match_id: string;
+  match_name: string;
   half: "1st" | "2nd";
-  game_state: { half; match_clock_sec; score_home; score_away; dead_ball? };
+  window_idx: number;
+  game_state: {
+    half: "1st" | "2nd" | "ET1" | "ET2";
+    match_clock_sec: number;
+    score_home: number;
+    score_away: number;
+    set_piece?: boolean;
+    set_piece_type?: "corner" | "free_kick" | "throw_in" | "penalty";
+  };
   video_source: {
-    video_path;
-    seek_start_sec;
-    label_start_sec;
-    label_end_sec;
-    seek_end_sec;
+    video_path: string;
+    seek_start_sec: number;
+    label_start_sec: number;
+    label_end_sec: number;
+    seek_end_sec: number;
+    fps: number;
+    tensor_fps?: number;
+    source_frame_count?: number;
+    tensor_frame_count?: number;
   };
-  segment_metadata: {
-    start_sec;
-    end_sec;
-    duration_sec;
-    coverage_estimate;
-    is_mixed_phase;
+  segment_metadata?: {
+    start_sec: number;
+    end_sec: number;
+    duration_sec: number;
+    tensor_frames: number;
+    preceding_event?: string;
+    following_event?: string;
+    coverage_estimate: number;
+    is_mixed_phase: boolean;
   };
-  team_a: { label: { intent_class; confidence; certainty }; possession };
+  reconstruction: {
+    npz_path: string;
+    tensor_shape?: number[];
+    tensor_fps?: number;
+    quality_pass: boolean;
+    tracked_players?: number;
+    padding_mask?: boolean[];
+    tracking_confidence_mean?: number;
+  };
+  team_a: {
+    team_id: string;
+    team_name?: string;
+    jersey_color?: string;
+    is_home: boolean;
+    is_primary: boolean;
+    formation_estimate?: string;
+    players_visible?: number;
+    label: {
+      intent_class: string | null;
+      confidence: number;
+      certainty: "low" | "medium" | "high";
+      phase_mixture?: {
+        BuildUp: number;
+        Press: number;
+        Block: number;
+        Transition: number;
+      };
+    };
+    possession: boolean;
+  };
   team_b: {
-    /* same shape */
+    /* same shape as team_a */
   };
+  team_config?: { team_a: TeamConfig; team_b: TeamConfig };
   exclusion: "DeadBall" | "ContestedPlay" | null;
   annotation_meta: {
-    annotator_id;
-    session_id;
-    annotation_timestamp;
-    annotation_duration_sec;
+    annotator_id: string;
+    session_id: string;
+    annotation_timestamp: string;
+    annotation_duration_sec: number;
+    tool_version: string;
+    re_annotation_count?: number;
   };
-  agreement: { flagged_review; skipped };
-  model_split: { assigned_split: "train" | "val" | "test" };
+  agreement: {
+    annotated_at: string;
+    flagged_review: boolean;
+    skipped: boolean;
+  };
+  model_split: { assigned_split: string };
 }
 ```
 
