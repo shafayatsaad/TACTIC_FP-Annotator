@@ -970,6 +970,59 @@ export default function AnnotatorClient() {
     [],
   );
 
+  const handleAddNextSegment = useCallback(
+    (start: number, end: number) => {
+      const half = currentClip?.half ?? 1;
+      const matchId = matchConfig.match_id || currentClip?.match_id || "manual";
+      const path = currentClip?.path ?? activeVideoPath ?? "";
+      const id = generateClipId(matchId, half, start);
+      const duration = end - start;
+      const newClip: Clip = {
+        clip_id: id,
+        match_id: matchId,
+        path,
+        start: Math.max(0, start - 4),
+        end: Math.min(videoDurationSec, end + 4),
+        annotation_start: start,
+        annotation_end: end,
+        annotation_window: duration,
+        half,
+        game_clock: formatMatchClock(half, start),
+        annotator_state: "manual" as AnnotatorState,
+        is_locked: false,
+      };
+
+      setClips((prev) => {
+        const next = [...prev, newClip].sort(
+          (a, b) => a.annotation_start - b.annotation_start,
+        );
+        const idx = next.findIndex((c) => c.clip_id === id);
+        if (idx >= 0) setCurrentClipIndex(idx);
+
+        // Sync segments to server
+        fetch(`${SERVER_URL}/segments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ segments: next }),
+        }).catch(() => console.warn("Failed to sync segments"));
+
+        return next;
+      });
+
+      saveSegmentToServer(newClip);
+      setStatusMessage(
+        `Contiguous segment created from ${formatTime(start)} to ${formatTime(end)}. Pick intents and press Enter.`,
+      );
+    },
+    [
+      currentClip,
+      matchConfig,
+      activeVideoPath,
+      videoDurationSec,
+      saveSegmentToServer,
+    ],
+  );
+
   // ─── Data Loading ───
   useEffect(() => {
     (async () => {
@@ -1432,16 +1485,8 @@ export default function AnnotatorClient() {
   }, []);
 
   const handleProgressClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
+    (matchTime: number) => {
       const video = videoRef.current;
-      const rect = e.currentTarget.getBoundingClientRect();
-      const matchTime = Math.max(
-        0,
-        Math.min(
-          videoDurationSec,
-          ((e.clientX - rect.left) / rect.width) * videoDurationSec,
-        ),
-      );
       const segmentIdx = clips.findIndex(
         (clip) =>
           matchTime >= clip.annotation_start &&
@@ -1450,7 +1495,7 @@ export default function AnnotatorClient() {
       if (segmentIdx >= 0) setCurrentClipIndex(segmentIdx);
       if (video) video.currentTime = matchTime;
     },
-    [clips, videoDurationSec],
+    [clips],
   );
 
   const cycleSpeed = useCallback(() => {
