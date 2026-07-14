@@ -68,6 +68,7 @@ interface Props {
   // Optional annotations & add contiguous segment callbacks
   annotations?: any[];
   onAddNextSegment?: (start: number, end: number) => void;
+  onTimeUpdate?: () => void;
 }
 
 const STATE_COLORS: Record<string, string> = {
@@ -120,6 +121,7 @@ export default function VideoPlayer(props: Props) {
     onFileDrop,
     annotations,
     onAddNextSegment,
+    onTimeUpdate,
   } = props;
   const convertProgress = props.convertProgress ?? 0;
 
@@ -176,7 +178,7 @@ export default function VideoPlayer(props: Props) {
   }, [isPlaying, videoContainerRef]);
 
   // Viewport center / span config for the Precision Zoom timeline
-  const zoomWindow = 60; // 60 seconds viewport span
+  const zoomWindow = 30; // 30 seconds viewport span
   const zoomStart = Math.max(0, Math.min(matchDurationSec - zoomWindow, videoCurrentTime - zoomWindow / 2));
   const zoomEnd = Math.min(matchDurationSec, zoomStart + zoomWindow);
 
@@ -416,6 +418,7 @@ export default function VideoPlayer(props: Props) {
               onWaiting={onVideoWaiting}
               onPlaying={onVideoPlaying}
               onError={onVideoError}
+              onTimeUpdate={onTimeUpdate}
             />
             {!isPlaying && !isBuffering && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -572,7 +575,7 @@ export default function VideoPlayer(props: Props) {
             <div className="relative">
               <div
                 ref={zoomProgressBarRef}
-                className={`h-16 bg-[#090b0e]/90 rounded-xl border border-white/5 overflow-hidden relative ${creatingSegment ? "cursor-crosshair" : "cursor-pointer"}`}
+                className={`h-12 bg-[#090b0e]/90 rounded-xl border border-white/5 overflow-hidden relative ${creatingSegment ? "cursor-crosshair" : "cursor-pointer"}`}
                 onMouseDown={handleZoomBarMouseDown}
                 onMouseMove={handleZoomProgressHover}
                 onMouseLeave={() => setHoverTime(null)}
@@ -653,7 +656,7 @@ export default function VideoPlayer(props: Props) {
                   return (
                     <div
                       key={`zoom-${clip.clip_id}`}
-                      className={`absolute top-2.5 bottom-2.5 rounded-lg border flex flex-col justify-center px-2 select-none ${
+                      className={`absolute top-1.5 bottom-1.5 rounded-lg border flex flex-col justify-center px-2 select-none ${
                         isActive
                           ? "ring-2 ring-indigo-500 shadow-[0_0_12px_rgba(99,102,241,0.25)]"
                           : "opacity-60 hover:opacity-90"
@@ -708,7 +711,7 @@ export default function VideoPlayer(props: Props) {
                         onAddNextSegment(ghostNextSegment.start, ghostNextSegment.end);
                       }
                     }}
-                    className="absolute top-2.5 bottom-2.5 rounded-lg border border-dashed border-indigo-500/35 bg-indigo-500/5 hover:bg-indigo-500/15 hover:border-indigo-400 flex flex-col justify-center items-center cursor-pointer transition-all px-2 select-none group/ghost text-indigo-300/80"
+                    className="absolute top-1.5 bottom-1.5 rounded-lg border border-dashed border-indigo-500/35 bg-indigo-500/5 hover:bg-indigo-500/15 hover:border-indigo-400 flex flex-col justify-center items-center cursor-pointer transition-all px-2 select-none group/ghost text-indigo-300/80"
                     style={{
                       left: `${((ghostNextSegment.start - zoomStart) / zoomWindow) * 100}%`,
                       width: `${((ghostNextSegment.end - ghostNextSegment.start) / zoomWindow) * 100}%`,
@@ -727,7 +730,7 @@ export default function VideoPlayer(props: Props) {
                 {/* Live drag preview */}
                 {dragPreviewStart !== null && dragPreviewEnd !== null && (
                   <div
-                    className="absolute top-1.5 bottom-1.5 bg-indigo-400/20 border-x border-indigo-400/50 pointer-events-none"
+                    className="absolute top-1 bottom-1 bg-indigo-400/20 border-x border-indigo-400/50 pointer-events-none"
                     style={{
                       left: `${((dragPreviewStart - zoomStart) / zoomWindow) * 100}%`,
                       width: `${((dragPreviewEnd - dragPreviewStart) / zoomWindow) * 100}%`,
@@ -738,7 +741,7 @@ export default function VideoPlayer(props: Props) {
                 {/* Confirmed creatingSegment preview */}
                 {creatingSegment && (
                   <div
-                    className="absolute top-1.5 bottom-1.5 bg-emerald-400/20 border-x border-emerald-400/50 pointer-events-none"
+                    className="absolute top-1 bottom-1 bg-emerald-400/20 border-x border-emerald-400/50 pointer-events-none"
                     style={{
                       left: `${((Math.min(creatingSegment.start, creatingSegment.end) - zoomStart) / zoomWindow) * 100}%`,
                       width: `${((Math.max(creatingSegment.start, creatingSegment.end) - Math.min(creatingSegment.start, creatingSegment.end)) / zoomWindow) * 100}%`,
