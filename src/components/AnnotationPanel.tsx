@@ -143,7 +143,7 @@ export default function AnnotationPanel({
   matchConfig,
   onMatchConfigChange,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<"annotate" | "setup" | "session">("annotate");
+  const [activeTab, setActiveTab] = useState<"annotate" | "setup" | "session">("setup");
   const [showMatchDetails, setShowMatchDetails] = useState(false);
   const [localStart, setLocalStart] = useState("");
   const [localEnd, setLocalEnd] = useState("");
@@ -269,22 +269,6 @@ export default function AnnotationPanel({
       <div className="flex border-b border-white/10 bg-black/20 shrink-0">
         <button
           type="button"
-          onClick={() => setActiveTab("annotate")}
-          className={`flex-1 flex flex-col items-center gap-1 py-2 text-[10px] font-bold uppercase tracking-wider transition-all border-b-2 ${
-            activeTab === "annotate"
-              ? "text-white"
-              : "text-slate-400 hover:text-slate-200 border-transparent bg-transparent"
-          }`}
-          style={{
-            borderBottomColor: activeTab === "annotate" ? activeTeam.jersey_color : "transparent",
-            backgroundColor: activeTab === "annotate" ? `${activeTeam.jersey_color}08` : "transparent",
-          }}
-        >
-          <Tag className="w-3.5 h-3.5" />
-          <span>Annotate</span>
-        </button>
-        <button
-          type="button"
           onClick={() => setActiveTab("setup")}
           className={`flex-1 flex flex-col items-center gap-1 py-2 text-[10px] font-bold uppercase tracking-wider transition-all border-b-2 ${
             activeTab === "setup"
@@ -298,6 +282,22 @@ export default function AnnotationPanel({
         >
           <Settings className="w-3.5 h-3.5" />
           <span>Setup</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("annotate")}
+          className={`flex-1 flex flex-col items-center gap-1 py-2 text-[10px] font-bold uppercase tracking-wider transition-all border-b-2 ${
+            activeTab === "annotate"
+              ? "text-white"
+              : "text-slate-400 hover:text-slate-200 border-transparent bg-transparent"
+          }`}
+          style={{
+            borderBottomColor: activeTab === "annotate" ? activeTeam.jersey_color : "transparent",
+            backgroundColor: activeTab === "annotate" ? `${activeTeam.jersey_color}08` : "transparent",
+          }}
+        >
+          <Tag className="w-3.5 h-3.5" />
+          <span>Annotate</span>
         </button>
         <button
           type="button"
@@ -500,11 +500,11 @@ export default function AnnotationPanel({
                   <select
                     value={certainty}
                     onChange={(e) => onCertaintyChange(e.target.value as Certainty)}
-                    className="w-full rounded-md border border-white/10 bg-black/40 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
+                    className="w-full rounded-md border border-white/10 bg-[#0c0e12] px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
                   >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
+                    <option value="low" className="bg-[#0c0e12] text-slate-100">Low</option>
+                    <option value="medium" className="bg-[#0c0e12] text-slate-100">Medium</option>
+                    <option value="high" className="bg-[#0c0e12] text-slate-100">High</option>
                   </select>
                 </label>
                 <label className="block">
