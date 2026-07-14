@@ -1052,12 +1052,14 @@ export default function AnnotatorClient() {
         );
         if (allClips.length > 0) {
           setClips(allClips);
-          setActiveVideoPath(allClips[0].path);
+          const lastIdx = allClips.length - 1;
+          setActiveVideoPath(allClips[lastIdx].path);
+          setCurrentClipIndex(lastIdx);
           setStatusMessage(`${allClips.length} clips loaded`);
           // Probe real duration so the timeline is correct from the start
-          if (!allClips[0].path.startsWith("blob:")) {
+          if (!allClips[lastIdx].path.startsWith("blob:")) {
             fetch(
-              `${SERVER_URL}/videos/metadata?path=${encodeURIComponent(allClips[0].path)}`,
+              `${SERVER_URL}/videos/metadata?path=${encodeURIComponent(allClips[lastIdx].path)}`,
             )
               .then((r) => r.json())
               .then((d) => {
@@ -1437,8 +1439,9 @@ export default function AnnotatorClient() {
       rafRef.current = null;
       const t = video.currentTime;
       setVideoCurrentTime(t);
-      // Loop within the annotation window, not the full video context
-      if (t >= clip.annotation_end) {
+      // Loop within the annotation window ONLY for previously created segments (not draft)
+      const isDraft = clip.clip_id === "Draft Segment";
+      if (!isDraft && t >= clip.annotation_end) {
         if (loopClip) {
           video.currentTime = clip.annotation_start;
           video.play().catch(() => {});
@@ -2771,9 +2774,11 @@ export default function AnnotatorClient() {
         );
         setClips(normalized);
         if (normalized.length > 0) {
-          setActiveVideoPath(normalized[0].path);
+          setActiveVideoPath(normalized[normalized.length - 1].path);
+          setCurrentClipIndex(normalized.length - 1);
+        } else {
+          setCurrentClipIndex(0);
         }
-        setCurrentClipIndex(0);
         loadedVideoPathRef.current = "";
         setStatusMessage(`${normalized.length} clips from file`);
       } catch {
