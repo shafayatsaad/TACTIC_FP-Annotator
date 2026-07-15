@@ -35,6 +35,23 @@ function quantizeMs(ms: number): number {
   return Math.round(ms / 100) * 100;
 }
 
+function dedupeAnnotationsByClipId(annotations: any[]): any[] {
+  const keyed = new Map<string, any>();
+  const unkeyed: any[] = [];
+
+  for (const annotation of annotations) {
+    const clipId = annotation?.clip_id;
+    if (typeof clipId === "string" && clipId.length > 0) {
+      keyed.delete(clipId);
+      keyed.set(clipId, annotation);
+    } else {
+      unkeyed.push(annotation);
+    }
+  }
+
+  return [...unkeyed, ...keyed.values()];
+}
+
 /**
  * Remove orphaned parent segments whose time span fully contains another segment.
  * A segment A is an orphaned parent if there exists a segment B such that
@@ -72,6 +89,57 @@ function fillGaps(segments: any[], half: number): any[] {
   if (segments.length === 0) return segments;
   const sorted = [...segments].sort((a, b) => a.start_ms - b.start_ms);
   const result: any[] = [];
+  const maxChunkMs = MAX_MODEL_FRAMES * 100;
+
+  const makeGapSegment = (startMs: number, endMs: number, idx: number) => {
+    const durationMs = endMs - startMs;
+    const tensorFrames = Math.min(
+      computeTensorFrames(durationMs / 1000),
+      MAX_MODEL_FRAMES,
+    );
+
+    return {
+      segment_id: `gap_fill_${half}_${startMs}_${idx}`,
+      half,
+      start_ms: startMs,
+      end_ms: endMs,
+      duration_ms: durationMs,
+      time_from_kickoff_ms: startMs,
+      coverage_estimate: 0,
+      exclusion: "ContestedPlay",
+      model_split: "excluded",
+      reconstruction: {
+        npz_path: "",
+        tensor_shape: [tensorFrames, 23, 4],
+        tensor_fps: MODEL_FPS,
+        padding_mask: computePaddingMask(tensorFrames),
+      },
+    };
+  };
+
+  const makeGapSegments = (startMs: number, endMs: number) => {
+    const gapSegments: any[] = [];
+    let cursor = startMs;
+    let idx = 0;
+
+    while (endMs - cursor > maxChunkMs) {
+      let nextEnd = cursor + maxChunkMs;
+      const remainder = endMs - nextEnd;
+      if (remainder > 0 && remainder < 2000) {
+        nextEnd = endMs - 2000;
+      }
+      gapSegments.push(makeGapSegment(cursor, nextEnd, idx));
+      cursor = nextEnd;
+      idx += 1;
+    }
+
+    if (endMs > cursor) {
+      gapSegments.push(makeGapSegment(cursor, endMs, idx));
+    }
+
+    return gapSegments;
+  };
+
   for (let i = 0; i < sorted.length; i++) {
     const current = sorted[i];
     result.push(current);
@@ -89,29 +157,7 @@ function fillGaps(segments: any[], half: number): any[] {
         current.reconstruction.tensor_shape = [tensorFrames, 23, 4];
         current.reconstruction.padding_mask = computePaddingMask(tensorFrames);
       } else if (gapMs >= 2000) {
-        // Insert exclusion segment
-        const gapDurationMs = gapMs;
-        const gapDurationSec = gapDurationMs / 1000;
-        const rawFrames = computeTensorFrames(gapDurationSec);
-        const tensorFrames = Math.min(rawFrames, MAX_MODEL_FRAMES);
-        const gapSegId = `gap_fill_${half}_${current.end_ms}`;
-        result.push({
-          segment_id: gapSegId,
-          half,
-          start_ms: current.end_ms,
-          end_ms: next.start_ms,
-          duration_ms: gapDurationMs,
-          time_from_kickoff_ms: current.end_ms,
-          coverage_estimate: 0,
-          exclusion: "ContestedPlay",
-          model_split: "excluded",
-          reconstruction: {
-            npz_path: "",
-            tensor_shape: [tensorFrames, 23, 4],
-            tensor_fps: MODEL_FPS,
-            padding_mask: computePaddingMask(tensorFrames),
-          },
-        });
+        result.push(...makeGapSegments(current.end_ms, next.start_ms));
       }
     }
   }
@@ -133,7 +179,7 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
   const halftime_score = matchConfig?.halftime_score || "0-0";
 
   // Sort annotations by half and start time before building segments
-  const sortedAnns = [...anns].sort((a, b) => {
+  const sortedAnns = dedupeAnnotationsByClipId(anns).sort((a, b) => {
     const halfA = Number(a.half) || (a.half === "2nd" ? 2 : 1);
     const halfB = Number(b.half) || (b.half === "2nd" ? 2 : 1);
     if (halfA !== halfB) return halfA - halfB;
