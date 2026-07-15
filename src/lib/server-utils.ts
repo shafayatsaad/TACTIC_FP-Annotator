@@ -106,7 +106,7 @@ function dedupeAnnotationsByClipId(annotations: any[]) {
     }
   }
 
-  return [...unkeyed, ...keyed.values()];
+  return [...unkeyed, ...Array.from(keyed.values())];
 }
 
 export function writeAnnotations(annotations: any[], teamConfig?: any, matchConfig?: any) {
