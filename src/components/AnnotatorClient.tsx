@@ -91,6 +91,27 @@ const DEFAULT_GAME_STATE: GameState = {
 };
 const MATCH_DURATION_SEC = 90 * 60;
 
+function titleCaseToken(token: string): string {
+  return token.charAt(0).toUpperCase() + token.slice(1);
+}
+
+function deriveMatchDefaults(fileName: string) {
+  const cleanName = fileName.replace(/\.[^.]+$/, "");
+  const safeMatchId = cleanName
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const match_id = /^match[_-]/i.test(safeMatchId)
+    ? safeMatchId
+    : `match_${safeMatchId || "manual"}`;
+  const parts = safeMatchId.split(/[_-]/).filter(Boolean);
+  const hasTeamLikeName =
+    parts.length >= 2 && !/^match$/i.test(parts[0]) && !/^\d+$/.test(parts[1]);
+  const home_team = hasTeamLikeName ? titleCaseToken(parts[0]) : "Team A";
+  const away_team = hasTeamLikeName ? titleCaseToken(parts[1]) : "Team B";
+
+  return { match_id, home_team, away_team };
+}
+
 function mp4Candidates(videoPath: string): string[] {
   if (!videoPath.toLowerCase().endsWith(".mkv")) return [videoPath];
   const withoutExt = videoPath.replace(/\.mkv$/i, "");
@@ -2856,16 +2877,11 @@ export default function AnnotatorClient() {
         `Loading: ${filename}. Press O to mark end of first segment.`,
       );
 
-      // Auto-derive team names and match ID
-      const cleanName = filename.replace(/\.[^.]+$/, "");
-      const parts = cleanName.split(/[_-]/);
-      let home = "Chelsea";
-      let away = "Burnley";
-      if (parts.length >= 2) {
-        home = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-        away = parts[1].charAt(0).toUpperCase() + parts[1].slice(1);
-      }
-      const derivedMatchId = `match_${cleanName}`;
+      const {
+        match_id: derivedMatchId,
+        home_team: home,
+        away_team: away,
+      } = deriveMatchDefaults(filename);
       setMatchConfig((prev) => ({
         ...prev,
         match_id: derivedMatchId,
@@ -2906,16 +2922,11 @@ export default function AnnotatorClient() {
       setVideoDurationSec(MATCH_DURATION_SEC);
       setIsPlaying(true);
 
-      // Auto-derive team names and match ID
-      const cleanName = file.name.replace(/\.[^.]+$/, "");
-      const parts = cleanName.split(/[_-]/);
-      let home = "Chelsea";
-      let away = "Burnley";
-      if (parts.length >= 2) {
-        home = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-        away = parts[1].charAt(0).toUpperCase() + parts[1].slice(1);
-      }
-      const derivedMatchId = `match_${cleanName}`;
+      const {
+        match_id: derivedMatchId,
+        home_team: home,
+        away_team: away,
+      } = deriveMatchDefaults(file.name);
       setMatchConfig((prev) => ({
         ...prev,
         match_id: derivedMatchId,
@@ -2957,16 +2968,11 @@ export default function AnnotatorClient() {
     setVideoDurationSec(MATCH_DURATION_SEC);
     setIsPlaying(true);
 
-    // Auto-derive team names and match ID
-    const cleanName = file.name.replace(/\.[^.]+$/, "");
-    const parts = cleanName.split(/[_-]/);
-    let home = "Chelsea";
-    let away = "Burnley";
-    if (parts.length >= 2) {
-      home = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-      away = parts[1].charAt(0).toUpperCase() + parts[1].slice(1);
-    }
-    const derivedMatchId = `match_${cleanName}`;
+    const {
+      match_id: derivedMatchId,
+      home_team: home,
+      away_team: away,
+    } = deriveMatchDefaults(file.name);
     setMatchConfig((prev) => ({
       ...prev,
       match_id: derivedMatchId,
@@ -2988,7 +2994,7 @@ export default function AnnotatorClient() {
   // ─── Export ───
   const exportJSON = useCallback(async () => {
     try {
-      const res = await fetch(`${SERVER_URL}/export/json`, {
+      const res = await fetch(`${SERVER_URL}/export/json?mode=train`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3000,8 +3006,28 @@ export default function AnnotatorClient() {
       const data = await res.json();
       if (res.ok) {
         setStatusMessage(
-          `JSON exported to server exports/ directory.${data.warning ? ` Warning: ${data.warning}` : ""}`,
+          `Training JSON exported to server exports/ directory.${data.warning ? ` Warning: ${data.warning}` : ""}`,
         );
+        if (data.exportedData) {
+          const blob = new Blob([JSON.stringify(data.exportedData, null, 2)], {
+            type: "application/json",
+          });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download =
+            data.fileName ||
+            `TACTIC_FP_Annotated_${matchConfig.match_id}_TRAIN.json`;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }, 1000);
+          return;
+        }
+        setStatusMessage("JSON export failed: server did not return training data.");
+        return;
         // Reconstruct schema locally to download in browser
         // Get most frequent non-null intent from a list of segments
         const getMostFrequentIntent = (segs: any[], team: "home" | "away") => {
