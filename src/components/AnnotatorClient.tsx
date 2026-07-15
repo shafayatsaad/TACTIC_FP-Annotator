@@ -875,7 +875,7 @@ export default function AnnotatorClient() {
       currentClipIndex >= clips.length ||
       (currentClip && currentClip.clip_id === "Draft Segment");
     if (isDraftMode) {
-      const start = draftStart;
+      const start = creatingSegment?.start ?? currentClip?.annotation_start ?? draftStart;
       const end = t;
       const duration = end - start;
       if (duration < MIN_SEGMENT_DURATION) {
@@ -954,6 +954,7 @@ export default function AnnotatorClient() {
   }, [
     currentClipIndex,
     clips,
+    creatingSegment,
     draftStart,
     lastClip,
     activeVideoPath,
