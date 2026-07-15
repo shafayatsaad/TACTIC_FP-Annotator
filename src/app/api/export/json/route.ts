@@ -390,7 +390,7 @@ function convertToTrainSchema(fullData: any): any {
         end_ms: alignedEndMs,
         duration_ms: durationMs,
         time_from_kickoff_ms: startMs,
-        coverage_estimate: seg.coverage_estimate,
+        coverage_estimate: seg.exclusion ? 0 : seg.coverage_estimate,
         exclusion: seg.exclusion || null,
         reconstruction: {
           npz_path: seg.reconstruction?.npz_path || "",
@@ -400,8 +400,11 @@ function convertToTrainSchema(fullData: any): any {
         },
       };
 
-      // Only include the primary_team block if one exists and it's not an exclusion
-      if (!seg.exclusion && hasPrimary) {
+      // Exclusions: primary_team is null (dataloader skips these)
+      // Non-exclusions: include the primary team block
+      if (seg.exclusion) {
+        trainSeg.primary_team = null;
+      } else if (hasPrimary) {
         trainSeg.primary_team = {
           intent_class: primaryTeam.label?.intent_class ?? null,
           confidence: primaryTeam.label?.confidence ?? 0,
