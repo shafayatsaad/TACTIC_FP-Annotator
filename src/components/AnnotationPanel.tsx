@@ -143,7 +143,9 @@ export default function AnnotationPanel({
   matchConfig,
   onMatchConfigChange,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<"annotate" | "setup" | "session">("setup");
+  const [activeTab, setActiveTab] = useState<"annotate" | "setup" | "session">(
+    "annotate",
+  );
   const [showMatchDetails, setShowMatchDetails] = useState(false);
   const [localStart, setLocalStart] = useState("");
   const [localEnd, setLocalEnd] = useState("");
@@ -269,22 +271,6 @@ export default function AnnotationPanel({
       <div className="flex border-b border-white/10 bg-black/20 shrink-0">
         <button
           type="button"
-          onClick={() => setActiveTab("setup")}
-          className={`flex-1 flex flex-col items-center gap-1 py-2 text-[10px] font-bold uppercase tracking-wider transition-all border-b-2 ${
-            activeTab === "setup"
-              ? "text-white"
-              : "text-slate-400 hover:text-slate-200 border-transparent bg-transparent"
-          }`}
-          style={{
-            borderBottomColor: activeTab === "setup" ? activeTeam.jersey_color : "transparent",
-            backgroundColor: activeTab === "setup" ? `${activeTeam.jersey_color}08` : "transparent",
-          }}
-        >
-          <Settings className="w-3.5 h-3.5" />
-          <span>Setup</span>
-        </button>
-        <button
-          type="button"
           onClick={() => setActiveTab("annotate")}
           className={`flex-1 flex flex-col items-center gap-1 py-2 text-[10px] font-bold uppercase tracking-wider transition-all border-b-2 ${
             activeTab === "annotate"
@@ -292,12 +278,38 @@ export default function AnnotationPanel({
               : "text-slate-400 hover:text-slate-200 border-transparent bg-transparent"
           }`}
           style={{
-            borderBottomColor: activeTab === "annotate" ? activeTeam.jersey_color : "transparent",
-            backgroundColor: activeTab === "annotate" ? `${activeTeam.jersey_color}08` : "transparent",
+            borderBottomColor:
+              activeTab === "annotate"
+                ? activeTeam.jersey_color
+                : "transparent",
+            backgroundColor:
+              activeTab === "annotate"
+                ? `${activeTeam.jersey_color}08`
+                : "transparent",
           }}
         >
           <Tag className="w-3.5 h-3.5" />
           <span>Annotate</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("setup")}
+          className={`flex-1 flex flex-col items-center gap-1 py-2 text-[10px] font-bold uppercase tracking-wider transition-all border-b-2 ${
+            activeTab === "setup"
+              ? "text-white"
+              : "text-slate-400 hover:text-slate-200 border-transparent bg-transparent"
+          }`}
+          style={{
+            borderBottomColor:
+              activeTab === "setup" ? activeTeam.jersey_color : "transparent",
+            backgroundColor:
+              activeTab === "setup"
+                ? `${activeTeam.jersey_color}08`
+                : "transparent",
+          }}
+        >
+          <Settings className="w-3.5 h-3.5" />
+          <span>Setup</span>
         </button>
         <button
           type="button"
@@ -308,8 +320,12 @@ export default function AnnotationPanel({
               : "text-slate-400 hover:text-slate-200 border-transparent bg-transparent"
           }`}
           style={{
-            borderBottomColor: activeTab === "session" ? activeTeam.jersey_color : "transparent",
-            backgroundColor: activeTab === "session" ? `${activeTeam.jersey_color}08` : "transparent",
+            borderBottomColor:
+              activeTab === "session" ? activeTeam.jersey_color : "transparent",
+            backgroundColor:
+              activeTab === "session"
+                ? `${activeTeam.jersey_color}08`
+                : "transparent",
           }}
         >
           <BarChart2 className="w-3.5 h-3.5" />
@@ -369,7 +385,9 @@ export default function AnnotationPanel({
                         value={localStart}
                         onChange={(e) => setLocalStart(e.target.value)}
                         onBlur={handleStartBlur}
-                        onKeyDown={(e) => e.key === "Enter" && handleStartBlur()}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && handleStartBlur()
+                        }
                         className="w-full text-center rounded-md border border-white/10 bg-black/40 px-2 py-1 text-xs text-slate-100 font-mono outline-none focus:border-indigo-500/50"
                       />
                       <button
@@ -499,12 +517,26 @@ export default function AnnotationPanel({
                   </span>
                   <select
                     value={certainty}
-                    onChange={(e) => onCertaintyChange(e.target.value as Certainty)}
+                    onChange={(e) =>
+                      onCertaintyChange(e.target.value as Certainty)
+                    }
                     className="w-full rounded-md border border-white/10 bg-[#0c0e12] px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500/50"
                   >
-                    <option value="low" className="bg-[#0c0e12] text-slate-100">Low</option>
-                    <option value="medium" className="bg-[#0c0e12] text-slate-100">Medium</option>
-                    <option value="high" className="bg-[#0c0e12] text-slate-100">High</option>
+                    <option value="low" className="bg-[#0c0e12] text-slate-100">
+                      Low
+                    </option>
+                    <option
+                      value="medium"
+                      className="bg-[#0c0e12] text-slate-100"
+                    >
+                      Medium
+                    </option>
+                    <option
+                      value="high"
+                      className="bg-[#0c0e12] text-slate-100"
+                    >
+                      High
+                    </option>
                   </select>
                 </label>
                 <label className="block">
@@ -534,7 +566,9 @@ export default function AnnotationPanel({
                     className="w-3.5 h-3.5 rounded border-white/20 bg-white/5 text-indigo-500 focus:ring-indigo-500/30 accent-indigo-500"
                   />
                   <Flag className="w-3 h-3 text-slate-400" />
-                  <span className="text-[10px] text-slate-400">Flag Review</span>
+                  <span className="text-[10px] text-slate-400">
+                    Flag Review
+                  </span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
@@ -722,7 +756,9 @@ export default function AnnotationPanel({
                   Edit Identity ({currentTeam})
                 </div>
                 <label className="block">
-                  <span className="mb-1 block text-[9px] text-slate-500">Name</span>
+                  <span className="mb-1 block text-[9px] text-slate-500">
+                    Name
+                  </span>
                   <input
                     value={activeTeam.name}
                     onChange={(e) =>
@@ -778,7 +814,10 @@ export default function AnnotationPanel({
                         value={matchConfig.home_team}
                         onChange={(e) => {
                           const val = e.target.value;
-                          onMatchConfigChange({ ...matchConfig, home_team: val });
+                          onMatchConfigChange({
+                            ...matchConfig,
+                            home_team: val,
+                          });
                           onTeamConfigChange({
                             ...teamConfig,
                             team_a: { ...teamConfig.team_a, name: val },
@@ -796,7 +835,10 @@ export default function AnnotationPanel({
                         value={matchConfig.away_team}
                         onChange={(e) => {
                           const val = e.target.value;
-                          onMatchConfigChange({ ...matchConfig, away_team: val });
+                          onMatchConfigChange({
+                            ...matchConfig,
+                            away_team: val,
+                          });
                           onTeamConfigChange({
                             ...teamConfig,
                             team_b: { ...teamConfig.team_b, name: val },
@@ -900,7 +942,9 @@ export default function AnnotationPanel({
                 Class Distribution
               </h4>
               {classDistribution.length === 0 ? (
-                <p className="text-[10px] text-slate-500 italic py-2">No annotations yet</p>
+                <p className="text-[10px] text-slate-500 italic py-2">
+                  No annotations yet
+                </p>
               ) : (
                 <div className="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1">
                   {classDistribution.map(({ label, count, pct, hex }) => (
@@ -947,7 +991,8 @@ export default function AnnotationPanel({
                 </motion.button>
               </div>
               <p className="text-[10px] text-slate-500 leading-snug italic pt-1 border-t border-white/5">
-                Causal features computed automatically during model preprocessing.
+                Causal features computed automatically during model
+                preprocessing.
               </p>
             </div>
 
