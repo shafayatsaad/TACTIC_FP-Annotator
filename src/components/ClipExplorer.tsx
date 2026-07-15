@@ -149,6 +149,11 @@ export default function ClipExplorer({
                         B: {ann.team_b.label.intent_class}
                       </div>
                     )}
+                  {ann && ann.exclusion && (
+                    <div className="text-[9px] uppercase text-amber-400 mt-0.5 font-bold tracking-wider">
+                      ⚠ {ann.exclusion}
+                    </div>
+                  )}
                   {/* Delete button */}
                   <button
                     type="button"
