@@ -3721,6 +3721,10 @@ export default function AnnotatorClient() {
   const classDistribution = useMemo(() => {
     const counts: Record<string, number> = {};
     annotations.forEach((a) => {
+      if (a.exclusion) {
+        counts[a.exclusion] = (counts[a.exclusion] || 0) + 1;
+        return;
+      }
       if (
         a.team_a?.label?.intent_class &&
         a.team_a.label.intent_class !== "Skipped"
