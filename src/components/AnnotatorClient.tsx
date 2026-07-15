@@ -1787,19 +1787,62 @@ export default function AnnotatorClient() {
   const handleBoundaryNudge = useCallback(
     (edge: "start" | "end", deltaSec: number) => {
       if (!currentClip) return;
+      const isDraft =
+        currentClip.clip_id === "Draft Segment" ||
+        currentClipIndex >= clips.length;
+      if (isDraft) {
+        const previousClip = clips[clips.length - 1];
+        const minStart = previousClip?.annotation_end ?? 0;
+        const maxEnd = videoDurationSec;
+        const requestedStart =
+          edge === "start"
+            ? currentClip.annotation_start + deltaSec
+            : currentClip.annotation_start;
+        const requestedEnd =
+          edge === "end"
+            ? currentClip.annotation_end + deltaSec
+            : currentClip.annotation_end;
+        const nextStart = Math.max(
+          minStart,
+          Math.min(requestedStart, maxEnd - MIN_SEGMENT_DURATION),
+        );
+        const nextEnd = Math.min(
+          maxEnd,
+          Math.max(requestedEnd, nextStart + MIN_SEGMENT_DURATION),
+        );
+        setCreatingSegment({ start: nextStart, end: nextEnd });
+        return;
+      }
+
       let updatedClip: Clip | null = null;
       setClips((prev) =>
         prev.map((clip, idx) => {
           if (idx !== currentClipIndex) return clip;
+          const previousClip = prev[currentClipIndex - 1];
+          const nextClip = prev[currentClipIndex + 1];
+          const minStart = previousClip?.annotation_end ?? 0;
+          const maxEnd = nextClip?.annotation_start ?? videoDurationSec;
           const nextStart =
             edge === "start"
-              ? Math.max(0, clip.annotation_start + deltaSec)
+              ? Math.max(
+                  minStart,
+                  Math.min(
+                    clip.annotation_start + deltaSec,
+                    maxEnd - MIN_SEGMENT_DURATION,
+                  ),
+                )
               : clip.annotation_start;
           const nextEnd =
             edge === "end"
-              ? Math.min(videoDurationSec, clip.annotation_end + deltaSec)
+              ? Math.min(
+                  maxEnd,
+                  Math.max(
+                    clip.annotation_end + deltaSec,
+                    nextStart + MIN_SEGMENT_DURATION,
+                  ),
+                )
               : clip.annotation_end;
-          if (nextEnd - nextStart < 2) return clip;
+          if (nextEnd - nextStart < MIN_SEGMENT_DURATION) return clip;
           let newState: AnnotatorState = clip.annotator_state || "unseen";
           if (clip.algorithm_proposal) {
             const startChanged =
@@ -1810,12 +1853,13 @@ export default function AnnotatorClient() {
           }
           updatedClip = {
             ...clip,
-            start: Math.min(clip.start, nextStart),
-            end: Math.max(clip.end, nextEnd),
+            start: Math.max(0, nextStart - 4),
+            end: Math.min(videoDurationSec, nextEnd + 4),
             annotation_start: nextStart,
             annotation_end: nextEnd,
             annotation_window: nextEnd - nextStart,
             annotator_state: newState,
+            game_clock: formatMatchClock(clip.half ?? 1, nextStart),
           };
           return updatedClip;
         }),
