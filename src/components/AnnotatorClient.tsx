@@ -348,6 +348,10 @@ export default function AnnotatorClient() {
       return clips[currentClipIndex];
     }
     if (!activeVideoPath) return undefined;
+    const draftSegmentStart =
+      creatingSegment && creatingSegment.start >= 0
+        ? creatingSegment.start
+        : draftStart;
     const endVal =
       creatingSegment && creatingSegment.end >= 0
         ? creatingSegment.end
@@ -356,11 +360,11 @@ export default function AnnotatorClient() {
       clip_id: "Draft Segment",
       match_id: lastClip?.match_id ?? "manual",
       path: lastClip?.path ?? activeVideoPath ?? "",
-      start: Math.max(0, draftStart - 4),
+      start: Math.max(0, draftSegmentStart - 4),
       end: Math.min(videoDurationSec, endVal + 4),
-      annotation_start: draftStart,
+      annotation_start: draftSegmentStart,
       annotation_end: endVal,
-      annotation_window: Math.max(0, endVal - draftStart),
+      annotation_window: Math.max(0, endVal - draftSegmentStart),
       half: lastClip?.half ?? 1,
       annotator_state: "manual" as AnnotatorState,
       is_locked: false,
