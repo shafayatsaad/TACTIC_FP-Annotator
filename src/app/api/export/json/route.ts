@@ -525,6 +525,10 @@ function validateTrainExport(trainData: any): string[] {
       // Gate 2 — Tensor alignment: duration_ms === tensor_shape[0] × 100
       // Skip for exclusion segments — they have no real tensor
       if (!seg.exclusion) {
+        if (!seg.primary_team?.intent_class) {
+          errors.push(`${prefix}: non-excluded segment has no primary intent`);
+        }
+
         const expectedDuration =
           (seg.reconstruction?.tensor_shape?.[0] || 0) * 100;
         if (seg.duration_ms !== expectedDuration) {
