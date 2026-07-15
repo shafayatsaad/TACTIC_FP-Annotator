@@ -429,7 +429,7 @@ function convertToTrainSchema(fullData: any): any {
       }
     }
   }
-  const uniqueSplits = [...new Set(allNonExcludedSplits)];
+  const uniqueSplits = Array.from(new Set(allNonExcludedSplits));
   const matchSplit = uniqueSplits.length === 1 ? uniqueSplits[0] : (uniqueSplits[0] || "train");
 
   return {
