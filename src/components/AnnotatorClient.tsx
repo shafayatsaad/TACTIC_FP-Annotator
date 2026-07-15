@@ -4215,17 +4215,6 @@ function toModelSamples(annotations: Annotation[]) {
         ann.video_source?.seek_start_sec ??
         0,
     );
-    const end_sec = Number(
-      ann.segment_metadata?.end_sec ??
-        ann.video_source?.label_end_sec ??
-        ann.video_source?.seek_end_sec ??
-        0,
-    );
-    const duration_sec = Number(
-      ann.segment_metadata?.duration_sec ??
-        (ann.video_source?.label_end_sec ?? 0) -
-          (ann.video_source?.label_start_sec ?? 0),
-    );
     const coverage_estimate = Number(
       ann.segment_metadata?.coverage_estimate ?? 1,
     );
@@ -4236,24 +4225,29 @@ function toModelSamples(annotations: Annotation[]) {
       ann.reconstruction.npz_path ||
       `data/trajectories/${matchId}/${ann.clip_id}.npz`;
 
+    // Quantize to 100 ms grid (10 fps decimation, §3.1)
+    const startMs = Math.round(Math.round(start_sec * 1000) / 100) * 100;
+    // Duration derived from tensor shape: tensor_shape[0] × 100 (§6.3.1)
+    const durationMs = tensorFrames * 100;
+    const endMs = startMs + durationMs;
+
+    const paddingMask = Array.from({ length: 150 }, (_, i) =>
+      i < tensorFrames ? 1 : 0,
+    );
+
     const common = {
       segment_id: ann.clip_id,
-      match_id: ann.match_id || "unknown",
-      half: ann.half || ann.game_state?.half || "1st",
-      start_sec,
-      end_sec,
-      duration_sec,
+      start_ms: startMs,
+      end_ms: endMs,
+      duration_ms: durationMs,
+      time_from_kickoff_ms: startMs,
       coverage_estimate,
       reconstruction: {
         npz_path: npzPath,
-        tensor_shape: ann.reconstruction.tensor_shape || [150, 23, 4],
+        tensor_shape: ann.reconstruction.tensor_shape || [tensorFrames, 23, 4],
         tensor_fps:
           ann.reconstruction.tensor_fps || ann.video_source?.tensor_fps || 10,
-        quality_pass: ann.reconstruction.quality_pass === true,
-        tracked_players: ann.reconstruction.tracked_players || 22,
-        padding_mask: (
-          ann.reconstruction.padding_mask || makePaddingMask(tensorFrames)
-        ).map((value) => (value ? 1 : 0)),
+        padding_mask: paddingMask,
       },
     };
 
@@ -4261,35 +4255,23 @@ function toModelSamples(annotations: Annotation[]) {
       return {
         ...common,
         exclusion: ann.exclusion,
-        model_split: ann.model_split?.assigned_split || "excluded",
       };
     }
 
-    const confidenceA = ann.team_a?.label?.confidence || 3;
-    const confidenceB = ann.team_b?.label?.confidence || 3;
+    // Determine primary team: the one with is_primary === true
+    const teamAIsPrimary = ann.team_a?.is_primary === true;
+    const primaryTeamObj = teamAIsPrimary ? ann.team_a : ann.team_b;
+    const primaryConfidence = primaryTeamObj?.label?.confidence || 3;
 
     return {
       ...common,
-      team_a: {
-        label: {
-          intent_class: ann.team_a.label.intent_class ?? null,
-          confidence: confidenceA,
-          certainty: ann.team_a.label.certainty || modelCertainty(confidenceA),
-        },
-        is_primary: ann.team_a.is_primary === true,
-        possession: ann.team_a.possession === true,
-      },
-      team_b: {
-        label: {
-          intent_class: ann.team_b.label.intent_class ?? null,
-          confidence: confidenceB,
-          certainty: ann.team_b.label.certainty || modelCertainty(confidenceB),
-        },
-        is_primary: ann.team_b.is_primary === true,
-        possession: ann.team_b.possession === true,
-      },
       exclusion: null,
-      model_split: ann.model_split?.assigned_split || "train",
+      primary_team: {
+        intent_class: primaryTeamObj?.label?.intent_class ?? null,
+        confidence: primaryConfidence,
+        is_primary: true,
+        possession: primaryTeamObj?.possession === true,
+      },
     };
   });
 }
