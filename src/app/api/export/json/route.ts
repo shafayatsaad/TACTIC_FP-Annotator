@@ -548,6 +548,19 @@ export async function POST(request: NextRequest) {
     let exportedData: any;
     if (mode === "train") {
       exportedData = convertToTrainSchema(fullData);
+
+      // §6.3.1 — Run validation gates before writing
+      const validationErrors = validateTrainExport(exportedData);
+      if (validationErrors.length > 0) {
+        return NextResponse.json(
+          {
+            error: "Training export failed §6.3.1 validation gates",
+            gate_failures: validationErrors,
+            gate_count: validationErrors.length,
+          },
+          { status: 422 },
+        );
+      }
     } else {
       exportedData = fullData;
     }
@@ -571,6 +584,7 @@ export async function POST(request: NextRequest) {
       success: true,
       fileName,
       mode,
+      ...(mode === "train" ? { model_split: exportedData.model_split } : {}),
       segmentCount: exportedData.halves.reduce(
         (acc: number, h: any) => acc + h.segments.length,
         0,
