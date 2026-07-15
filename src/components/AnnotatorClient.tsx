@@ -303,6 +303,7 @@ export default function AnnotatorClient() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const loadedVideoPathRef = useRef("");
+  const lastSeekClipIdRef = useRef("");
   const videoAbortRef = useRef<AbortController | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
@@ -1121,6 +1122,18 @@ export default function AnnotatorClient() {
     const clip = clips[currentClipIndex];
     const videoPath = clip ? clip.path : activeVideoPath;
     if (!video || !videoPath) return;
+
+    // Skip re-seeking when only clip times changed (same clip, same video)
+    const clipId = clip?.clip_id ?? "";
+    if (
+      clipId &&
+      clipId === lastSeekClipIdRef.current &&
+      loadedVideoPathRef.current === videoPath
+    ) {
+      return;
+    }
+    lastSeekClipIdRef.current = clipId;
+
     setVideoError("");
     video.pause();
 
@@ -1871,6 +1884,10 @@ export default function AnnotatorClient() {
       );
       if (updatedClip) {
         saveSegmentToServer(updatedClip);
+        const video = videoRef.current;
+        if (video) {
+          video.currentTime = edge === "start" ? updatedClip.annotation_start : updatedClip.annotation_end;
+        }
 
         // Update annotation in annotations list and sync to server immediately
         setAnnotations((prevAnn) => {
@@ -2328,6 +2345,10 @@ export default function AnnotatorClient() {
         }).catch(() => console.warn("Failed to sync segments"));
 
         saveSegmentToServer(updatedClip);
+        const video = videoRef.current;
+        if (video) {
+          video.currentTime = edge === "start" ? nextStart : nextEnd;
+        }
         setStatusMessage(
           `Segment ${edge} updated: ${nextStart.toFixed(1)}s - ${nextEnd.toFixed(1)}s`,
         );
