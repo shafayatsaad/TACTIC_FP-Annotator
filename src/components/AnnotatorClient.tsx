@@ -2206,14 +2206,14 @@ export default function AnnotatorClient() {
     const intentLabelA = getIntentLabel(selectedIntentA);
     const intentLabelB = getIntentLabel(selectedIntentB);
     const isDraft = currentClip.clip_id === "Draft Segment";
-    const matchId = currentClip.match_id || "manual";
+    const matchId = matchConfig.match_id || currentClip.match_id || "manual";
     const realClipId = isDraft
       ? `${matchId}_seg${String(clips.length).padStart(3, "0")}`
       : currentClip.clip_id;
 
     const newClip: Clip = isDraft
-      ? { ...currentClip, clip_id: realClipId }
-      : currentClip;
+      ? { ...currentClip, clip_id: realClipId, match_id: matchId }
+      : { ...currentClip, match_id: matchId };
 
     const usedNpzPaths = new Set(
       clips
@@ -2263,14 +2263,14 @@ export default function AnnotatorClient() {
       };
 
       const isDraft = currentClip.clip_id === "Draft Segment";
-      const matchId = currentClip.match_id || "manual";
+      const matchId = matchConfig.match_id || currentClip.match_id || "manual";
       const realClipId = isDraft
         ? `${matchId}_seg${String(clips.length).padStart(3, "0")}`
         : currentClip.clip_id;
 
       const newClip: Clip = isDraft
-        ? { ...currentClip, clip_id: realClipId }
-        : currentClip;
+        ? { ...currentClip, clip_id: realClipId, match_id: matchId }
+        : { ...currentClip, match_id: matchId };
 
       const tensorFrames = Math.max(
         20,
@@ -3129,6 +3129,11 @@ export default function AnnotatorClient() {
             };
           }
 
+          const startMs =
+            Math.round(Math.round(start_sec * 1000) / 100) * 100;
+          const durationMs = tensorFrames * 100;
+          const endMs = startMs + durationMs;
+
           return {
             segment_id:
               ann.clip_id ||
@@ -3136,10 +3141,10 @@ export default function AnnotatorClient() {
             previous_segment: prevSegId,
             next_segment: nextSegId,
             half: Number(ann.half) || (ann.half === "2nd" ? 2 : 1),
-            start_ms: Math.round(start_sec * 1000),
-            end_ms: Math.round(end_sec * 1000),
-            duration_ms: Math.round(duration_sec * 1000),
-            time_from_kickoff_ms: Math.round(start_sec * 1000),
+            start_ms: startMs,
+            end_ms: endMs,
+            duration_ms: durationMs,
+            time_from_kickoff_ms: startMs,
             coverage_estimate: Number(coverage_estimate.toFixed(3)),
             annotator:
               ann.annotation_meta?.annotator_id ||
