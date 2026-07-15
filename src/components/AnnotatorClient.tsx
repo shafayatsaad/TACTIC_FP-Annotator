@@ -1832,129 +1832,128 @@ export default function AnnotatorClient() {
         return;
       }
 
-      let updatedClip: Clip | null = null;
-      setClips((prev) =>
-        prev.map((clip, idx) => {
-          if (idx !== currentClipIndex) return clip;
-          const previousClip = prev[currentClipIndex - 1];
-          const nextClip = prev[currentClipIndex + 1];
-          const minStart = previousClip?.annotation_end ?? 0;
-          const maxEnd = nextClip?.annotation_start ?? videoDurationSec;
-          const nextStart =
-            edge === "start"
-              ? Math.max(
-                  minStart,
-                  Math.min(
-                    clip.annotation_start + deltaSec,
-                    clip.annotation_end - MIN_SEGMENT_DURATION,
-                  ),
-                )
-              : clip.annotation_start;
-          const nextEnd =
-            edge === "end"
-              ? Math.min(
-                  maxEnd,
-                  Math.max(
-                    clip.annotation_end + deltaSec,
-                    nextStart + MIN_SEGMENT_DURATION,
-                  ),
-                )
-              : clip.annotation_end;
-          if (nextEnd - nextStart < MIN_SEGMENT_DURATION) return clip;
-          let newState: AnnotatorState = clip.annotator_state || "unseen";
-          if (clip.algorithm_proposal) {
-            const startChanged =
-              Math.abs(nextStart - clip.algorithm_proposal.start) > 0.5;
-            const endChanged =
-              Math.abs(nextEnd - clip.algorithm_proposal.end) > 0.5;
-            if (startChanged || endChanged) newState = "modified";
-          }
-          updatedClip = {
-            ...clip,
-            start: Math.max(0, nextStart - 4),
-            end: Math.min(videoDurationSec, nextEnd + 4),
-            annotation_start: nextStart,
-            annotation_end: nextEnd,
-            annotation_window: nextEnd - nextStart,
-            annotator_state: newState,
-            game_clock: formatMatchClock(clip.half ?? 1, nextStart),
-          };
-          return updatedClip;
-        }),
-      );
-      if (updatedClip) {
-        saveSegmentToServer(updatedClip);
-        const video = videoRef.current;
-        if (video) {
-          video.currentTime = edge === "start" ? updatedClip.annotation_start : updatedClip.annotation_end;
-        }
+      const previousClip = clips[currentClipIndex - 1];
+      const nextClip = clips[currentClipIndex + 1];
+      const minStart = previousClip?.annotation_end ?? 0;
+      const maxEnd = nextClip?.annotation_start ?? videoDurationSec;
+      const nextStart =
+        edge === "start"
+          ? Math.max(
+              minStart,
+              Math.min(
+                currentClip.annotation_start + deltaSec,
+                currentClip.annotation_end - MIN_SEGMENT_DURATION,
+              ),
+            )
+          : currentClip.annotation_start;
+      const nextEnd =
+        edge === "end"
+          ? Math.min(
+              maxEnd,
+              Math.max(
+                currentClip.annotation_end + deltaSec,
+                nextStart + MIN_SEGMENT_DURATION,
+              ),
+            )
+          : currentClip.annotation_end;
 
-        // Update annotation in annotations list and sync to server immediately
-        setAnnotations((prevAnn) => {
-          const updatedAnn = prevAnn.map((ann) => {
-            if (ann.clip_id !== updatedClip!.clip_id) return ann;
-            const duration =
-              updatedClip!.annotation_end - updatedClip!.annotation_start;
-            const tensorFrames = Math.max(
-              20,
-              Math.min(150, Math.round(duration * 10)),
-            );
-            return {
-              ...ann,
-              segment_metadata: {
-                coverage_estimate:
-                  ann.segment_metadata?.coverage_estimate ?? 1.0,
-                is_mixed_phase: ann.segment_metadata?.is_mixed_phase ?? false,
-                ...ann.segment_metadata,
-                start_sec: updatedClip!.annotation_start,
-                end_sec: updatedClip!.annotation_end,
-                duration_sec: duration,
-                tensor_frames: tensorFrames,
-              },
-              video_source: {
-                ...ann.video_source,
-                seek_start_sec: updatedClip!.start,
-                label_start_sec: updatedClip!.annotation_start,
-                label_end_sec: updatedClip!.annotation_end,
-                seek_end_sec: updatedClip!.end,
-                tensor_frame_count: tensorFrames,
-              },
-              reconstruction: {
-                ...ann.reconstruction,
-              },
-            };
-          });
+      if (nextEnd - nextStart < MIN_SEGMENT_DURATION) return;
 
-          // Sort annotations chronologically by half and start time
-          const sortedAnn = [...updatedAnn].sort((a, b) => {
-            const halfCmp = String(a.half).localeCompare(String(b.half));
-            if (halfCmp !== 0) return halfCmp;
-            const aStart =
-              a.segment_metadata?.start_sec ??
-              a.video_source?.label_start_sec ??
-              0;
-            const bStart =
-              b.segment_metadata?.start_sec ??
-              b.video_source?.label_start_sec ??
-              0;
-            return aStart - bStart;
-          });
-
-          fetch(`${SERVER_URL}/annotations`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              schema_version: "1.0.0",
-              dataset: "TACTIC-Bench",
-              team_config: teamConfig,
-              match_config: matchConfig,
-              annotations: sortedAnn,
-            }),
-          }).catch(() => console.warn("Sync failed"));
-
-          return sortedAnn;
-        });
+      let newState: AnnotatorState = currentClip.annotator_state || "unseen";
+      if (currentClip.algorithm_proposal) {
+        const startChanged =
+          Math.abs(nextStart - currentClip.algorithm_proposal.start) > 0.5;
+        const endChanged =
+          Math.abs(nextEnd - currentClip.algorithm_proposal.end) > 0.5;
+        if (startChanged || endChanged) newState = "modified";
       }
+
+      const updatedClip: Clip = {
+        ...currentClip,
+        start: Math.max(0, nextStart - 4),
+        end: Math.min(videoDurationSec, nextEnd + 4),
+        annotation_start: nextStart,
+        annotation_end: nextEnd,
+        annotation_window: nextEnd - nextStart,
+        annotator_state: newState,
+        game_clock: formatMatchClock(currentClip.half ?? 1, nextStart),
+      };
+
+      setClips((prev) =>
+        prev.map((clip, idx) => (idx === currentClipIndex ? updatedClip : clip)),
+      );
+
+      saveSegmentToServer(updatedClip);
+      const video = videoRef.current;
+      if (video) {
+        video.currentTime = edge === "start" ? nextStart : nextEnd;
+      }
+
+      // Update annotation in annotations list and sync to server immediately
+      setAnnotations((prevAnn) => {
+        const updatedAnn = prevAnn.map((ann) => {
+          if (ann.clip_id !== updatedClip.clip_id) return ann;
+          const duration =
+            updatedClip.annotation_end - updatedClip.annotation_start;
+          const tensorFrames = Math.max(
+            20,
+            Math.min(150, Math.round(duration * 10)),
+          );
+          return {
+            ...ann,
+            segment_metadata: {
+              coverage_estimate:
+                ann.segment_metadata?.coverage_estimate ?? 1.0,
+              is_mixed_phase: ann.segment_metadata?.is_mixed_phase ?? false,
+              ...ann.segment_metadata,
+              start_sec: updatedClip.annotation_start,
+              end_sec: updatedClip.annotation_end,
+              duration_sec: duration,
+              tensor_frames: tensorFrames,
+            },
+            video_source: {
+              ...ann.video_source,
+              seek_start_sec: updatedClip.start,
+              label_start_sec: updatedClip.annotation_start,
+              label_end_sec: updatedClip.annotation_end,
+              seek_end_sec: updatedClip.end,
+              tensor_frame_count: tensorFrames,
+            },
+            reconstruction: {
+              ...ann.reconstruction,
+            },
+          };
+        });
+
+        // Sort annotations chronologically by half and start time
+        const sortedAnn = [...updatedAnn].sort((a, b) => {
+          const halfCmp = String(a.half).localeCompare(String(b.half));
+          if (halfCmp !== 0) return halfCmp;
+          const aStart =
+            a.segment_metadata?.start_sec ??
+            a.video_source?.label_start_sec ??
+            0;
+          const bStart =
+            b.segment_metadata?.start_sec ??
+            b.video_source?.label_start_sec ??
+            0;
+          return aStart - bStart;
+        });
+
+        fetch(`${SERVER_URL}/annotations`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            schema_version: "1.0.0",
+            dataset: "TACTIC-Bench",
+            team_config: teamConfig,
+            match_config: matchConfig,
+            annotations: sortedAnn,
+          }),
+        }).catch(() => console.warn("Sync failed"));
+
+        return sortedAnn;
+      });
     },
     [
       currentClip,
