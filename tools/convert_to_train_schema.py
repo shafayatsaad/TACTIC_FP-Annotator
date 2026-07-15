@@ -189,23 +189,51 @@ def convert_to_train_schema(input_data: dict) -> dict:
         train_segments.sort(key=lambda s: s["start_ms"])
 
         # Gate 3 — Ensure contiguity: fill gaps if needed
+        # Gaps < 2000ms are merged into the preceding segment.
+        # Gaps >= 2000ms get a new exclusion segment (ContestedPlay) inserted.
         filled = []
         for i, seg in enumerate(train_segments):
             filled.append(seg)
             if i < len(train_segments) - 1:
                 nxt = train_segments[i + 1]
                 gap = nxt["start_ms"] - seg["end_ms"]
-                if gap > 0:
-                    # Extend current segment to meet the next one
+                if gap > 0 and gap < 2000:
+                    # Merge gap into current segment by extending its end
                     seg["end_ms"] = nxt["start_ms"]
                     seg["duration_ms"] = seg["end_ms"] - seg["start_ms"]
-                    # Re-check tensor alignment
-                    seg["duration_ms"] = max(seg["duration_ms"], 100)
+                    # Recompute tensor metadata for the merged segment
+                    tensor_frames = compute_tensor_frames(seg["duration_ms"] / 1000)
+                    seg["reconstruction"] = {
+                        "npz_path": seg["reconstruction"].get("npz_path", ""),
+                        "tensor_shape": [tensor_frames, 23, 4],
+                        "tensor_fps": MODEL_FPS,
+                        "padding_mask": compute_padding_mask(tensor_frames),
+                    }
+                elif gap >= 2000:
+                    # Insert exclusion segment
+                    gap_tensor_frames = compute_tensor_frames(gap / 1000)
+                    gap_seg_id = f"gap_fill_{half.get('half', 1)}_{seg['end_ms']}"
+                    filled.append({
+                        "segment_id": gap_seg_id,
+                        "start_ms": seg["end_ms"],
+                        "end_ms": nxt["start_ms"],
+                        "duration_ms": gap,
+                        "time_from_kickoff_ms": seg["end_ms"],
+                        "coverage_estimate": 0,
+                        "exclusion": "ContestedPlay",
+                        "primary_team": None,
+                        "reconstruction": {
+                            "npz_path": "",
+                            "tensor_shape": [gap_tensor_frames, 23, 4],
+                            "tensor_fps": MODEL_FPS,
+                            "padding_mask": compute_padding_mask(gap_tensor_frames),
+                        },
+                    })
 
         train_halves.append(
             {
                 "half": half.get("half", 1),
-                "segments": train_segments,
+                "segments": filled,
             }
         )
 
