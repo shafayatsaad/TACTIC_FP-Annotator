@@ -603,7 +603,7 @@ export async function POST(request: NextRequest) {
 
     // Determine export mode from query parameter
     const url = new URL(request.url);
-    const mode = url.searchParams.get("mode") || "annotator";
+    const mode = url.searchParams.get("mode") || "train";
 
     const matchId = matchConfig?.match_id || "unknown";
     const modeSuffix = mode === "train" ? "_TRAIN" : "";
@@ -656,6 +656,7 @@ export async function POST(request: NextRequest) {
         (acc: number, h: any) => acc + h.segments.length,
         0,
       ),
+      exportedData,
       warning:
         missingNpz.length > 0
           ? `Exported successfully, but ${missingNpz.length} NPZ file(s) are missing from trajectories directory.`
