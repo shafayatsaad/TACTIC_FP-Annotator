@@ -109,7 +109,11 @@ function dedupeAnnotationsByClipId(annotations: any[]) {
   return [...unkeyed, ...Array.from(keyed.values())];
 }
 
-export function writeAnnotations(annotations: any[], teamConfig?: any, matchConfig?: any) {
+export function writeAnnotations(
+  annotations: any[],
+  teamConfig?: any,
+  matchConfig?: any,
+) {
   const uniqueAnnotations = dedupeAnnotationsByClipId(annotations);
   fs.writeFileSync(
     getAnnotationsPath(),
@@ -177,12 +181,6 @@ export function resetGeneratedSessionFiles() {
   safeRemove(DATA_DIR);
   ensureDirectories();
   resetAnnotations();
-
-  if (fs.existsSync(VIDEOS_DIR)) {
-    for (const entry of fs.readdirSync(VIDEOS_DIR)) {
-      if (/_720p\.mp4$/i.test(entry)) safeRemove(path.join(VIDEOS_DIR, entry));
-    }
-  }
 }
 
 export function getVideoPath(relativePath: string): string | null {
