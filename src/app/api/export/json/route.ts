@@ -474,19 +474,22 @@ function validateTrainExport(trainData: any): string[] {
       }
 
       // Gate 2 — Tensor alignment: duration_ms === tensor_shape[0] × 100
-      const expectedDuration =
-        (seg.reconstruction?.tensor_shape?.[0] || 0) * 100;
-      if (seg.duration_ms !== expectedDuration) {
-        errors.push(
-          `${prefix}: duration_ms (${seg.duration_ms}) ≠ tensor_shape[0]×100 (${expectedDuration})`,
-        );
-      }
+      // Skip for exclusion segments — they have no real tensor
+      if (!seg.exclusion) {
+        const expectedDuration =
+          (seg.reconstruction?.tensor_shape?.[0] || 0) * 100;
+        if (seg.duration_ms !== expectedDuration) {
+          errors.push(
+            `${prefix}: duration_ms (${seg.duration_ms}) ≠ tensor_shape[0]×100 (${expectedDuration})`,
+          );
+        }
 
-      // Gate 2b — end_ms === start_ms + duration_ms
-      if (seg.end_ms !== seg.start_ms + seg.duration_ms) {
-        errors.push(
-          `${prefix}: end_ms (${seg.end_ms}) ≠ start_ms + duration_ms (${seg.start_ms + seg.duration_ms})`,
-        );
+        // Gate 2b — end_ms === start_ms + duration_ms
+        if (seg.end_ms !== seg.start_ms + seg.duration_ms) {
+          errors.push(
+            `${prefix}: end_ms (${seg.end_ms}) ≠ start_ms + duration_ms (${seg.start_ms + seg.duration_ms})`,
+          );
+        }
       }
 
       // Gate 3 — Contiguity: segment[n].end_ms === segment[n+1].start_ms
