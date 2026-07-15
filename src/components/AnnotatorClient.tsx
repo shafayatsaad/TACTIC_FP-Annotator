@@ -2340,6 +2340,12 @@ export default function AnnotatorClient() {
             }
           }
         }
+        if (!effectiveExclusion && !teamAPossession && !teamBPossession) {
+          setStatusMessage(
+            "Choose Team A/B possession for tactical labels, or mark the segment as ContestedPlay.",
+          );
+          return;
+        }
 
         const templateAnn: Annotation = {
           schema_version: "1.0.0",
@@ -2426,11 +2432,14 @@ export default function AnnotatorClient() {
         };
 
         const newAnns = buildSplitAnnotations(splitClips, templateAnn);
+        const newAnnIds = new Set(newAnns.map((ann) => ann.clip_id));
 
         const updated = [
           ...annotations.filter(
             (a) =>
-              a.clip_id !== currentClip.clip_id && a.clip_id !== realClipId,
+              !newAnnIds.has(a.clip_id) &&
+              a.clip_id !== currentClip.clip_id &&
+              a.clip_id !== realClipId,
           ),
           ...newAnns,
         ];
