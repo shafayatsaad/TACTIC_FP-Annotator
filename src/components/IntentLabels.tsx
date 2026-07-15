@@ -175,12 +175,14 @@ export default function IntentLabels({
 
                     {gameState.set_piece && (
                       <div className="grid grid-cols-2 gap-1 mt-1.5">
-                        {([
-                          { value: "corner", label: "Corner" },
-                          { value: "free_kick", label: "Free Kick" },
-                          { value: "throw_in", label: "Throw In" },
-                          { value: "penalty", label: "Penalty" },
-                        ] as const).map((opt) => {
+                        {(
+                          [
+                            { value: "corner", label: "Corner" },
+                            { value: "free_kick", label: "Free Kick" },
+                            { value: "throw_in", label: "Throw In" },
+                            { value: "penalty", label: "Penalty" },
+                          ] as const
+                        ).map((opt) => {
                           const isSel = gameState.set_piece_type === opt.value;
                           return (
                             <button
@@ -270,9 +272,9 @@ export default function IntentLabels({
         </span>
       </div>
 
-      {/* Submit button for easy access */}
+      {/* Submit button for easy access — stays visible when SetPiece expands */}
       {onSubmit && (
-        <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-3">
+        <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-3 sticky bottom-0 bg-black/40">
           <button
             onClick={onSubmit}
             className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-semibold transition-colors"
@@ -289,4 +291,3 @@ export default function IntentLabels({
     </div>
   );
 }
-
