@@ -254,10 +254,10 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
       segment_id:
         ann.clip_id || `${match_id}_seg${String(idx).padStart(3, "0")}`,
       half: Number(ann.half) || (ann.half === "2nd" ? 2 : 1),
-      start_ms: Math.round(start_sec * 1000),
-      end_ms: Math.round(end_sec * 1000),
-      duration_ms: Math.round(duration_sec * 1000),
-      time_from_kickoff_ms: Math.round(start_sec * 1000),
+      start_ms: quantizeMs(Math.round(start_sec * 1000)),
+      end_ms: quantizeMs(Math.round(end_sec * 1000)),
+      duration_ms: quantizeMs(Math.round(duration_sec * 1000)),
+      time_from_kickoff_ms: quantizeMs(Math.round(start_sec * 1000)),
       coverage_estimate: Number(coverage_estimate.toFixed(3)),
       reconstruction: {
         npz_path: generateNpzPath(match_id, ann.clip_id),
@@ -430,7 +430,8 @@ function convertToTrainSchema(fullData: any): any {
     }
   }
   const uniqueSplits = Array.from(new Set(allNonExcludedSplits));
-  const matchSplit = uniqueSplits.length === 1 ? uniqueSplits[0] : (uniqueSplits[0] || "train");
+  const matchSplit =
+    uniqueSplits.length === 1 ? uniqueSplits[0] : uniqueSplits[0] || "train";
 
   return {
     match_id: fullData.match_id,
@@ -454,27 +455,34 @@ function validateTrainExport(trainData: any): string[] {
 
       // Gate 1 — Quantization: all timestamps must be multiples of 100
       if (seg.start_ms % 100 !== 0) {
-        errors.push(`${prefix}: start_ms (${seg.start_ms}) is not a multiple of 100`);
+        errors.push(
+          `${prefix}: start_ms (${seg.start_ms}) is not a multiple of 100`,
+        );
       }
       if (seg.end_ms % 100 !== 0) {
-        errors.push(`${prefix}: end_ms (${seg.end_ms}) is not a multiple of 100`);
+        errors.push(
+          `${prefix}: end_ms (${seg.end_ms}) is not a multiple of 100`,
+        );
       }
       if (seg.duration_ms % 100 !== 0) {
-        errors.push(`${prefix}: duration_ms (${seg.duration_ms}) is not a multiple of 100`);
+        errors.push(
+          `${prefix}: duration_ms (${seg.duration_ms}) is not a multiple of 100`,
+        );
       }
 
       // Gate 2 — Tensor alignment: duration_ms === tensor_shape[0] × 100
-      const expectedDuration = (seg.reconstruction?.tensor_shape?.[0] || 0) * 100;
+      const expectedDuration =
+        (seg.reconstruction?.tensor_shape?.[0] || 0) * 100;
       if (seg.duration_ms !== expectedDuration) {
         errors.push(
-          `${prefix}: duration_ms (${seg.duration_ms}) ≠ tensor_shape[0]×100 (${expectedDuration})`
+          `${prefix}: duration_ms (${seg.duration_ms}) ≠ tensor_shape[0]×100 (${expectedDuration})`,
         );
       }
 
       // Gate 2b — end_ms === start_ms + duration_ms
       if (seg.end_ms !== seg.start_ms + seg.duration_ms) {
         errors.push(
-          `${prefix}: end_ms (${seg.end_ms}) ≠ start_ms + duration_ms (${seg.start_ms + seg.duration_ms})`
+          `${prefix}: end_ms (${seg.end_ms}) ≠ start_ms + duration_ms (${seg.start_ms + seg.duration_ms})`,
         );
       }
 
@@ -483,7 +491,7 @@ function validateTrainExport(trainData: any): string[] {
         const next = segs[i + 1];
         if (seg.end_ms !== next.start_ms) {
           errors.push(
-            `${prefix}: end_ms (${seg.end_ms}) ≠ next segment start_ms (${next.start_ms}) — gap of ${next.start_ms - seg.end_ms} ms`
+            `${prefix}: end_ms (${seg.end_ms}) ≠ next segment start_ms (${next.start_ms}) — gap of ${next.start_ms - seg.end_ms} ms`,
           );
         }
       }
@@ -501,7 +509,7 @@ function validateTrainExport(trainData: any): string[] {
           (a.start_ms < b.start_ms || a.end_ms > b.end_ms)
         ) {
           errors.push(
-            `Half ${half.half}: segment "${a.segment_id}" [${a.start_ms}–${a.end_ms}] fully contains "${b.segment_id}" [${b.start_ms}–${b.end_ms}]`
+            `Half ${half.half}: segment "${a.segment_id}" [${a.start_ms}–${a.end_ms}] fully contains "${b.segment_id}" [${b.start_ms}–${b.end_ms}]`,
           );
           break; // One report per parent is enough
         }
