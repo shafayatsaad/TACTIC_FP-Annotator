@@ -2251,10 +2251,6 @@ export default function AnnotatorClient() {
         return;
       }
 
-      let updatedClip: Clip | null = null;
-      let statusStart = 0;
-      let statusEnd = 0;
-
       setClips((prev) => {
         const selected = prev[currentClipIndex];
         if (!selected) return prev;
@@ -2291,7 +2287,7 @@ export default function AnnotatorClient() {
           if (startChanged || endChanged) newState = "modified";
         }
 
-        updatedClip = {
+        const updatedClip: Clip = {
           ...selected,
           start: Math.max(0, nextStart - 4),
           end: Math.min(videoDurationSec, nextEnd + 4),
@@ -2301,11 +2297,9 @@ export default function AnnotatorClient() {
           annotator_state: newState,
           game_clock: formatMatchClock(selected.half ?? 1, nextStart),
         };
-        statusStart = nextStart;
-        statusEnd = nextEnd;
 
         const next = prev.map((clip, idx) =>
-          idx === currentClipIndex ? updatedClip! : clip,
+          idx === currentClipIndex ? updatedClip : clip,
         );
         const sorted = [...next].sort(
           (a, b) => a.annotation_start - b.annotation_start,
@@ -2333,13 +2327,13 @@ export default function AnnotatorClient() {
           body: JSON.stringify({ segments: sorted }),
         }).catch(() => console.warn("Failed to sync segments"));
 
+        saveSegmentToServer(updatedClip);
+        setStatusMessage(
+          `Segment ${edge} updated: ${nextStart.toFixed(1)}s - ${nextEnd.toFixed(1)}s`,
+        );
+
         return sorted;
       });
-
-      if (updatedClip) saveSegmentToServer(updatedClip);
-      setStatusMessage(
-        `Segment ${edge} updated: ${statusStart.toFixed(1)}s - ${statusEnd.toFixed(1)}s`,
-      );
     },
     [
       currentClip,
