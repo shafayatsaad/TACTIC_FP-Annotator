@@ -49,7 +49,7 @@ function dedupeAnnotationsByClipId(annotations: any[]): any[] {
     }
   }
 
-  return [...unkeyed, ...keyed.values()];
+  return [...unkeyed, ...Array.from(keyed.values())];
 }
 
 /**
