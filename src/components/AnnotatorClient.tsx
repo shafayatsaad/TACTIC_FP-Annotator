@@ -1599,7 +1599,6 @@ export default function AnnotatorClient() {
       if (intentB === "CounterAttack")
         disabled.add(getIntentId("CounterAttack"));
     }
-    disabled.add(getIntentId("ContestedPlay"));
     return Array.from(disabled);
   }, [
     selectedIntentA,
@@ -1665,7 +1664,6 @@ export default function AnnotatorClient() {
       if (intentA === "CounterAttack")
         disabled.add(getIntentId("CounterAttack"));
     }
-    disabled.add(getIntentId("ContestedPlay"));
     return Array.from(disabled);
   }, [
     selectedIntentA,
@@ -2189,7 +2187,7 @@ export default function AnnotatorClient() {
       console.warn("[saveAnnotation] No current clip");
       return;
     }
-    if (!selectedIntentA && !selectedIntentB) {
+    if (!exclusion && !selectedIntentA && !selectedIntentB) {
       setStatusMessage("Select at least one label or use ContestedPlay.");
       return;
     }
