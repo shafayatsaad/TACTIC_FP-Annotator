@@ -39,6 +39,11 @@ def compute_padding_mask(actual_frames: int, max_frames: int = MAX_MODEL_FRAMES)
     return [1 if i < actual_frames else 0 for i in range(max_frames)]
 
 
+def compute_tensor_frames(duration_sec: float, fps: int = MODEL_FPS) -> int:
+    """Compute number of tensor frames from duration in seconds."""
+    return min(round(duration_sec * fps), MAX_MODEL_FRAMES)
+
+
 def validate_train_export(train_data: dict) -> list:
     """§6.3.1 validation gates. Returns list of error strings (empty = pass)."""
     errors = []
