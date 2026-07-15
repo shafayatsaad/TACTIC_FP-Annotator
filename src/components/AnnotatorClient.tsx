@@ -1795,22 +1795,26 @@ export default function AnnotatorClient() {
         const previousClip = clips[clips.length - 1];
         const minStart = previousClip?.annotation_end ?? 0;
         const maxEnd = videoDurationSec;
-        const requestedStart =
+        const nextStart =
           edge === "start"
-            ? currentClip.annotation_start + deltaSec
+            ? Math.max(
+                minStart,
+                Math.min(
+                  currentClip.annotation_start + deltaSec,
+                  currentClip.annotation_end - MIN_SEGMENT_DURATION,
+                ),
+              )
             : currentClip.annotation_start;
-        const requestedEnd =
+        const nextEnd =
           edge === "end"
-            ? currentClip.annotation_end + deltaSec
+            ? Math.min(
+                maxEnd,
+                Math.max(
+                  currentClip.annotation_end + deltaSec,
+                  nextStart + MIN_SEGMENT_DURATION,
+                ),
+              )
             : currentClip.annotation_end;
-        const nextStart = Math.max(
-          minStart,
-          Math.min(requestedStart, maxEnd - MIN_SEGMENT_DURATION),
-        );
-        const nextEnd = Math.min(
-          maxEnd,
-          Math.max(requestedEnd, nextStart + MIN_SEGMENT_DURATION),
-        );
         setCreatingSegment({ start: nextStart, end: nextEnd });
         return;
       }
@@ -1829,7 +1833,7 @@ export default function AnnotatorClient() {
                   minStart,
                   Math.min(
                     clip.annotation_start + deltaSec,
-                    maxEnd - MIN_SEGMENT_DURATION,
+                    clip.annotation_end - MIN_SEGMENT_DURATION,
                   ),
                 )
               : clip.annotation_start;
@@ -1988,7 +1992,11 @@ export default function AnnotatorClient() {
   );
 
   const handleUpdateSegmentTimes = useCallback(
-    (start: number, end: number) => {
+    (
+      start: number,
+      end: number,
+      editedEdge: "start" | "end" | "both" = "both",
+    ) => {
       if (!currentClip) return;
       const isDraft =
         currentClip.clip_id === "Draft Segment" ||
@@ -2001,14 +2009,43 @@ export default function AnnotatorClient() {
       const minStart = previousClip?.annotation_end ?? 0;
       const maxEnd = nextClip?.annotation_start ?? videoDurationSec;
 
-      const boundedStart = Math.max(
-        minStart,
-        Math.min(start, maxEnd - MIN_SEGMENT_DURATION),
-      );
-      const boundedEnd = Math.min(
-        maxEnd,
-        Math.max(end, boundedStart + MIN_SEGMENT_DURATION),
-      );
+      const activeStart = currentClip.annotation_start;
+      const activeEnd = currentClip.annotation_end;
+      const startChanged = Math.abs(start - activeStart) > 0.001;
+      const endChanged = Math.abs(end - activeEnd) > 0.001;
+      const resolvedEdge =
+        editedEdge !== "both"
+          ? editedEdge
+          : startChanged && !endChanged
+            ? "start"
+            : endChanged && !startChanged
+              ? "end"
+              : "both";
+
+      let boundedStart = activeStart;
+      let boundedEnd = activeEnd;
+      if (resolvedEdge === "start") {
+        boundedEnd = activeEnd;
+        boundedStart = Math.max(
+          minStart,
+          Math.min(start, boundedEnd - MIN_SEGMENT_DURATION),
+        );
+      } else if (resolvedEdge === "end") {
+        boundedStart = activeStart;
+        boundedEnd = Math.min(
+          maxEnd,
+          Math.max(end, boundedStart + MIN_SEGMENT_DURATION),
+        );
+      } else {
+        boundedStart = Math.max(
+          minStart,
+          Math.min(start, maxEnd - MIN_SEGMENT_DURATION),
+        );
+        boundedEnd = Math.min(
+          maxEnd,
+          Math.max(end, boundedStart + MIN_SEGMENT_DURATION),
+        );
+      }
       const duration = boundedEnd - boundedStart;
 
       if (duration < MIN_SEGMENT_DURATION) {
