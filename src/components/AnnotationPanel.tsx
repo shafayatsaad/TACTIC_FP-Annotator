@@ -45,6 +45,8 @@ interface Props {
     end: number,
     editedEdge?: "start" | "end" | "both",
   ) => void;
+  onUpdateSegmentStart?: (start: number) => void;
+  onUpdateSegmentEnd?: (end: number) => void;
   currentTeam: "A" | "B";
   onTeamChange: (team: "A" | "B") => void;
   teamConfig: { team_a: TeamConfig; team_b: TeamConfig };
@@ -117,6 +119,8 @@ const CONFIDENCE_LABELS = [
 export default function AnnotationPanel({
   currentClip,
   onUpdateSegmentTimes,
+  onUpdateSegmentStart,
+  onUpdateSegmentEnd,
   currentTeam,
   onTeamChange,
   teamConfig,
@@ -169,35 +173,51 @@ export default function AnnotationPanel({
   }, [currentClip]);
 
   const handleStartBlur = () => {
-    if (!currentClip || !onUpdateSegmentTimes) return;
+    if (!currentClip) return;
     const val = parseFloat(localStart);
     if (Number.isFinite(val)) {
-      onUpdateSegmentTimes(val, currentClip.annotation_end, "start");
+      if (onUpdateSegmentStart) {
+        onUpdateSegmentStart(val);
+      } else {
+        onUpdateSegmentTimes?.(val, currentClip.annotation_end, "start");
+      }
     } else {
       setLocalStart(currentClip.annotation_start.toFixed(1));
     }
   };
 
   const handleEndBlur = () => {
-    if (!currentClip || !onUpdateSegmentTimes) return;
+    if (!currentClip) return;
     const val = parseFloat(localEnd);
     if (Number.isFinite(val)) {
-      onUpdateSegmentTimes(currentClip.annotation_start, val, "end");
+      if (onUpdateSegmentEnd) {
+        onUpdateSegmentEnd(val);
+      } else {
+        onUpdateSegmentTimes?.(currentClip.annotation_start, val, "end");
+      }
     } else {
       setLocalEnd(currentClip.annotation_end.toFixed(1));
     }
   };
 
   const handleNudgeStart = (delta: number) => {
-    if (!currentClip || !onUpdateSegmentTimes) return;
+    if (!currentClip) return;
     const newStart = Math.max(0, currentClip.annotation_start + delta);
-    onUpdateSegmentTimes(newStart, currentClip.annotation_end, "start");
+    if (onUpdateSegmentStart) {
+      onUpdateSegmentStart(newStart);
+    } else {
+      onUpdateSegmentTimes?.(newStart, currentClip.annotation_end, "start");
+    }
   };
 
   const handleNudgeEnd = (delta: number) => {
-    if (!currentClip || !onUpdateSegmentTimes) return;
+    if (!currentClip) return;
     const newEnd = currentClip.annotation_end + delta;
-    onUpdateSegmentTimes(currentClip.annotation_start, newEnd, "end");
+    if (onUpdateSegmentEnd) {
+      onUpdateSegmentEnd(newEnd);
+    } else {
+      onUpdateSegmentTimes?.(currentClip.annotation_start, newEnd, "end");
+    }
   };
 
   const handleApplySetup = () => {
