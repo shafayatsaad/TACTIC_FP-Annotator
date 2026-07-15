@@ -64,7 +64,7 @@ interface Props {
   onSetSegmentStart: () => void;
   onSetSegmentEnd: () => void;
   onFileDrop?: (file: File) => void;
-  
+
   // Optional annotations & add contiguous segment callbacks
   annotations?: any[];
   onAddNextSegment?: (start: number, end: number) => void;
@@ -179,7 +179,10 @@ export default function VideoPlayer(props: Props) {
 
   // Viewport center / span config for the Precision Zoom timeline
   const zoomWindow = 30; // 30 seconds viewport span
-  const zoomStart = Math.max(0, Math.min(matchDurationSec - zoomWindow, videoCurrentTime - zoomWindow / 2));
+  const zoomStart = Math.max(
+    0,
+    Math.min(matchDurationSec - zoomWindow, videoCurrentTime - zoomWindow / 2),
+  );
   const zoomEnd = Math.min(matchDurationSec, zoomStart + zoomWindow);
 
   // Boundary drag for existing clips inside the zoomed viewport coordinates
@@ -198,7 +201,10 @@ export default function VideoPlayer(props: Props) {
     const handleMouseMove = (e: MouseEvent) => {
       if (!zoomProgressBarRef.current) return;
       const rect = zoomProgressBarRef.current.getBoundingClientRect();
-      const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const fraction = Math.max(
+        0,
+        Math.min(1, (e.clientX - rect.left) / rect.width),
+      );
       const timeSec = zoomStart + fraction * zoomWindow;
       const clip = clips.find((c) => c.clip_id === draggingEdge.clipId);
       if (!clip) return;
@@ -206,7 +212,7 @@ export default function VideoPlayer(props: Props) {
         draggingEdge.edge === "start"
           ? timeSec - clip.annotation_start
           : timeSec - clip.annotation_end;
-      
+
       const snappedDelta = Math.round(deltaSec * 2) / 2; // snap to nearest 0.5s for precise feedback
       if (Math.abs(snappedDelta) >= 0.5) {
         onBoundaryNudge(draggingEdge.edge, snappedDelta);
@@ -234,7 +240,10 @@ export default function VideoPlayer(props: Props) {
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (!zoomProgressBarRef.current) return;
       const rect = zoomProgressBarRef.current.getBoundingClientRect();
-      const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const fraction = Math.max(
+        0,
+        Math.min(1, (e.clientX - rect.left) / rect.width),
+      );
       setHoverTime(zoomStart + fraction * zoomWindow);
     },
     [zoomStart, zoomWindow],
@@ -245,7 +254,10 @@ export default function VideoPlayer(props: Props) {
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (!macroBarRef.current) return;
       const rect = macroBarRef.current.getBoundingClientRect();
-      const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const fraction = Math.max(
+        0,
+        Math.min(1, (e.clientX - rect.left) / rect.width),
+      );
       onProgressClick(fraction * matchDurationSec);
     },
     [matchDurationSec, onProgressClick],
@@ -256,7 +268,10 @@ export default function VideoPlayer(props: Props) {
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (!zoomProgressBarRef.current) return;
       const rect = zoomProgressBarRef.current.getBoundingClientRect();
-      const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const fraction = Math.max(
+        0,
+        Math.min(1, (e.clientX - rect.left) / rect.width),
+      );
       const clickTime = zoomStart + fraction * zoomWindow;
 
       if (creatingSegment) {
@@ -274,7 +289,10 @@ export default function VideoPlayer(props: Props) {
     const onMove = (e: MouseEvent) => {
       if (!zoomProgressBarRef.current) return;
       const rect = zoomProgressBarRef.current.getBoundingClientRect();
-      const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const fraction = Math.max(
+        0,
+        Math.min(1, (e.clientX - rect.left) / rect.width),
+      );
       setDragCurrent(zoomStart + fraction * zoomWindow);
     };
     const onUp = () => {
@@ -329,7 +347,10 @@ export default function VideoPlayer(props: Props) {
     // Check if there is already an annotated segment immediately ahead
     const buffer = 0.5;
     const hasOverlap = clips.some(
-      (c) => c.clip_id !== currentClip.clip_id && c.annotation_start >= end && c.annotation_start < end + buffer
+      (c) =>
+        c.clip_id !== currentClip.clip_id &&
+        c.annotation_start >= end &&
+        c.annotation_start < end + buffer,
     );
     if (hasOverlap) return null;
 
@@ -351,8 +372,12 @@ export default function VideoPlayer(props: Props) {
       {isDragOver && (
         <div className="absolute inset-0 z-30 bg-indigo-950/80 border-2 border-dashed border-indigo-500 rounded-2xl flex flex-col items-center justify-center backdrop-blur-sm pointer-events-none transition-all">
           <FolderOpen className="w-12 h-12 text-indigo-400 mb-3 animate-bounce" />
-          <p className="text-sm font-semibold text-indigo-200">Drop video here to load</p>
-          <p className="text-xs text-indigo-400 mt-1">Supports MP4, MKV, etc.</p>
+          <p className="text-sm font-semibold text-indigo-200">
+            Drop video here to load
+          </p>
+          <p className="text-xs text-indigo-400 mt-1">
+            Supports MP4, MKV, etc.
+          </p>
         </div>
       )}
       {currentClip && (
@@ -391,17 +416,7 @@ export default function VideoPlayer(props: Props) {
             <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-3">
               <Play className="w-6 h-6 text-slate-500 ml-0.5" />
             </div>
-            <p className="text-sm text-slate-400 mb-3">No match loaded</p>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onLoadVideoDirect();
-              }}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg uppercase tracking-wider transition-colors flex items-center gap-1.5 pointer-events-auto"
-            >
-              <Play className="w-3.5 h-3.5" /> Load Video
-            </button>
+            <p className="text-sm text-slate-400">No match loaded</p>
           </div>
         ) : videoPath ? (
           <>
@@ -440,7 +455,10 @@ export default function VideoPlayer(props: Props) {
                   <p
                     className={`text-xs ${isConverting ? "text-indigo-100" : "text-rose-100"}`}
                   >
-                    {isConverting ? (videoError || "Preparing browser-ready MP4… starting conversion.") : videoError}
+                    {isConverting
+                      ? videoError ||
+                        "Preparing browser-ready MP4… starting conversion."
+                      : videoError}
                   </p>
                   {isConverting && (
                     <div className="mt-2">
@@ -514,7 +532,7 @@ export default function VideoPlayer(props: Props) {
               <Flag className="w-3 h-3" /> Replay
             </button>
           </div>
-          
+
           {/* Current segment time display */}
           {currentClip && (
             <div className="flex items-center gap-2 mb-1 text-[9px] text-slate-400 font-mono">
@@ -545,20 +563,27 @@ export default function VideoPlayer(props: Props) {
                     width: `${(zoomWindow / matchDurationSec) * 100}%`,
                   }}
                 />
-                
+
                 {/* Plots of segments as tiny dots */}
                 {clips.map((clip) => {
                   const left = pct(clip.annotation_start);
-                  const width = pct(clip.annotation_end - clip.annotation_start);
+                  const width = pct(
+                    clip.annotation_end - clip.annotation_start,
+                  );
                   const isActive = currentClip?.clip_id === clip.clip_id;
                   const state = getAnnotatorState(clip);
                   return (
                     <div
                       key={`macro-${clip.clip_id}`}
                       className={`absolute top-0 bottom-0 ${
-                        isActive ? "bg-white z-10" : STATE_COLORS[state] || "bg-slate-500/30"
+                        isActive
+                          ? "bg-white z-10"
+                          : STATE_COLORS[state] || "bg-slate-500/30"
                       }`}
-                      style={{ left: `${left}%`, width: `${Math.max(0.5, width)}%` }}
+                      style={{
+                        left: `${left}%`,
+                        width: `${Math.max(0.5, width)}%`,
+                      }}
                     />
                   );
                 })}
@@ -610,14 +635,18 @@ export default function VideoPlayer(props: Props) {
                   const state = getAnnotatorState(clip);
 
                   // Extract intent labels to show color coding & text on block
-                  const ann = annotations?.find((a) => a.clip_id === clip.clip_id);
+                  const ann = annotations?.find(
+                    (a) => a.clip_id === clip.clip_id,
+                  );
                   const labelA = ann?.team_a?.label?.intent_class || "";
                   const labelB = ann?.team_b?.label?.intent_class || "";
                   const exclusionLabel = ann?.exclusion || "";
 
                   const hexA = labelA ? getIntentGroupHex(labelA) : null;
                   const hexB = labelB ? getIntentGroupHex(labelB) : null;
-                  const hexExcl = exclusionLabel ? getIntentGroupHex(exclusionLabel) : null;
+                  const hexExcl = exclusionLabel
+                    ? getIntentGroupHex(exclusionLabel)
+                    : null;
 
                   let blockStyle: React.CSSProperties = {};
                   if (hexExcl) {
@@ -708,7 +737,10 @@ export default function VideoPlayer(props: Props) {
                     onClick={(e) => {
                       e.stopPropagation();
                       if (onAddNextSegment) {
-                        onAddNextSegment(ghostNextSegment.start, ghostNextSegment.end);
+                        onAddNextSegment(
+                          ghostNextSegment.start,
+                          ghostNextSegment.end,
+                        );
                       }
                     }}
                     className="absolute top-1.5 bottom-1.5 rounded-lg border border-dashed border-indigo-500/35 bg-indigo-500/5 hover:bg-indigo-500/15 hover:border-indigo-400 flex flex-col justify-center items-center cursor-pointer transition-all px-2 select-none group/ghost text-indigo-300/80"
@@ -722,7 +754,8 @@ export default function VideoPlayer(props: Props) {
                       + Next Segment
                     </span>
                     <span className="text-[7px] opacity-60 font-mono leading-none">
-                      {formatTime(ghostNextSegment.start)} - {formatTime(ghostNextSegment.end)}
+                      {formatTime(ghostNextSegment.start)} -{" "}
+                      {formatTime(ghostNextSegment.end)}
                     </span>
                   </div>
                 )}
@@ -752,14 +785,18 @@ export default function VideoPlayer(props: Props) {
                 {/* Zoom Playhead bar (Red glow line) */}
                 <div
                   className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 shadow-[0_0_8px_rgba(239,68,68,0.8)] pointer-events-none"
-                  style={{ left: `${((videoCurrentTime - zoomStart) / zoomWindow) * 100}%` }}
+                  style={{
+                    left: `${((videoCurrentTime - zoomStart) / zoomWindow) * 100}%`,
+                  }}
                 />
 
                 {/* Zoom hover guide line */}
                 {hoverTime !== null && (
                   <div
                     className="absolute top-0 bottom-0 w-[1px] bg-white/20 border-r border-dashed border-white/20 pointer-events-none"
-                    style={{ left: `${((hoverTime - zoomStart) / zoomWindow) * 100}%` }}
+                    style={{
+                      left: `${((hoverTime - zoomStart) / zoomWindow) * 100}%`,
+                    }}
                   />
                 )}
               </div>
@@ -768,7 +805,9 @@ export default function VideoPlayer(props: Props) {
               {hoverTime !== null && (
                 <div
                   className="absolute -top-6 px-1.5 py-0.5 bg-black/90 border border-white/10 text-[9px] font-mono rounded text-white pointer-events-none -translate-x-1/2 z-30 shadow-lg"
-                  style={{ left: `${((hoverTime - zoomStart) / zoomWindow) * 100}%` }}
+                  style={{
+                    left: `${((hoverTime - zoomStart) / zoomWindow) * 100}%`,
+                  }}
                 >
                   {formatTime(hoverTime)} ({hoverTime.toFixed(1)}s)
                 </div>
