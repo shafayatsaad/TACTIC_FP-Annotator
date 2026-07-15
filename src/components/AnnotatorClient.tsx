@@ -2213,6 +2213,157 @@ export default function AnnotatorClient() {
     ],
   );
 
+  const handleUpdateSegmentEdgeTime = useCallback(
+    (edge: "start" | "end", value: number) => {
+      if (!currentClip) return;
+      const isDraft =
+        currentClip.clip_id === "Draft Segment" ||
+        currentClipIndex >= clips.length;
+
+      if (isDraft) {
+        const previousClip = clips[clips.length - 1];
+        const minStart = previousClip?.annotation_end ?? 0;
+        const maxEnd = videoDurationSec;
+        const baseStart =
+          creatingSegment?.start ?? currentClip.annotation_start ?? minStart;
+        const baseEnd =
+          creatingSegment?.end ??
+          currentClip.annotation_end ??
+          baseStart + MIN_SEGMENT_DURATION;
+        const nextStart =
+          edge === "start"
+            ? Math.max(
+                minStart,
+                Math.min(value, baseEnd - MIN_SEGMENT_DURATION),
+              )
+            : baseStart;
+        const nextEnd =
+          edge === "end"
+            ? Math.min(
+                maxEnd,
+                Math.max(value, nextStart + MIN_SEGMENT_DURATION),
+              )
+            : baseEnd;
+        setCreatingSegment({ start: nextStart, end: nextEnd });
+        setStatusMessage(
+          `Draft ${edge} updated: ${nextStart.toFixed(1)}s - ${nextEnd.toFixed(1)}s`,
+        );
+        return;
+      }
+
+      let updatedClip: Clip | null = null;
+      let statusStart = 0;
+      let statusEnd = 0;
+
+      setClips((prev) => {
+        const selected = prev[currentClipIndex];
+        if (!selected) return prev;
+
+        const previousClip = prev[currentClipIndex - 1];
+        const nextClip = prev[currentClipIndex + 1];
+        const minStart = previousClip?.annotation_end ?? 0;
+        const maxEnd = nextClip?.annotation_start ?? videoDurationSec;
+
+        const nextStart =
+          edge === "start"
+            ? Math.max(
+                minStart,
+                Math.min(value, selected.annotation_end - MIN_SEGMENT_DURATION),
+              )
+            : selected.annotation_start;
+        const nextEnd =
+          edge === "end"
+            ? Math.min(
+                maxEnd,
+                Math.max(value, selected.annotation_start + MIN_SEGMENT_DURATION),
+              )
+            : selected.annotation_end;
+        const duration = nextEnd - nextStart;
+        if (duration < MIN_SEGMENT_DURATION) return prev;
+
+        let newState: AnnotatorState =
+          selected.annotator_state || "unseen";
+        if (selected.algorithm_proposal) {
+          const startChanged =
+            Math.abs(nextStart - selected.algorithm_proposal.start) > 0.5;
+          const endChanged =
+            Math.abs(nextEnd - selected.algorithm_proposal.end) > 0.5;
+          if (startChanged || endChanged) newState = "modified";
+        }
+
+        updatedClip = {
+          ...selected,
+          start: Math.max(0, nextStart - 4),
+          end: Math.min(videoDurationSec, nextEnd + 4),
+          annotation_start: nextStart,
+          annotation_end: nextEnd,
+          annotation_window: duration,
+          annotator_state: newState,
+          game_clock: formatMatchClock(selected.half ?? 1, nextStart),
+        };
+        statusStart = nextStart;
+        statusEnd = nextEnd;
+
+        const next = prev.map((clip, idx) =>
+          idx === currentClipIndex ? updatedClip! : clip,
+        );
+        const sorted = [...next].sort(
+          (a, b) => a.annotation_start - b.annotation_start,
+        );
+
+        setAnnotations((prevAnn) => {
+          const updatedAnn = syncAnnotationsWithClips(sorted, prevAnn);
+          fetch(`${SERVER_URL}/annotations`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              schema_version: "1.0.0",
+              dataset: "TACTIC-Bench",
+              team_config: teamConfig,
+              match_config: matchConfig,
+              annotations: updatedAnn,
+            }),
+          }).catch(() => console.warn("Sync failed"));
+          return updatedAnn;
+        });
+
+        fetch(`${SERVER_URL}/segments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ segments: sorted }),
+        }).catch(() => console.warn("Failed to sync segments"));
+
+        return sorted;
+      });
+
+      if (updatedClip) saveSegmentToServer(updatedClip);
+      setStatusMessage(
+        `Segment ${edge} updated: ${statusStart.toFixed(1)}s - ${statusEnd.toFixed(1)}s`,
+      );
+    },
+    [
+      currentClip,
+      currentClipIndex,
+      clips,
+      creatingSegment,
+      videoDurationSec,
+      saveSegmentToServer,
+      syncAnnotationsWithClips,
+      teamConfig,
+      matchConfig,
+    ],
+  );
+
+  const handleUpdateSegmentStart = useCallback(
+    (start: number) => handleUpdateSegmentEdgeTime("start", start),
+    [handleUpdateSegmentEdgeTime],
+  );
+
+  const handleUpdateSegmentEnd = useCallback(
+    (end: number) => handleUpdateSegmentEdgeTime("end", end),
+    [handleUpdateSegmentEdgeTime],
+  );
+
   // Ref so handleSetSegmentEnd can call handleUpdateSegmentTimes without forward-reference issues
   const handleUpdateSegmentTimesRef = useRef(handleUpdateSegmentTimes);
   handleUpdateSegmentTimesRef.current = handleUpdateSegmentTimes;
@@ -4123,6 +4274,8 @@ export default function AnnotatorClient() {
         <AnnotationPanel
           currentClip={currentClip}
           onUpdateSegmentTimes={handleUpdateSegmentTimes}
+          onUpdateSegmentStart={handleUpdateSegmentStart}
+          onUpdateSegmentEnd={handleUpdateSegmentEnd}
           currentTeam={currentTeam}
           onTeamChange={setCurrentTeam}
           teamConfig={teamConfig}
