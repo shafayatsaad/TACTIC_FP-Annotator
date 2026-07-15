@@ -44,6 +44,49 @@ def compute_tensor_frames(duration_sec: float, fps: int = MODEL_FPS) -> int:
     return min(round(duration_sec * fps), MAX_MODEL_FRAMES)
 
 
+def make_gap_segment(half: int, start_ms: int, end_ms: int, idx: int) -> dict:
+    duration_ms = end_ms - start_ms
+    tensor_frames = compute_tensor_frames(duration_ms / 1000)
+    return {
+        "segment_id": f"gap_fill_{half}_{start_ms}_{idx}",
+        "start_ms": start_ms,
+        "end_ms": end_ms,
+        "duration_ms": duration_ms,
+        "time_from_kickoff_ms": start_ms,
+        "coverage_estimate": 0,
+        "exclusion": "ContestedPlay",
+        "primary_team": None,
+        "reconstruction": {
+            "npz_path": "",
+            "tensor_shape": [tensor_frames, 23, 4],
+            "tensor_fps": MODEL_FPS,
+            "padding_mask": compute_padding_mask(tensor_frames),
+        },
+    }
+
+
+def make_gap_segments(half: int, start_ms: int, end_ms: int) -> list:
+    """Split a gap into valid ContestedPlay chunks no longer than 15s."""
+    max_chunk_ms = MAX_MODEL_FRAMES * 100
+    segments = []
+    cursor = start_ms
+    idx = 0
+
+    while end_ms - cursor > max_chunk_ms:
+        next_end = cursor + max_chunk_ms
+        remainder = end_ms - next_end
+        if 0 < remainder < 2000:
+            next_end = end_ms - 2000
+        segments.append(make_gap_segment(half, cursor, next_end, idx))
+        cursor = next_end
+        idx += 1
+
+    if end_ms > cursor:
+        segments.append(make_gap_segment(half, cursor, end_ms, idx))
+
+    return segments
+
+
 def validate_train_export(train_data: dict) -> list:
     """§6.3.1 validation gates. Returns list of error strings (empty = pass)."""
     errors = []
