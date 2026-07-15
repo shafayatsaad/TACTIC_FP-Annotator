@@ -105,6 +105,9 @@ def validate_train_export(train_data: dict) -> list:
                 errors.append(f"{prefix}: duration_ms ({seg['duration_ms']}) not multiple of 100")
 
             # Gate 2 — Tensor alignment: duration_ms === tensor_shape[0] × 100
+            if not seg.get("exclusion") and not seg.get("primary_team", {}).get("intent_class"):
+                errors.append(f"{prefix}: non-excluded segment has no primary intent")
+
             tensor_frames = seg.get("reconstruction", {}).get("tensor_shape", [0])[0] or 0
             expected_dur = tensor_frames * 100
             if seg.get("duration_ms", 0) != expected_dur:
@@ -258,25 +261,13 @@ def convert_to_train_schema(input_data: dict) -> dict:
                         "padding_mask": compute_padding_mask(tensor_frames),
                     }
                 elif gap >= 2000:
-                    # Insert exclusion segment
-                    gap_tensor_frames = compute_tensor_frames(gap / 1000)
-                    gap_seg_id = f"gap_fill_{half.get('half', 1)}_{seg['end_ms']}"
-                    filled.append({
-                        "segment_id": gap_seg_id,
-                        "start_ms": seg["end_ms"],
-                        "end_ms": nxt["start_ms"],
-                        "duration_ms": gap,
-                        "time_from_kickoff_ms": seg["end_ms"],
-                        "coverage_estimate": 0,
-                        "exclusion": "ContestedPlay",
-                        "primary_team": None,
-                        "reconstruction": {
-                            "npz_path": "",
-                            "tensor_shape": [gap_tensor_frames, 23, 4],
-                            "tensor_fps": MODEL_FPS,
-                            "padding_mask": compute_padding_mask(gap_tensor_frames),
-                        },
-                    })
+                    filled.extend(
+                        make_gap_segments(
+                            half.get("half", 1),
+                            seg["end_ms"],
+                            nxt["start_ms"],
+                        )
+                    )
 
         train_halves.append(
             {
