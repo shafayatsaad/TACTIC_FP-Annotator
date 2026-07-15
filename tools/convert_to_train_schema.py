@@ -191,7 +191,19 @@ def convert_to_train_schema(input_data: dict) -> dict:
             # The annotator schema has team_home / team_away blocks.
             # Find the one with is_primary == true.
             primary_team = None
+            existing_primary_team = seg.get("primary_team")
+            if isinstance(existing_primary_team, dict):
+                primary_team = {
+                    "label": {
+                        "intent_class": existing_primary_team.get("intent_class"),
+                        "confidence": existing_primary_team.get("confidence", 0),
+                    },
+                    "is_primary": existing_primary_team.get("is_primary") is not False,
+                    "possession": existing_primary_team.get("possession", False),
+                }
             for team_key in ("team_home", "team_away"):
+                if primary_team is not None:
+                    break
                 team = seg.get(team_key)
                 if team and team.get("is_primary") is True:
                     primary_team = team
@@ -214,7 +226,7 @@ def convert_to_train_schema(input_data: dict) -> dict:
                 "coverage_estimate": 0 if exclusion else seg.get("coverage_estimate", 0),
                 "exclusion": exclusion or None,
                 "reconstruction": {
-                    "npz_path": seg.get("reconstruction", {}).get("npz_path", ""),
+                    "npz_path": "" if exclusion else seg.get("reconstruction", {}).get("npz_path", ""),
                     "tensor_shape": [tensor_frames, 23, 4],
                     "tensor_fps": MODEL_FPS,
                     "padding_mask": padding_mask,
