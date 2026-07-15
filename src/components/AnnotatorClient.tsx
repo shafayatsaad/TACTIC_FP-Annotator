@@ -1944,20 +1944,49 @@ export default function AnnotatorClient() {
   const handleUpdateSegmentTimes = useCallback(
     (start: number, end: number) => {
       if (!currentClip) return;
-      const duration = end - start;
+      const isDraft =
+        currentClip.clip_id === "Draft Segment" ||
+        currentClipIndex >= clips.length;
+
+      const previousClip = isDraft
+        ? clips[clips.length - 1]
+        : clips[currentClipIndex - 1];
+      const nextClip = isDraft ? undefined : clips[currentClipIndex + 1];
+      const minStart = previousClip?.annotation_end ?? 0;
+      const maxEnd = nextClip?.annotation_start ?? videoDurationSec;
+
+      const boundedStart = Math.max(
+        minStart,
+        Math.min(start, maxEnd - MIN_SEGMENT_DURATION),
+      );
+      const boundedEnd = Math.min(
+        maxEnd,
+        Math.max(end, boundedStart + MIN_SEGMENT_DURATION),
+      );
+      const duration = boundedEnd - boundedStart;
+
       if (duration < MIN_SEGMENT_DURATION) {
         setStatusMessage(
           `Segment must be at least ${MIN_SEGMENT_DURATION} seconds long.`,
         );
         return;
       }
+
+      if (isDraft) {
+        setCreatingSegment({ start: boundedStart, end: boundedEnd });
+        setStatusMessage(
+          `Draft timing updated: ${boundedStart.toFixed(1)}s - ${boundedEnd.toFixed(1)}s`,
+        );
+        return;
+      }
+
       if (duration > MAX_SEGMENT_DURATION) {
         const matchId = currentClip.match_id || "manual";
         const splitClips = createSegmentsFromBoundary(
           matchId,
           currentClip.half ?? 1,
-          start,
-          end,
+          boundedStart,
+          boundedEnd,
           currentClip,
         );
         const remainderId = splitClips[splitClips.length - 1].clip_id;
@@ -2035,62 +2064,30 @@ export default function AnnotatorClient() {
           let newState: AnnotatorState = c.annotator_state || "unseen";
           if (c.algorithm_proposal) {
             const startChanged =
-              Math.abs(start - c.algorithm_proposal.start) > 0.5;
-            const endChanged = Math.abs(end - c.algorithm_proposal.end) > 0.5;
+              Math.abs(boundedStart - c.algorithm_proposal.start) > 0.5;
+            const endChanged =
+              Math.abs(boundedEnd - c.algorithm_proposal.end) > 0.5;
             if (startChanged || endChanged) newState = "modified";
           }
           return {
             ...c,
-            annotation_start: start,
-            annotation_end: end,
+            start: Math.max(0, boundedStart - 4),
+            end: Math.min(videoDurationSec, boundedEnd + 4),
+            annotation_start: boundedStart,
+            annotation_end: boundedEnd,
             annotation_window: duration,
             annotator_state: newState,
+            game_clock: formatMatchClock(c.half ?? 1, boundedStart),
           };
         });
 
-        // Re-chain using boundaries list
         const sorted = [...next].sort(
           (a, b) => a.annotation_start - b.annotation_start,
         );
-        const boundaries = [0];
-        const activeIdx = sorted.findIndex(
-          (c) => c.clip_id === currentClip.clip_id,
-        );
-
-        for (let i = 0; i < sorted.length; i++) {
-          if (i === activeIdx) {
-            boundaries[i] = start;
-            boundaries[i + 1] = end;
-          } else {
-            boundaries[i + 1] = sorted[i].annotation_end;
-          }
-        }
-
-        boundaries[0] = 0;
-        for (let i = 1; i < boundaries.length; i++) {
-          if (boundaries[i] < boundaries[i - 1] + 2) {
-            boundaries[i] = boundaries[i - 1] + 2;
-          }
-        }
-
-        const rechained = sorted.map((c, idx) => {
-          const newStart = boundaries[idx];
-          const newEnd = boundaries[idx + 1];
-          const windowDur = newEnd - newStart;
-          return {
-            ...c,
-            annotation_start: newStart,
-            annotation_end: newEnd,
-            annotation_window: windowDur,
-            start: Math.max(0, newStart - 4),
-            end: Math.min(videoDurationSec, newEnd + 4),
-            game_clock: formatMatchClock(c.half ?? 1, newStart),
-          };
-        });
 
         // Update annotations state and sync to server
         setAnnotations((prevAnn) => {
-          const updatedAnn = syncAnnotationsWithClips(rechained, prevAnn);
+          const updatedAnn = syncAnnotationsWithClips(sorted, prevAnn);
           fetch(`${SERVER_URL}/annotations`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -2109,10 +2106,10 @@ export default function AnnotatorClient() {
         fetch(`${SERVER_URL}/segments`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ segments: rechained }),
+          body: JSON.stringify({ segments: sorted }),
         }).catch(() => console.warn("Failed to sync segments"));
 
-        return rechained;
+        return sorted;
       });
 
       setStatusMessage(
