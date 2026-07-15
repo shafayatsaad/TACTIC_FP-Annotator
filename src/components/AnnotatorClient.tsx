@@ -2579,6 +2579,12 @@ export default function AnnotatorClient() {
         );
         return;
       }
+      if (!effectiveExclusion && !teamAPossession && !teamBPossession) {
+        setStatusMessage(
+          "Choose Team A/B possession for tactical labels, or mark the segment as ContestedPlay.",
+        );
+        return;
+      }
       if (
         !effectiveExclusion &&
         ((teamAPossession && isAttackIntent(teamBIntentClass || "")) ||
@@ -3237,9 +3243,7 @@ export default function AnnotatorClient() {
             s.team_away?.label?.intent_class?.includes("SetPiece"),
         ).length;
         const contestedPlayCount = segmentsList.filter(
-          (s) =>
-            s.team_home?.label?.intent_class === "ContestedPlay" ||
-            s.team_away?.label?.intent_class === "ContestedPlay",
+          (s) => s.exclusion === "ContestedPlay",
         ).length;
 
         const halves = [];
