@@ -160,7 +160,7 @@ def convert_to_train_schema(input_data: dict) -> dict:
                 "end_ms": end_ms,
                 "duration_ms": duration_ms,
                 "time_from_kickoff_ms": start_ms,
-                "coverage_estimate": seg.get("coverage_estimate", 0),
+                "coverage_estimate": 0 if exclusion else seg.get("coverage_estimate", 0),
                 "exclusion": exclusion or None,
                 "reconstruction": {
                     "npz_path": seg.get("reconstruction", {}).get("npz_path", ""),
@@ -170,8 +170,11 @@ def convert_to_train_schema(input_data: dict) -> dict:
                 },
             }
 
-            # Only include primary_team block if not excluded and primary exists
-            if not exclusion and primary_team:
+            # Exclusions: primary_team is null (dataloader skips these)
+            # Non-exclusions: include the primary team block
+            if exclusion:
+                train_seg["primary_team"] = None
+            elif primary_team:
                 label = primary_team.get("label", {})
                 train_seg["primary_team"] = {
                     "intent_class": label.get("intent_class"),
