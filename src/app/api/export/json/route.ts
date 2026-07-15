@@ -442,7 +442,7 @@ function convertToTrainSchema(fullData: any): any {
         coverage_estimate: seg.exclusion ? 0 : seg.coverage_estimate,
         exclusion: seg.exclusion || null,
         reconstruction: {
-          npz_path: seg.reconstruction?.npz_path || "",
+          npz_path: seg.exclusion ? "" : seg.reconstruction?.npz_path || "",
           tensor_shape: [tensorFrames, 23, 4],
           tensor_fps: MODEL_FPS,
           padding_mask: paddingMask,
@@ -632,11 +632,12 @@ export async function POST(request: NextRequest) {
       exportedData = fullData;
     }
 
-    // Validate that NPZ files exist for all samples (collect warnings but don't block export)
+    // Validate only non-excluded samples. Exclusion rows are skipped by training.
     const missingNpz: string[] = [];
     for (const half of exportedData.halves) {
       for (const segment of half.segments) {
         if (
+          !segment.exclusion &&
           segment.reconstruction?.npz_path &&
           !validateNpzExists(segment.reconstruction.npz_path)
         ) {
@@ -659,7 +660,7 @@ export async function POST(request: NextRequest) {
       exportedData,
       warning:
         missingNpz.length > 0
-          ? `Exported successfully, but ${missingNpz.length} NPZ file(s) are missing from trajectories directory.`
+          ? `Intent labels exported successfully. ${missingNpz.length} non-excluded training NPZ file(s) are still missing from trajectories directory; run the video-to-trajectory pipeline before model training.`
           : null,
     });
   } catch (error: any) {
