@@ -1937,6 +1937,7 @@ export default function AnnotatorClient() {
     [
       currentClip,
       currentClipIndex,
+      clips,
       videoDurationSec,
       saveSegmentToServer,
       teamConfig,
