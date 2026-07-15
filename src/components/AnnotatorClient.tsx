@@ -2113,7 +2113,7 @@ export default function AnnotatorClient() {
       });
 
       setStatusMessage(
-        `Segment timing updated: ${start.toFixed(1)}s – ${end.toFixed(1)}s`,
+        `Segment timing updated: ${boundedStart.toFixed(1)}s - ${boundedEnd.toFixed(1)}s`,
       );
     },
     [
