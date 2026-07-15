@@ -92,7 +92,25 @@ export function readAnnotationSession(): {
   }
 }
 
+function dedupeAnnotationsByClipId(annotations: any[]) {
+  const keyed = new Map<string, any>();
+  const unkeyed: any[] = [];
+
+  for (const annotation of annotations) {
+    const clipId = annotation?.clip_id;
+    if (typeof clipId === "string" && clipId.length > 0) {
+      keyed.delete(clipId);
+      keyed.set(clipId, annotation);
+    } else {
+      unkeyed.push(annotation);
+    }
+  }
+
+  return [...unkeyed, ...keyed.values()];
+}
+
 export function writeAnnotations(annotations: any[], teamConfig?: any, matchConfig?: any) {
+  const uniqueAnnotations = dedupeAnnotationsByClipId(annotations);
   fs.writeFileSync(
     getAnnotationsPath(),
     JSON.stringify(
@@ -101,7 +119,7 @@ export function writeAnnotations(annotations: any[], teamConfig?: any, matchConf
         dataset: "TACTIC-Bench",
         team_config: teamConfig,
         match_config: matchConfig,
-        annotations,
+        annotations: uniqueAnnotations,
       },
       null,
       2,
