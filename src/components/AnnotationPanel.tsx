@@ -40,7 +40,11 @@ interface ClassDistItem {
 
 interface Props {
   currentClip?: Clip;
-  onUpdateSegmentTimes?: (start: number, end: number) => void;
+  onUpdateSegmentTimes?: (
+    start: number,
+    end: number,
+    editedEdge?: "start" | "end" | "both",
+  ) => void;
   currentTeam: "A" | "B";
   onTeamChange: (team: "A" | "B") => void;
   teamConfig: { team_a: TeamConfig; team_b: TeamConfig };
@@ -168,7 +172,7 @@ export default function AnnotationPanel({
     if (!currentClip || !onUpdateSegmentTimes) return;
     const val = parseFloat(localStart);
     if (Number.isFinite(val)) {
-      onUpdateSegmentTimes(val, currentClip.annotation_end);
+      onUpdateSegmentTimes(val, currentClip.annotation_end, "start");
     } else {
       setLocalStart(currentClip.annotation_start.toFixed(1));
     }
@@ -178,7 +182,7 @@ export default function AnnotationPanel({
     if (!currentClip || !onUpdateSegmentTimes) return;
     const val = parseFloat(localEnd);
     if (Number.isFinite(val)) {
-      onUpdateSegmentTimes(currentClip.annotation_start, val);
+      onUpdateSegmentTimes(currentClip.annotation_start, val, "end");
     } else {
       setLocalEnd(currentClip.annotation_end.toFixed(1));
     }
@@ -187,13 +191,13 @@ export default function AnnotationPanel({
   const handleNudgeStart = (delta: number) => {
     if (!currentClip || !onUpdateSegmentTimes) return;
     const newStart = Math.max(0, currentClip.annotation_start + delta);
-    onUpdateSegmentTimes(newStart, currentClip.annotation_end);
+    onUpdateSegmentTimes(newStart, currentClip.annotation_end, "start");
   };
 
   const handleNudgeEnd = (delta: number) => {
     if (!currentClip || !onUpdateSegmentTimes) return;
     const newEnd = currentClip.annotation_end + delta;
-    onUpdateSegmentTimes(currentClip.annotation_start, newEnd);
+    onUpdateSegmentTimes(currentClip.annotation_start, newEnd, "end");
   };
 
   const handleApplySetup = () => {
