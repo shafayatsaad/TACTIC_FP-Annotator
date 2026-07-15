@@ -253,8 +253,11 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
     const isExclusion = ann.exclusion ? true : false;
 
     // Determine primary team (the one with is_primary: true)
-    const primaryTeam = aIsHome ? team_home : team_away;
-    const isPrimary = primaryTeam?.is_primary !== false;
+    const primaryTeam =
+      [teamAObj, teamBObj].find((team) => team?.is_primary === true) ||
+      [teamAObj, teamBObj].find((team) => team?.possession === true) ||
+      null;
+    const isPrimary = primaryTeam?.is_primary === true;
 
     // Intents mapping — only the primary team's label
     const primary_label = isExclusion
