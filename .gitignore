@@ -60,4 +60,6 @@ Thumbs.db
 # ─── Misc generated ───
 dependencies.txt
 
+# ─── Jupyter notebooks (generated analysis, not part of source) ───
 notebooks/
+segment_slicer_npz/
