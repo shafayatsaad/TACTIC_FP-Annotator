@@ -63,3 +63,4 @@ dependencies.txt
 # ─── Jupyter notebooks (generated analysis, not part of source) ───
 notebooks/
 segment_slicer_npz/
+PROJECT_REFERENCE.md
