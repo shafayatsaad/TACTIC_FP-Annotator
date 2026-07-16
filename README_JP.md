@@ -216,7 +216,7 @@ flowchart TD
 ## 📁 プロジェクト構成
 
 ```text
-TACTIC-FP-Annotator/
+TACTIC_FP-Annotator/
 ├── package.json                      # ワークスペースルート：tactic-fp-nextjs に委譲
 ├── tech-spec.md                      # 内部技術仕様書
 └── tactic-fp-nextjs/
