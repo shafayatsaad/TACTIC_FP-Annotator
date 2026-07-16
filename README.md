@@ -411,8 +411,8 @@ TACTIC_FP-Annotator/
 >
 > **JSON export** supports two modes via the `?mode` query parameter:
 >
-> - `?mode=annotator` (default) — full annotator schema with team_home/team_away, formations, decisive actions, tactical shift detection
-> - `?mode=train` — pruned training schema with quantized timestamps (100 ms grid), orphan-parent removal, temporal gap filling, primary-team-only block
+> - `?mode=train` (default) — pruned training schema with quantized timestamps (100 ms grid), orphan-parent removal, temporal gap filling, primary-team-only block
+> - `?mode=annotator` — full annotator schema with team_home/team_away, formations, decisive actions, tactical shift detection
 
 ---
 
