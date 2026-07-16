@@ -295,11 +295,7 @@ TACTIC_FP-Annotator/
 ### 2. 依存関係のインストール
 
 ```bash
-# ワークスペースルート（tactic-fp-nextjs/ に委譲）
-npm install
-
-# または Next.js プロジェクト内で
-cd tactic-fp-nextjs
+# Node.js 依存関係のインストール
 npm install
 
 # Python パイプラインの依存（一度だけ）
@@ -308,10 +304,10 @@ pip install numpy opencv-python
 
 ### 3. 元試合動画を追加
 
-`tactic-fp-nextjs/raw_videos/` に試合動画を配置します。対応拡張子：`.mp4`、`.mkv`、`.avi`、`.mov`、`.webm`。
+`raw_videos/` に試合動画を配置します。対応拡張子：`.mp4`、`.mkv`、`.avi`、`.mov`、`.webm`。
 
 ```bash
-tactic-fp-nextjs/raw_videos/
+raw_videos/
 ├── match_01.mp4
 ├── match_02.mkv
 └── match_03.mp4
