@@ -5,9 +5,9 @@
 
 <br/>
 
-<!-- REFERENCE -->
+<!-- LANGUAGE TOGGLE -->
 
-[Detailed AI/developer reference](PROJECT_REFERENCE.md)
+[ 🇬🇧 English ](README.md) &nbsp;|&nbsp; [ 🇯🇵 日本語 ](README_JP.md)
 
 <br/>
 
@@ -344,9 +344,8 @@ TACTIC_FP-Annotator/
 ├── pipeline.py                   # Main Python pipeline: raw_videos → manifest
 ├── generate_manifest.py          # Heuristic helpers (features, quality, possession, shifts)
 ├── pipeline_validator.py         # Optional manifest validation
-├── compute_dag_features.py       # DAG-based feature extraction
 ├── README.md                     # ← you are here
-├── PROJECT_REFERENCE.md          # Detailed AI/developer reference
+├── README_JP.md                  # 日本語版
 │
 ├── raw_videos/                   # Drop your .mp4 / .mkv files here
 ├── assets/                       # Static assets (banner, images)
