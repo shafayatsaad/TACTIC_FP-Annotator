@@ -5,9 +5,9 @@
 
 <br/>
 
-<!-- LANGUAGE TOGGLE -->
+<!-- REFERENCE -->
 
-[ 🇬🇧 English ](README.md) &nbsp;|&nbsp; [ 🇯🇵 日本語 ](README_JP.md)
+[Detailed AI/developer reference](PROJECT_REFERENCE.md)
 
 <br/>
 
@@ -346,7 +346,7 @@ TACTIC_FP-Annotator/
 ├── pipeline_validator.py         # Optional manifest validation
 ├── compute_dag_features.py       # DAG-based feature extraction
 ├── README.md                     # ← you are here
-├── README_JP.md                  # 日本語版
+├── PROJECT_REFERENCE.md          # Detailed AI/developer reference
 │
 ├── raw_videos/                   # Drop your .mp4 / .mkv files here
 ├── assets/                       # Static assets (banner, images)
@@ -360,11 +360,6 @@ TACTIC_FP-Annotator/
 ├── tools/
 │   ├── emergency_json_repair.py  # Repair malformed exports
 │   └── convert_to_train_schema.py
-├── notebooks/
-│   └── TACTIC_FP_01_Trajectory_NPZ_Generation.ipynb
-├── segment_slicer_npz/
-│   └── TACTIC_FP_Segment_Slicer.ipynb
-│
 └── src/
     ├── app/
     │   ├── layout.tsx
