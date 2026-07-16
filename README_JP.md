@@ -327,7 +327,7 @@ curl -X POST http://localhost:3000/api/pipeline/generate \
   -d '{"clip_duration": 18, "annotation_window": 10, "step_duration": 10}'
 ```
 
-**方法 C — Python で直接（`tactic-fp-nextjs/` 内で）：**
+**方法 C — Python で直接：**
 
 ```bash
 python pipeline.py --input-dir raw_videos --clip-duration 18 --annotation-window 10 --step-duration 10
@@ -338,14 +338,10 @@ python pipeline.py --input-dir raw_videos --clip-duration 18 --annotation-window
 ### 5. 開発サーバの起動
 
 ```bash
-# ワークスペースルート（ポート 5173、ホスト 127.0.0.1）
 npm run dev
-
-# または tactic-fp-nextjs/ 内で
-npm run dev    # デフォルトポート 3000
 ```
 
-ターミナルに表示される URL（通常 `http://localhost:3000` または `http://127.0.0.1:5173`）を開いてください。
+ターミナルに表示される URL（通常 `http://localhost:3000`、ポートが使用中の場合は `http://localhost:3001`）を開いてください。
 
 ### 6. 本番ビルド
 
@@ -789,7 +785,7 @@ exclusion, flagged_review, skipped, annotated_at
 | **Generate Manifest** 実行時に `Error: spawn python3 ENOENT` | `python3` が `$PATH` に無い                     | Python 3.10+ をインストールし、シェルで `python3 --version` が動作することを確認。ルートは 500 時に `python` に自動フォールバックしますが、両方失敗時はパイプラインが起動できません。 |
 | MKV 変換時に `ffmpeg not found`                              | `ffmpeg` バイナリが未インストール               | 上記の OS 別インストール表を参照。`ffmpeg -version` で確認。                                                                                                                          |
 | 動画が再生されない / "MKV needs a browser-ready MP4"         | ブラウザが `<video>` で MKV をデコードできない  | プレーヤーの **Convert to MP4** ボタンをクリックするか、API を実行：`curl -X POST .../api/videos/convert -d '{"source":"match_02.mkv"}'`。                                            |
-| `npm run dev` で `EADDRINUSE`                                | 別プロセスがポート 3000 / 5173 を占有           | 該当プロセスを停止、または `PORT=3001 npm run dev`（Next.js は `PORT` を読み取る）。                                                                                                  |
+| `npm run dev` で `EADDRINUSE`                                | 別プロセスがポート 3000 を占有                  | 該当プロセスを停止、または `PORT=3001 npm run dev`（Next.js は `PORT` を読み取る）。                                                                                                  |
 | 送信時に "Quality gate failed" でブロック                    | トラッキング 18/22 未満、または品質スコア < 0.8 | ソース動画を改善するか、レビュー用にクリップをマーク、`Skip` で `ContestedPlay` として記録。                                                                                          |
 | "Session hard cap reached at 50 clips"                       | 1 セッションに 50 件のアノテーション            | **JSON** または **CSV** でエクスポート後、**Reset Session** で続行。                                                                                                                  |
 | クリップ切替時にサーバがクラッシュ                           | 古い Node の `Readable.toWeb` バグの可能性      | 既に対応済み — ルートは AbortSignal 対応のカスタム `ReadableStream` を使用。それでも再現する場合は Node 18.17+ であることを確認。                                                     |
