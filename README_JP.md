@@ -217,54 +217,50 @@ flowchart TD
 
 ```text
 TACTIC_FP-Annotator/
-├── package.json                      # ワークスペースルート：tactic-fp-nextjs に委譲
-├── tech-spec.md                      # 内部技術仕様書
-└── tactic-fp-nextjs/
-    ├── package.json                  # すべてのランタイム / 開発依存関係
-    ├── package-lock.json
-    ├── tsconfig.json                 # TS 設定（paths: @/* → ./src/*）
-    ├── next.config.js                # Next 14 設定（serverComponentsExternalPackages）
-    ├── tailwind.config.ts            # Tailwind 3.4 content + フォント拡張
-    ├── postcss.config.js             # Tailwind + autoprefixer パイプライン
-    ├── next-env.d.ts
-    ├── generate_manifest.py          # ヒューリスティックのヘルパー（features、quality、possession、shifts）
-    ├── pipeline.py                   # メインパイプライン：raw_videos → clip_manifest.json + .npz
-    ├── pipeline_validator.py         # マニフェスト用の任意のバリデーションヘルパー
-    ├── favicon.png
-    ├── README.md                     # 英語版 README
-    ├── README_JP.md                  # ← このファイル
-    ├── data/                         # 初回起動時に自動作成
-    │   ├── clip_manifest.json        # pipeline.py が生成
-    │   ├── annotations.json          # ライブアノテーションセッション
-    │   ├── exports/                  # JSON/CSV エクスポート
-    │   └── trajectories/             # <match_id>/*.npz（pipeline.py 由来）
-    ├── raw_videos/                   # .mp4 / .mkv ファイルを配置
-    └── src/
-        ├── app/                      # Next.js App Router
-        │   ├── layout.tsx            # ルートレイアウト、メタデータ、フォント
-        │   ├── page.tsx              # <AnnotatorClient /> を組み立てる
-        │   ├── globals.css           # Tailwind + カスタムユーティリティ
-        │   ├── icon.png
-        │   └── api/
-        │       ├── manifest/route.ts             # GET — clip_manifest.json 読み出し
-        │       ├── annotations/route.ts          # GET / POST — 読み込みと保存
-        │       ├── annotations/reset/route.ts    # POST — セッションクリア
-        │       ├── pipeline/generate/route.ts    # POST — pipeline.py を起動
-        │       ├── videos/[[...path]]/route.ts   # GET / HEAD — range 対応動画ストリーム
-        │       ├── videos/convert/route.ts       # POST — ffmpeg で MKV → MP4
-        │       ├── export/json/route.ts          # POST — JSON エクスポート書き込み
-        │       └── export/csv/route.ts           # POST — CSV エクスポート書き込み
-        ├── components/
-        │   ├── AnnotatorClient.tsx   # メインのクライアントラッパー（すべての状態 + キーボード）
-        │   ├── Header.tsx            # トップバー
-        │   ├── ClipExplorer.tsx      # 左サイドバー（リスト、検索、フィルタ）
-        │   ├── VideoPlayer.tsx       # 中央の動画と操作
-        │   ├── IntentLabels.tsx      # 14 ラベルの 6 グループグリッド
-        │   └── AnnotationPanel.tsx   # 右パネル（チーム、ポゼッション、ゲーム状態、送信、エクスポート）
-        └── lib/
-            ├── constants.ts          # TACTIC_INTENTS、HOTKEY_MAP、Annotation/Clip 型
-            ├── utils.ts              # cn、formatTime、formatMatchClock、normalizeClip
-            └── server-utils.ts       # API ルート用 fs ヘルパー
+├── package.json
+├── pipeline.py                   # メインパイプライン：raw_videos → clip_manifest.json + .npz
+├── generate_manifest.py          # ヒューリスティックのヘルパー（features、quality、possession、shifts）
+├── pipeline_validator.py         # マニフェスト用の任意のバリデーションヘルパー
+├── README.md                     # 英語版 README
+├── README_JP.md                  # ← このファイル
+├── raw_videos/                   # .mp4 / .mkv ファイルを配置
+├── data/                         # 初回起動時に自動作成
+│   ├── clip_manifest.json        # pipeline.py が生成
+│   ├── annotations.json          # ライブアノテーションセッション
+│   ├── exports/                  # JSON/CSV エクスポート
+│   └── trajectories/             # <match_id>/*.npz（pipeline.py 由来）
+├── tools/
+│   └── emergency_json_repair.py  # 破損したエクスポートの修復
+├── tech-spec.md                  # 内部技術仕様書
+└── src/
+    ├── app/                      # Next.js App Router
+    │   ├── layout.tsx            # ルートレイアウト、メタデータ、フォント
+    │   ├── page.tsx              # <AnnotatorClient /> を組み立てる
+    │   ├── globals.css           # Tailwind + カスタムユーティリティ
+    │   └── api/
+    │       ├── manifest/route.ts             # GET — clip_manifest.json 読み出し
+    │       ├── annotations/route.ts          # GET / POST — 読み込みと保存
+    │       ├── annotations/reset/route.ts    # POST — セッションクリア
+    │       ├── pipeline/generate/route.ts    # POST — pipeline.py を起動
+    │       ├── videos/[[...path]]/route.ts   # GET / HEAD — range 対応動画ストリーム
+    │       ├── videos/convert/route.ts       # POST — ffmpeg で MKV → MP4
+    │       ├── export/json/route.ts          # POST — JSON エクスポート書き込み
+    │       └── export/csv/route.ts           # POST — CSV エクスポート書き込み
+    ├── components/
+    │   ├── AnnotatorClient.tsx   # メインのクライアントラッパー（すべての状態 + キーボード）
+    │   ├── Header.tsx            # トップバー
+    │   ├── ClipExplorer.tsx      # 左サイドバー（リスト、検索、フィルタ）
+    │   ├── VideoPlayer.tsx       # 中央の動画と操作
+    │   ├── IntentLabels.tsx      # 14 ラベルの 6 グループグリッド
+    │   ├── AnnotationPanel.tsx   # 右パネル（チーム、ポゼッション、ゲーム状態、送信、エクスポート）
+    │   ├── CoverageMeter.tsx     # トラッカーカバレッジの可視化
+    │   └── SplitPrompt.tsx       # セグメント分割確認ダイアログ
+    └── lib/
+        ├── constants.ts          # TACTIC_INTENTS、HOTKEY_MAP、Annotation/Clip 型
+        ├── utils.ts              # formatTime、formatMatchClock、normalizeClip
+        ├── server-utils.ts       # API ルート用 fs ヘルパー
+        ├── tensor-utils.ts       # テンソル計算ユーティリティ（MODEL_FPS 等）
+        └── splitSegmentBounds.ts # セグメント境界分割ロジック
 ```
 
 ---
