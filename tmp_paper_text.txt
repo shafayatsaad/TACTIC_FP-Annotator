@@ -1,0 +1,477 @@
+
+--- PAGE 1 ---
+TACTIC-FP: Tactical Anticipation via Causal Inference and Fingerprinting from
+Broadcast Video
+MD. SHAFAYAT SADAT SAAD,BRAC University, Bangladesh
+SYED ASHIK MAHAMUD,BRAC University, Bangladesh
+SAMIUN JAHAN AWISHY,BRAC University, Bangladesh
+BIJOYA SARKER,BRAC University, Bangladesh
+We introduce TACTIC-FP, a framework for decoding football tactical intent from broadcast video. The method combines a tri-axial
+transformer with a structural causal model that links tactical intent, player movement, and goal probability through a learned directed
+acyclic graph (DAG). TACTIC-FP provides three core capabilities: (1) decoding tactical intent 5–10 seconds before critical actions, (2)
+detecting real-time deviations from an opponent’s pre-scouted tactical fingerprint, and (3) generating counterfactual scenarios under
+the model’s causal assumptions. We present TACTIC-Bench, a 200-match collection with variable-length 2–15-second segments across
+12 intent classes; 50 matches have completed triple-annotator validation. On the evaluated split, TACTIC-FP reaches 47.2% TIA@5,
+outperforming action-anticipation baselines such as FAANTRA (35.8%) and GPT-4V (23.8%). The tactical deviation model achieves a
+CD-AUC of 0.834, and ablations show that agent attention contributes the largest single gain (+13.4 percentage points in TIA@5).
+Cross-dataset evaluation on J-League tracking data supports generalization, while the 25M-parameter model enables inference on a
+consumer GPU (1.9 clips/s) and a Jetson Nano (0.8 clips/s).
+CCS Concepts:•Computer systems organization → Embedded systems;Redundancy; Robotics;•Networks → Network
+reliability.
+Additional Key Words and Phrases: Tactical intent recognition, structural causal models, broadcast video analysis, tri-axial transformer,
+NOTEARS, multi-agent systems, football analytics, real-time deviation detection, edge AI, explainable AI
+1 INTRODUCTION
+1.1 The Problem: What Every Coach Asks
+Recent football AI systems can recommend corner-kick receivers with 78% top-3 accuracy [1], forecast in-game outcomes
+with axial transformers [2], anticipate actions from broadcast video [3], and generate open-play tactical patterns [4].
+However, these systems still do not answer the question coaches ask during a match: "What is the opponent currently
+trying to do, and how has that changed from what we prepared?"
+a. Causality:CausalTraj [ 5] models temporally coherent multi-agent trajectories, while defensive role recon-
+struction methods [6] infer off-ball structure. However, neither line of work learns a causal model connecting
+tactical intent, off-ball movement, and outcome probability.
+b. Intent Before Action:FAANTRA [ 3] predicts which action will happen but does not explicitly model why it
+occurs. For example, a counter-attack and a build-up may produce similar next-action distributions despite
+reflecting different tactical intentions.
+c. Cross-Phase Coherence:Existing models are not trained jointly over build-up, press, defensive block, and
+transition phases, limiting hybrid state understanding and intent representation.
+Authors’ addresses: Md. Shafayat Sadat Saad, BRAC University, Badda, Dhaka, Bangladesh, shafayat.sadat.saad@g.bracu.ac.bd; Syed Ashik Mahamud,
+BRAC University, Dhaka, Bangladesh; Samiun Jahan Awishy, BRAC University, Narayanganj, Dhaka, Bangladesh, Samiun.jahan.awishy@g.bracu.ac.bd;
+Bijoya Sarker, BRAC University, Banasree, Rampura, Dhaka, Bangladesh.
+1
+
+--- PAGE 2 ---
+2 Md. Shafayat Sadat Saad, Syed Ashik Mahamud, Samiun Jahan Awishy, and Bijoya Sarker
+Fig. 1. The Six-Dimensional Research Gap in Football AI
+d. Real-Time Opponent Deviation:Existing tactical fingerprinting is primarily post hoc; a streaming architecture
+is needed to alert coaches during a match.
+e. Tactical Evolution:Published literature does not yet model the spread, mutation, and counter-adaptation of
+tactical patterns across clubs and seasons.
+f. Democratization:Systems that depend on proprietary tracking data [ 1] create an access barrier for lower-
+resource clubs. We therefore focus on broadcast-video input rather than dedicated tracking hardware.
+1.2 Core Scientific Claim
+We test whether a structural causal model learned from player trajectories derived from broadcast video can decode a
+team’s tactical intent 5–10 seconds before critical actions more accurately than action-anticipation baselines, without
+proprietary tracking systems.
+1.3 Contributions
+The six main contributions of this work are:
+(1) Structural Causal Model for Tactical Intent:We present a differentiable DAG over tactical intent, movement,
+and outcome variables using NOTEARS [7] and structural equation modeling for football tactical analysis.
+(2) Tri-Axial Transformer Architecture:We introduce a transformer variant with attention alternating across
+temporal, agent, and phase axes. This produces a hybrid representation over temporal context, player interactions,
+and game phase.
+(3) Counterfactual Tactical Reasoning:We support do-calculus queries over phase, formation, pressing, pitch
+control, and xG variables directly from trajectories recovered from broadcast video.
+(4) Real-Time Tactical Fingerprinting:We compare live intent latents against pre-scouted team fingerprints
+and trigger deviation alerts during a match.
+
+--- PAGE 3 ---
+TACTIC-FP: Tactical Anticipation via Causal Inference and Fingerprinting from Broadcast Video 3
+(5) TACTIC-Bench:We introduce an expert-annotated tactical intent benchmark with variable-length segments
+and coverage-weighted labels.
+(6) Accessible Deployment:The method avoids proprietary tracking sensors and supports edge inference for
+lower-resource clubs.
+1.4 Ethical and Societal Commitments
+This work follows the EAIT 2026 “AI for Humanity” themes: (1) augmentation rather than replacement of analysts; (2)
+broader access through broadcast-video input; (3) transparency through an MIT-licensed, reproducible implementation;
+and (4) explicit audits for camera-angle and geographic bias.
+2 RELATED WORK
+2.1 Computer Vision for Football
+Formal computer vision tasks in football are increasingly organized around the SoccerNet ecosystem [8].
+Its benchmark tasks include action spotting, monocular depth estimation, multi-view foul recognition, and game-state
+reconstruction. Top teams reach 0.6390 GS-HOTA on game-state reconstruction, demonstrating that tracking from
+broadcast video is possible, although noisy, under low-resolution or occluded conditions. Group-activity recognition
+reaches approximately 0.50 mAP on collective activities such as counter-attacks, but it operates at the clip level and
+does not decode tactical intent.
+The SoccerNet pipeline uses YOLOv11 for detection, Deep-EIoU for tracking, PnLCalib for calibration, and OSNet for
+re-identification [8]. This literature is the basis of our video-to-trajectory module.
+Related work also encompasses counterfactual player valuation [9], football momentum modeling [10], causal framing
+in sports [11], graph-based causal discovery [12], dynamic graph attention [13], efficient attention [14], expected-goals
+foundations [15], pressing metrics [16], tactic generation [4, 17], and multimodal baselines [18]. These areas inform our
+design, but none jointly addresses tactical intent, causal inference, and broadcast video.
+2.2 Tactical AI and Causal Inference
+TacticAI uses geometric deep learning for corner-kick recommendations but is limited to set pieces and bespoke
+tracking data [1]. FAANTRA is strong at action anticipation from broadcast video, yet it remains agnostic to the tactical
+approaches that can produce the same distribution of actions [ 3]. TacEleven generates open-play attack tactics [4],
+while CausalTraj models temporal but not tactical causality [5].
+Causal reasoning in sports requires careful framing of interventions and counterfactuals [11, 19]. NOTEARS intro-
+duced continuous optimization for causal discovery with the acyclicity constraint ℎ(𝐴)=tr  𝑒𝐴◦𝐴 −𝑑 [7]; DAG-GNN
+and sparse nonparametric DAGs extend this family of methods [12, 20]. Recent tactical behavior reviews show that no
+mobile broadcast-only system currently combines causal inference, tactical intent, and real-time fingerprinting [21].
+2.3 Multi-Agent Intelligence and Decentralized Systems
+We model football as a multi-agent system comprising 22 players and the ball, in which collective behavior emerges
+through interactions among agents. Cross-agent attention represents these interactions and their relation to latent
+tactical intent. The fingerprint comparator can run locally, without a central server, which helps preserve competitive
+privacy. The annotation protocol also supports human–AI collaborative analysis.
+
+--- PAGE 4 ---
+4 Md. Shafayat Sadat Saad, Syed Ashik Mahamud, Samiun Jahan Awishy, and Bijoya Sarker
+Fig. 2. Multi-dimensional system comparison (1=none, 5=full). TACTIC-FP is the only system providing all six capabilities simultane-
+ously
+3 TASK DEFINITION
+3.1 Annotation and Data Pipeline
+The TACTIC-FP Annotator is a browser-based tool for assigning and editing tactical labels. Partitions are contiguous,
+non-overlapping timeline segments (2–15 seconds). The taxonomy defines 12 tactical intents grouped into five families
+(BuildUp, Attack, Press, Transition, and SetPiece) and two exclusions (DeadBall and ContestedPlay). Validation gates
+enforce duration bounds, coverage ≥ 80%(at least 18 of 22 players), possession-aware blocking, and exclusion-label
+isolation. Each segment records an intent class, confidence score (1–5), and coverage estimate.
+Trajectories are created independently using YOLOv11 detection and Deep-EIoU tracking, and matched to segments
+according to time. The master tensor [𝑇× 23 × 4] is decimated to 10 fps, and segmented to per-segment tensors
+[𝑇seg × 23 × 4] by binary padding with a 150-length mask. For UI testing, a synthetic placeholder is present, which is
+not utilized for benchmark metrics.
+3.2 DAG Feature Computation
+For each non-excluded segment, five trajectory-derived features are computed for the SCM:
+(1)Formation Compactness (𝐹):Mean pairwise distance among possessing-team players on the final frame;
+(2)Pressing Speed (𝑆):Average velocity of the three closest opponents to the ball carrier;
+(3)Pitch Control (𝐶):Voronoi-based area share;
+(4) Expected Goal ( 𝑋 ):Distance heuristic 𝑋=clip( 1.0 −𝑑× 2, 0.01, 0.5), where 𝑑 is the minimum ball-to-goal
+distance in normalized coordinates;
+(5) Phase Mixture (𝑃):4-D softmax over phase prototypes, initialized uniformly during slicing and overwritten
+by the transformer during training.
+These features feed NOTEARS (Section 4.2).
+3.3 TACTIC-Bench Benchmark
+TACTIC-Bench is a manually annotated collection of 200 matches and 8,847 variable-length segments (mean 6.8 seconds).
+At the time of this study, 50 matches had completed independent review by three UEFA Pro coaches; the remaining
+
+--- PAGE 5 ---
+TACTIC-FP: Tactical Anticipation via Causal Inference and Fingerprinting from Broadcast Video 5
+matches were provisionally annotated and excluded from claims requiring triple-annotator validation. The average
+player coverage in the evaluated split is 0.92.
+3.4 TIA Metric Definition
+Coverage-weighted top-1 accuracy is defined as Tactical Intent Accuracy (TIA):
+TIA@𝛿= 1Í
+𝑖 𝑤 𝑖
+∑︁
+𝑖
+h
+𝑤 𝑖 ·1 { ˆ𝚥𝑖 =𝑗 ∗
+𝑖 }
+i
+where 𝑤 𝑖 =coverage 𝑖 ×confidence 𝑖. The coverage weight is based on the annotator’s coverage estimate and the
+annotator’s confidence rating for segment metadata (Section 3.1). CD-AUC is for tracking change detection; Causal
+Attribution Mean Absolute Error (CA-MAE) measures misalignment of an attribution map from expert annotations for
+50 expert maps.
+4 TECHNICAL ARCHITECTURE
+4.1 Tri-Axial Transformer
+The tri-axial transformer is the core representation module. Standard transformers typically attend along temporal or
+agent dimensions but do not jointly model temporal context, player interactions, and game phase. We use 8 layers with
+Fig. 3. TACTIC-FP Annotator Tool
+
+--- PAGE 6 ---
+6 Md. Shafayat Sadat Saad, Syed Ashik Mahamud, Samiun Jahan Awishy, and Bijoya Sarker
+𝑑= 256, 8 heads, FFN=1024, and approximately 25M parameters. The layers alternate across temporal, agent, and phase
+attention axes, as shown in Figure 4.
+Temporal attention is defined with masked self-attention over valid frame positions. Agent attention uses GATv2-style
+dynamic cross-player attention, 𝑒(ℎ 𝑖, ℎ𝑗 )=𝑎 𝑇 LeakyReLU 𝑊[ℎ 𝑖 ∥ℎ 𝑗 ], because query-dependent rankings are crucial
+for football [13]. Efficient attention implementations such as FlashAttention-2 motivate the real-time design of the
+temporal axis [14]. Phase attention uses four learnable prototypes (BuildUp, Press, Block, and Transition) as query
+tokens for mixed state representations.
+𝐿=
+∑︁
+𝑖
+𝑤 𝑖𝐿cl (Intent𝑖 ) +𝜆 𝑥𝐺 𝐿MSE (𝑥𝐺) +𝜆 dagℎ(𝐴) +𝜆 sparse ∥𝐴∥ 1.(1)
+Fig. 4. Tri-axial transformer: 8 layers with rotating attention axes (Temp->Agt->Phs->...). GATv2 provides dynamic agent attention.
+Total:25M parameters.
+4.2 Structural Causal Model
+The SCM is run in two stages. In Stage A, the segment tensor is used to extract five trajectory-derived features (Section
+3.2): Formation (𝐹), Speed (𝑆), Expected Goal (𝑋), Pitch Control (𝐶), and Phase mixture (𝑃).
+Stage B uses NOTEARS [ 7] to learn a DAG over the five derived features and the tactical-intent variable. The
+adjacency matrix𝐴∈R 6×6 is learned via continuous optimization using the acyclicity constraint:
+ℎ(𝐴)=tr
+
+𝑒𝐴◦𝐴
+
+−𝑑
+where the DAG skeleton is fixed once converged; SEM parameters are fine-tuned with transformer weights during
+Stage 3 (Section 4.4).
+
+--- PAGE 7 ---
+TACTIC-FP: Tactical Anticipation via Causal Inference and Fingerprinting from Broadcast Video 7
+Fig. 5. Learned DAG over six tactical variables. Edge weights are SEM coefficients estimated from trajectory-derived features (Section
+3.2). Validation results: SHD=1.2, TPR=0.92, and FDR=0.06 on synthetic data; expert edge agreement is 84.7%, with Cohen’s kappa of
+0.79.
+4.3 Fingerprint Comparator and Attribution
+Each team’s fingerprint is a Gaussian mixture model (GMM; 𝐾= 8, full covariance) fitted to intent latents from
+previous matches. During live play, a GMM fitted to segments in a five-minute window is compared with the reference
+distribution using the Wasserstein-2 distance. An alert is triggered when 𝑊2 >𝜏 , where 𝜏 is tuned for 90% precision on
+the validation set. Wasserstein-2 can compare distributions with non-overlapping supports. Player-level attribution
+maps are estimated with Shapley values using𝑀=1000permutations.
+Fig. 6. (a) GMM fingerprint comparison in latent space showing reference vs. live distributions with Wasserstein-2 distance. (b)
+Real-time deviation detection timeline across 90 minutes with tactical change alert.
+4.4 Three-Stage Training Protocol
+Stage 1 (epochs 1–40): Pre-train temporal and agent axes on SoccerNet CSG action spotting and game state reconstruction
+(500+ matches).
+Stage 2 (epochs 41–60): Add phase attention with J-League data (34 matches) for cross-phase coherence.
+Stage 3 (epochs 61–100): DAG/SEM fine-tuning with the coverage-weighted loss on TACTIC-Bench. During this step,
+
+--- PAGE 8 ---
+8 Md. Shafayat Sadat Saad, Syed Ashik Mahamud, Samiun Jahan Awishy, and Bijoya Sarker
+the DAG skeleton learned in Stage B (Section 4.2) is held fixed while the SEM parameters and transformer weights are
+jointly optimized.
+Fig. 7. Three-stage training protocol: progressive capability building from general action recognition to specific tactical intent
+understanding.
+5 MODEL SELECTION
+Table 1. Model selection with empirical justifications
+Component Primary Alternative Selection Reason
+Player Detection YOLOv11 RF-DETR [22] Proven SoccerNet pipeline; edge efficiency
+Tracking Deep-EIoU BoT-SORT Football-validated; erratic motion handling
+Agent Attention GATv2 [13] GAT 98.7% vs 12.5% on dynamic task
+Causal Discovery NOTEARS [7] DAG-GNN [12] SHD 1.2 vs 2.1; 7.7x faster
+Inference Pyro [23] – GPU-batched counterfactuals
+Fingerprint GMM (K=8) KDE Online updates; multi-modal
+Distance Wasserstein-2 KL divergence Non-overlapping supports
+Attribution Shapley (M=1000) Grad-CAM Axiomatic fairness; handles masking
+6 EXPERIMENTAL DESIGN
+6.1 Baseline Models
+To ensure that each component of TACTIC-FP is indispensable, we perform an experimental comparison against seven
+re-implemented baselines on TACTIC-Bench:
+FAANTRA-Adapted[3]: FAANTRA video encoder with a linear classifier on TACTIC-Bench, testing whether action
+anticipation is sufficient for intent recognition.TacticAI-style GNN[ 1]: GATv2 on trajectories with standard message
+passing, testing geometric deep learning without phase attention.Vanilla Transformer: temporal self-attention only,
+isolating the contribution of the tri-axial design.HMM Intent[ 10]: continuous-discrete HMM on trajectory features,
+testing classical temporal pattern recognition.Random Forest: hand-crafted PPDA, pitch-control, and formation-
+compactness features as a non-deep baseline.NOTEARS-Only: joint transformer training with NOTEARS DAG
+regularization, testing end-to-end causal discovery.GPT-4V Tactical[ 18]: 10 sampled frames per segment, testing
+whether visual pretraining at scale can learn tactical reasoning without trajectory-level inductive biases.
+
+--- PAGE 9 ---
+TACTIC-FP: Tactical Anticipation via Causal Inference and Fingerprinting from Broadcast Video 9
+6.2 Ablation Studies
+We ablate each component of our architecture in seven configurations (Figure 10): removing phase attention, removing
+agent attention, replacing the SCM with an MLP, replacing the fingerprint comparator with entropy-based detection,
+removing cross-phase training, using single-phase models, and replacing NOTEARS with DAG-GNN as a competing
+causal discovery method. Statistical rigor is maintained with five random seeds, paired bootstrap tests with 10,000
+resamples, and 95% confidence intervals for all primary metrics.
+6.3 Validation Protocols
+DAG Validation:Synthetic validation uses 1,000 football matches with known causal structure. We report SHD,
+TPR, and FDR comparisons against PC, GES, and DAG-GNN baselines. Expert validation presents learned DAG edges
+to three UEFA Pro coaches and reports Cohen’s kappa.Cross-Dataset Generalization:We train on the TACTIC-
+Bench/SoccerNet data and evaluate on J-League tracking data converted to broadcast-equivalent observations, as well
+as held-out matches from the Premier League, La Liga, and Bundesliga.
+Statistical Rigor:All primary results are reported as mean ± standard deviation across five random seeds. We
+use paired bootstrap tests (10,000 resamples) for TIA improvements and McNemar’s test for paired classification
+comparisons. All AUC metrics include 95% confidence intervals.
+6.3.1 Data Integrity Validation.A post-annotation validation suite checks for the following:
+(1) Zero-duration and sub-2s segments are removed;
+(2) Duplicate.npzpaths are eliminated through auto-incremented suffixes;
+(3) Excluded segments have no intent assigned;
+(4) Each shape in the.npzfile is equal to the corresponding shape in its JSONtensor_shapeand padding mask;
+(5) No synthetic DAG features are found in the annotation manifest.
+Violations prevent the segment from entering the training dataloader.
+6.4 Efficiency and Edge Deployment
+Table 2. Efficiency benchmarks across hardware
+Model Parameters FLOPs (G) Latency Device Throughput
+TACTIC-FP 25.2M 12.4 512ms RTX 3060 1.9 clips/s
+TACTIC-FP INT8 25.2M 6.2 285ms RTX 3060 3.5 clips/s
+TACTIC-FP Edge 25.2M 12.4 1255ms Jetson Nano 4GB 0.8 clips/s
+FAANTRA 18.5M 8.7 385ms RTX 3060 2.6 clips/s
+Vanilla Trans. 15.1M 6.3 298ms RTX 3060 3.4 clips/s
+GPT-4V [18]∼1.7T N/A 4200ms Cloud API 0.24 clips/s
+
+--- PAGE 10 ---
+10 Md. Shafayat Sadat Saad, Syed Ashik Mahamud, Samiun Jahan Awishy, and Bijoya Sarker
+Table 3. Main results: TIA and CD-AUC (mean±std over 5 seeds)
+Model TIA@1 TIA@3 TIA@5 TIA@10 TIA@15 CD-AUC Macro-F1
+TACTIC-FP 0.523±0.018 0.498±0.016 0.472±0.015 0.418±0.019 0.365±0.022 0.834±0.014 0.458±0.017
+FAANTRA [3] 0.412±0.022 0.385±0.019 0.358±0.017 0.312±0.020 0.268±0.023 0.652±0.021 0.342±0.018
+TacticAI [1] 0.352±0.024 0.325±0.021 0.298±0.019 0.248±0.022 0.208±0.024 0.582±0.023 0.278±0.020
+Vanilla Trans. 0.298±0.025 0.278±0.022 0.258±0.020 0.218±0.023 0.185±0.025 0.542±0.024 0.232±0.021
+HMM [10] 0.268±0.023 0.252±0.021 0.235±0.019 0.205±0.022 0.175±0.024 0.512±0.025 0.208±0.020
+Random Forest 0.238±0.026 0.218±0.023 0.195±0.021 0.162±0.024 0.135±0.026 0.452±0.027 0.178±0.022
+NOTEARS-Only 0.325±0.024 0.302±0.021 0.278±0.019 0.238±0.022 0.202±0.024 0.618±0.022 0.258±0.020
+GPT-4V [18] 0.285±0.028 0.262±0.025 0.238±0.023 0.198±0.026 0.165±0.028 0.498±0.030 0.212±0.024
+7 RESULTS
+7.1 Main Results
+TACTIC-FP achieves 47.2% TIA@5, which is 5.7 times the uniform-chance level for 12 classes (8.33%). It surpasses
+FAANTRA by 11.4 percentage points and GPT-4V by 23.4 percentage points (both 𝑝< 0.001; paired bootstrap with
+10,000 resamples). Its CD-AUC is 0.834 on the evaluated split.
+Fig. 8. (a) TIA across anticipation windows showing graceful degradation with increased uncertainty. (b) TIA@5 and CD-AUC
+comparison across all models. TACTIC-FP leads on all metrics.
+7.2 Baseline Comparison and Per-Class Analysis
+Action anticipation is insufficient for intent recognition: FAANTRA reaches 35.8% TIA@5 compared with our 47.2%.
+The 11.4 percentage-point gap shows that predicting the next action is different from understanding tactical intent.
+GPT-4V reaches 23.8%, indicating that visual pretraining without trajectory-level inductive bias is not enough to learn
+tactical concepts. The tri-axial design also substantially improves over the vanilla transformer (47.2% vs. 25.8%).
+
+--- PAGE 11 ---
+TACTIC-FP: Tactical Anticipation via Causal Inference and Fingerprinting from Broadcast Video 11
+Fig. 9. Per-class F1 comparison. TACTIC-FP leads all classes with largest gains in set-pieces (SPA +17.3%, SPD +17.0%), where spatial
+structure is most discriminative.
+7.3 Ablation Analysis
+Fig. 10. Ablation results. Agent attention provides the largest TIA gain (+13.4 percentage points); the fingerprint comparator provides
+the largest CD-AUC gain (+25.2% relative improvement over the entropy baseline).
+7.4 DAG Validation and Cross-Dataset Generalization
+Table 4. DAG structure recovery on synthetic data (1,000 matches)
+Method SHD TPR FDR Time (s)
+NOTEARS-MLP 1.2 0.92 0.06 1.45
+DAG-GNN [12] 2.1 0.85 0.10 11.20
+PC Algorithm 15.8 0.58 0.24 0.52
+GES 16.5 0.55 0.27 1.35
+The learned DAG obtains 84.7% expert edge agreement and Cohen’s kappa of 0.79. The pressing-to-control edge
+is estimated at 0.95, and the control-to-xG edge aligns with expert expectations. Cross-dataset TIA@5 is 43.8% for
+J-League (3.4 percentage points below the primary test result), 46.1% for the Premier League, 45.5% for La Liga, and
+44.9% for the Bundesliga.
+
+--- PAGE 12 ---
+12 Md. Shafayat Sadat Saad, Syed Ashik Mahamud, Samiun Jahan Awishy, and Bijoya Sarker
+7.5 Training Curves and ROC Analysis
+Fig. 11. (a) Training and validation loss showing three-stage progression with transition bumps at epochs 40 and 60. (b) TIA@5
+during training: best validation 0.481 at epoch 88; final test TIA@5 0.472.
+Fig. 12. ROC curve for tactical deviation detection. TACTIC-FP achieves CD-AUC 0.834, significantly outperforming FAANTRA
+(0.652) and Vanilla Transformer (0.542). Operating point: FPR=0.12, TPR=0.82.
+
+--- PAGE 13 ---
+TACTIC-FP: Tactical Anticipation via Causal Inference and Fingerprinting from Broadcast Video 13
+7.6 Confusion Matrix and Attribution Analysis
+Fig. 13. Confusion-matrix heatmap for the 12 tactical intent classes. The diagonal concentration shows reliable class separation,
+while off-diagonal cells identify tactically similar intents that remain difficult to distinguish.
+Fig. 14. Causal attribution heatmap for "High Press" intent. ST (0.28), LW (0.22), and CM (0.18) show the highest Shapley
+contribution, consistent with pressing strategy.
+8 DISCUSSION
+8.1 Ethical Considerations
+Data protection:The system uses broadcast footage and no proprietary club tracking data. Use of broadcast footage
+remains subject to the relevant copyright, licensing, privacy, and competition rules; public availability alone does not
+imply unrestricted reuse. This work follows the EAIT 2026 “AI for Humanity” principles of analyst augmentation, access
+through broadcast-only input, transparency through MIT-licensed code, and explicit evaluation of camera-angle and
+geographic bias. The fingerprint comparator runs locally without a central server. The system is intended for sporting
+analysis, not gambling applications.
+8.2 Societal Impact
+Outside football, this framework can generalize to multi-agent domains that require movement-based intent inference,
+including autonomous vehicle coordination, crowd behavior analysis, and strategic simulation. The tri-axial transformer
+
+--- PAGE 14 ---
+14 Md. Shafayat Sadat Saad, Syed Ashik Mahamud, Samiun Jahan Awishy, and Bijoya Sarker
+provides a blueprint for multi-agent intent recognition in coordinated systems. In football, TACTIC-FP can make
+elite-level tactical intelligence available to clubs that cannot afford proprietary tracking systems, supporting the EAIT
+2026 "AI for Humanity" goal of reducing technological inequality.
+8.3 Limitations and Future Work
+Subjectivity of annotation and decoupled pipeline:The public TACTIC-Bench contains 50 fully validated matches
+with triple-annotator review. All remaining matches are interim data points that will undergo secondary review, guided
+by a Fleiss’ Kappa of 0.75 (based on the validated subset). Ideally, we want an annotation tool that provides intent labels
+without requiring a pre-computed trajectory. Currently, trajectories are generated for each segment and paired by
+timestamp during training via YOLOv11 + Deep-EIoU, while a synthetic placeholder is used strictly for UI testing and
+excluded from benchmark metrics.
+Causal assumptions:Faithfulness and causal sufficiency (no unobserved confounders) are assumed by the SCM.
+These are strong assumptions in the context of football, where critical factors like coach instructions, player fatigue, or
+psychological momentum are typically unmeasured. To address this limitation, our causal claims are carefully bounded
+and supported by sensitivity analysis and synthetic validation.
+Camera angle bias: Single monocular broadcast views favor the ball and attacking team; defensive intent may be
+underrepresented. Future work should explore multi-camera fusion and camera-angle robustness.
+Future work: Future versions should support time-varying DAGs for within-match adaptation and broader geo-
+graphic validation. Tactical concepts may differ across leagues and coaching cultures, so additional annotation studies
+with non-European coaches are needed.
+9 CONCLUSION
+TACTIC-FP combines computer vision, causal inference, and streaming multi-agent analysis to decode tactical intent
+from broadcast video. We propose a tri-axial transformer for learning sequential patterns of dynamic interactions,
+combined with a NOTEARS-based SCM and a GMM fingerprint. On the evaluated split, the model achieves 47.2%
+TIA@5 (11.4 percentage points above FAANTRA and 23.4 above GPT-4V), a CD-AUC of 0.834, and a throughput of 0.8
+clips/s on a Jetson Nano. By requiring broadcast video rather than dedicated tracking hardware, TACTIC-FP lowers the
+infrastructure barrier to tactical analysis. The code, models, and TACTIC-Bench are released under the MIT License.
+10 APPENDICES
+A. Detailed Mathematical Formulations
+A.1 Tri-Axial Attention.Temporal:
+softmax
+ 𝑄𝐾 𝑇
+√
+𝑑
++𝑀
+
+𝑉(2)
+with padding mask
+𝑀eff =𝑀∧padding_mask.(3)
+Agent (GATv2):
+𝑒(ℎ 𝑖, ℎ𝑗 )=𝑎 𝑇 LeakyReLU  𝑊[ℎ 𝑖 ∥ℎ 𝑗 ] (4)
+providing dynamic, query-dependent rankings.
+
+--- PAGE 15 ---
+TACTIC-FP: Tactical Anticipation via Causal Inference and Fingerprinting from Broadcast Video 15
+Phase: four prototypes
+𝑝𝑖 ∈R 𝑑 (5)
+attend to the full spatiotemporal tensor.
+A.2 NOTEARS.
+ℎ(𝐴)=tr
+
+𝑒𝐴◦𝐴
+
+−𝑑(6)
+with augmented Lagrangian
+L (𝐴, 𝜆, 𝜌)=L data (𝐴) + 𝜌
+2 |ℎ(𝐴)| 2 +𝜆ℎ(𝐴).(7)
+A.3 SEM.
+𝑉𝑖 =𝑓 𝑖 (PA(𝑉𝑖 )) +𝜖 𝑖 (8)
+where𝑓 𝑖 are neural networks and
+𝜖𝑖 ∼ N (0, 𝜎2
+𝑖 ).(9)
+A.4 Wasserstein-2.
+𝑊2 (𝜇, 𝜈)=
+
+inf
+𝛾∈Γ(𝜇,𝜈)
+∫
+∥𝑥−𝑦∥ 2𝑑𝛾
+ 1/2
+(10)
+for GMM comparison.
+A.5 Shapley.
+𝜙𝑖 =
+∑︁
+𝑆⊆𝑁\{𝑖}
+|𝑆|!(|𝑁| − |𝑆| −1)!
+|𝑁|! [𝑣(𝑆∪ {𝑖}) −𝑣(𝑆) ] ,(11)
+approximated with𝑀=1000Monte Carlo permutations.
+B. Hyperparameters
+Table 5. Complete hyperparameter configuration
+Parameter Value Description Parameter Value Description
+d_model256 Hidden dimension batch_size32 Training batch
+n_layers8 Tri-axial layers lr (S1)1e-4 Pre-train lr
+n_heads8 Attention heads lr (S3)5e-5 Fine-tune lr
+d_ff1024 FFN dimension lambda_dag0.1 DAG penalty
+dropout0.1 Dropout rate lambda_sparse0.01 Sparsity penalty
+T_max150 Max frames lambda_xg0.5 xG weight
+K_GMM8 GMM components Seed42 Reproducibility
+Reproducibility:All code, models, and TACTIC-Bench are released under the MIT License. Fixed seed 42. The full
+pipeline, training scripts for three stages, evaluation scripts, annotation interface, tutorial notebooks, and public
+leaderboard are provided.
+C. Datasets and Open Science
+The study uses datasets available without an acquisition fee.SoccerNet(500+ matches) was used for pre-training,
+whileStatsBomb Open[ 24] was employed for SCM training.Board Level Alignment(34 matches), together withJ-League
+data, was used for cross-phase coherence analysis.Wyscout Openwas used for xG calibration. Finally,TACTIC-Bench
+(200 matches, CC BY) was used for fine-tuning. Pre-trained weights will be released with a GPU-free demonstration.
+
+--- PAGE 16 ---
+16 Md. Shafayat Sadat Saad, Syed Ashik Mahamud, Samiun Jahan Awishy, and Bijoya Sarker
+D. NOTEARS Sensitivity Analysis
+We track ℎ(𝐴) at each epoch. Across five seeds, the maximum observed value is 0.003 (epoch 3, seed 42). The value
+falls below10 −8 after epoch 15 and remains below that level through epoch 100, satisfying the10 −4 tolerance during
+the converged phase. This establishes that acyclicity is maintained after convergence in SEM fine-tuning.
+REFERENCES
+[1] Zhe Wang, Petar Velickovic, Daniel Hennes, et al. TacticAI: An AI assistant for football tactics.Nature Communications, 15(1):1906, 2024.
+[2] Jack Horton. Large-scale in-game outcome forecasting using an axial transformer. arXiv preprint arXiv:2511.18730, 2025.
+[3] Megh Dalal, Adri
+‘a Xarles, Anthony Cioppa, Silvio Giancola, et al. Action anticipation from SoccerNet football video broadcasts. InCVPR Workshops (CVPRW), 2025.
+[4] Shuai Zhao et al. TacEleven: Generative tactic discovery for football open play. arXiv preprint arXiv:2511.13326, 2025.
+[5] Wei Zhen Teoh. Coherent multi-agent trajectory forecasting with CausalTraj. arXiv preprint arXiv:2511.18248, 2025.
+[6] Sam Groom, Filipe Belo, Adam Rice, Luke Anderson, and Sheng Wang. Off-ball defensive role evaluation. arXiv preprint arXiv:2601.00748, 2026.
+[7] Xun Zheng, Bryon Aragam, Pradeep K. Ravikumar, and Eric P. Xing. DAGs with NO TEARS: Continuous optimization for structure learning. In
+Advances in Neural Information Processing Systems (NeurIPS), volume 31, 2018.
+[8] Silvio Giancola et al. SoccerNet 2025 challenges results. arXiv preprint arXiv:2508.19182, 2025.
+[9] Metrica Sports. ScoutGPT: Counterfactual player valuation. Technical report, Metrica Sports, 2025.
+[10] Marius Otting, Roland Langrock, and Antonello Maruotti. A copula-based hidden Markov model for football momentum.AStA Advances in
+Statistical Analysis, 105:751–773, 2021.
+[11] Erica E. M. Moodie and Tim B. Swartz. Framing causal questions in sports. arXiv preprint arXiv:2505.11841, 2025.
+[12] Yue Yu, Jie Chen, Tian Gao, and Mo Yu. DAG-GNN: DAG structure learning with graph neural networks. InInternational Conference on Machine
+Learning (ICML), 2019.
+[13] Shaked Brody, Uri Alon, and Eran Yahav. How attentive are graph attention networks? InInternational Conference on Learning Representations
+(ICLR), 2022.
+[14] Tri Dao. FlashAttention-2: Faster attention with better parallelism and work partitioning. arXiv preprint arXiv:2307.08691, 2023.
+[15] William Spearman. Beyond expected goals. InMIT Sloan Sports Analytics Conference, 2018.
+[16] Joris Bekkers. An intuitive measure for pressing in football. arXiv preprint arXiv:2501.04712, 2024.
+[17] Shuqi Xu, Guanyu Liu, Tarak Kharrat, et al. TacticGen. arXiv preprint arXiv:2604.18210, 2026.
+[18] Josh Achiam et al. GPT-4 technical report. arXiv preprint arXiv:2303.08774, 2023.
+[19] Judea Pearl.Causality: Models, Reasoning, and Inference. Cambridge University Press, 2nd edition, 2009.
+[20] Xun Zheng et al. Learning sparse nonparametric DAGs. InInternational Conference on Artificial Intelligence and Statistics (AISTATS), 2020.
+[21] Jo
+ao Eduardo Teixeira, Eduardo Maio, Pedro Afonso, et al. Mapping football tactical behavior with AI: A review.Frontiers in Sports and Active Living,
+7:1569155, 2025.
+[22] Isaac Robinson, Philippe Robicheaux, Mikhail Popov, et al. RF-DETR. arXiv preprint arXiv:2511.09554, 2025.
+[23] Eli Bingham et al. Pyro: Deep universal probabilistic programming.Journal of Machine Learning Research (JMLR), 2019.
+[24] StatsBomb. StatsBomb open data. StatsBomb Open Data repository, 2024.
