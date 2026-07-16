@@ -35,6 +35,12 @@ function quantizeMs(ms: number): number {
   return Math.round(ms / 100) * 100;
 }
 
+function normalizeCoverage(raw: unknown): number {
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return 0;
+  return value > 1 ? value / 100 : value;
+}
+
 function dedupeAnnotationsByClipId(annotations: any[]): any[] {
   const keyed = new Map<string, any>();
   const unkeyed: any[] = [];
@@ -50,6 +56,31 @@ function dedupeAnnotationsByClipId(annotations: any[]): any[] {
   }
 
   return [...unkeyed, ...Array.from(keyed.values())];
+}
+
+function validateFullExportSource(fullData: any): string[] {
+  const errors: string[] = [];
+  const splits = new Set<string>();
+
+  for (const half of fullData.halves || []) {
+    for (const seg of half.segments || []) {
+      const prefix = `Half ${half.half}, segment "${seg.segment_id}"`;
+      if (!seg.exclusion) {
+        splits.add(seg.model_split || "train");
+      }
+      if (seg.dag_features || seg.reconstruction?.dag_features) {
+        errors.push(`${prefix}: synthetic dag_features are not allowed in annotation/export data`);
+      }
+    }
+  }
+
+  if (splits.size > 1) {
+    errors.push(
+      `Match contains mixed non-excluded model_split values: ${Array.from(splits).join(", ")}`,
+    );
+  }
+
+  return errors;
 }
 
 /**
@@ -203,7 +234,7 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
     const duration_sec = Number(
       ann.segment_metadata?.duration_sec ?? end_sec - start_sec,
     );
-    const coverage_estimate = Number(
+    const coverage_estimate = normalizeCoverage(
       ann.segment_metadata?.coverage_estimate ?? 1,
     );
     // Dynamic frames based on actual duration and capped at MAX_MODEL_FRAMES
@@ -498,6 +529,7 @@ function convertToTrainSchema(fullData: any): any {
  */
 function validateTrainExport(trainData: any): string[] {
   const errors: string[] = [];
+  const seenNpz = new Map<string, string>();
 
   for (const half of trainData.halves) {
     const segs = half.segments;
@@ -521,6 +553,44 @@ function validateTrainExport(trainData: any): string[] {
           `${prefix}: duration_ms (${seg.duration_ms}) is not a multiple of 100`,
         );
       }
+      if (seg.duration_ms < 2000) {
+        errors.push(
+          `${prefix}: duration_ms (${seg.duration_ms}) is below the 2000 ms minimum`,
+        );
+      }
+      if (!seg.exclusion && seg.duration_ms > MAX_MODEL_FRAMES * 100) {
+        errors.push(
+          `${prefix}: duration_ms (${seg.duration_ms}) exceeds the ${MAX_MODEL_FRAMES * 100} ms maximum`,
+        );
+      }
+
+      const tensorShape = seg.reconstruction?.tensor_shape;
+      const tensorFrames = Array.isArray(tensorShape) ? tensorShape[0] || 0 : 0;
+      const paddingMask = seg.reconstruction?.padding_mask;
+      if (
+        !Array.isArray(tensorShape) ||
+        tensorShape.length !== 3 ||
+        tensorShape[1] !== 23 ||
+        tensorShape[2] !== 4
+      ) {
+        errors.push(
+          `${prefix}: tensor_shape must be [T, 23, 4], got ${JSON.stringify(tensorShape)}`,
+        );
+      }
+      if (!Array.isArray(paddingMask) || paddingMask.length !== MAX_MODEL_FRAMES) {
+        errors.push(
+          `${prefix}: padding_mask must contain ${MAX_MODEL_FRAMES} values`,
+        );
+      } else if (
+        paddingMask.reduce(
+          (sum: number, value: unknown) => sum + (Number(value) === 1 ? 1 : 0),
+          0,
+        ) !== tensorFrames
+      ) {
+        errors.push(
+          `${prefix}: padding_mask active count does not match tensor_shape[0] (${tensorFrames})`,
+        );
+      }
 
       // Gate 2 — Tensor alignment: duration_ms === tensor_shape[0] × 100
       // Skip for exclusion segments — they have no real tensor
@@ -528,9 +598,23 @@ function validateTrainExport(trainData: any): string[] {
         if (!seg.primary_team?.intent_class) {
           errors.push(`${prefix}: non-excluded segment has no primary intent`);
         }
+        if (seg.coverage_estimate < 0.8) {
+          errors.push(
+            `${prefix}: coverage_estimate (${seg.coverage_estimate}) is below 0.80`,
+          );
+        }
+        const npzPath = seg.reconstruction?.npz_path;
+        if (!npzPath) {
+          errors.push(`${prefix}: non-excluded segment has no npz_path`);
+        } else if (seenNpz.has(npzPath)) {
+          errors.push(
+            `${prefix}: duplicate npz_path "${npzPath}" already used by "${seenNpz.get(npzPath)}"`,
+          );
+        } else {
+          seenNpz.set(npzPath, seg.segment_id);
+        }
 
-        const expectedDuration =
-          (seg.reconstruction?.tensor_shape?.[0] || 0) * 100;
+        const expectedDuration = tensorFrames * 100;
         if (seg.duration_ms !== expectedDuration) {
           errors.push(
             `${prefix}: duration_ms (${seg.duration_ms}) ≠ tensor_shape[0]×100 (${expectedDuration})`,
@@ -611,6 +695,18 @@ export async function POST(request: NextRequest) {
     const filePath = path.join(getExportsDir(), fileName);
 
     const fullData = convertToMatchSchema(anns, matchConfig, teamConfig);
+    const sourceValidationErrors =
+      mode === "train" ? validateFullExportSource(fullData) : [];
+    if (sourceValidationErrors.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Training export failed source validation gates",
+          gate_failures: sourceValidationErrors,
+          gate_count: sourceValidationErrors.length,
+        },
+        { status: 422 },
+      );
+    }
 
     let exportedData: any;
     if (mode === "train") {
