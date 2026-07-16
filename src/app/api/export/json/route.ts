@@ -69,7 +69,9 @@ function validateFullExportSource(fullData: any): string[] {
         splits.add(seg.model_split || "train");
       }
       if (seg.duration_ms < 2000) {
-        errors.push(`${prefix}: source duration_ms (${seg.duration_ms}) is below 2000`);
+        errors.push(
+          `${prefix}: source duration_ms (${seg.duration_ms}) is below 2000`,
+        );
       }
       if (seg.duration_ms > MAX_MODEL_FRAMES * 100) {
         errors.push(
@@ -77,7 +79,9 @@ function validateFullExportSource(fullData: any): string[] {
         );
       }
       if (seg.dag_features || seg.reconstruction?.dag_features) {
-        errors.push(`${prefix}: synthetic dag_features are not allowed in annotation/export data`);
+        errors.push(
+          `${prefix}: synthetic dag_features are not allowed in annotation/export data`,
+        );
       }
     }
   }
