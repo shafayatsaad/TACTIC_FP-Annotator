@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { execSync } from "child_process";
-import { getExportsDir } from "@/lib/server-utils";
+import crypto from "crypto";
+import { execFileSync } from "child_process";
+import { atomicWriteJson, getExportsDir, sanitizeFileStem } from "@/lib/server-utils";
+import { validateAnnotationSession } from "@/lib/annotation-validation";
 import {
   generateNpzPath,
   MODEL_FPS,
   MAX_MODEL_FRAMES,
   computeTensorFrames,
   computePaddingMask,
-  computeTensorShape,
 } from "@/lib/tensor-utils";
 
 function validateNpzExists(npzPath: string): boolean {
@@ -26,6 +27,33 @@ function getNpzFullPath(npzPath: string): string | null {
   const altPath = path.join(process.cwd(), npzPath);
   if (fs.existsSync(altPath)) return altPath;
   return null;
+}
+
+function getGitCommit(): string | null {
+  try {
+    return execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: process.cwd(),
+      encoding: "utf-8",
+      timeout: 3000,
+      stdio: ["pipe", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+function stableStringify(value: any): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  const keys = Object.keys(value).sort();
+  return `{${keys
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+    .join(",")}}`;
+}
+
+function datasetFingerprint(exportedData: any): string {
+  const { export_metadata: _metadata, ...dataOnly } = exportedData;
+  return crypto.createHash("sha256").update(stableStringify(dataOnly)).digest("hex");
 }
 
 /**
@@ -82,6 +110,9 @@ function validateFullExportSource(fullData: any): string[] {
         errors.push(
           `${prefix}: synthetic dag_features are not allowed in annotation/export data`,
         );
+      }
+      if (seg.reconstruction?.npz_shape_error) {
+        errors.push(`${prefix}: ${seg.reconstruction.npz_shape_error}`);
       }
     }
   }
@@ -256,14 +287,19 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
     let padding_mask = computePaddingMask(tensorFrames);
     const tensorFps = MODEL_FPS;
 
-    // Validate trajectory file shape if it exists (best-effort, never blocks export)
+    let npzShapeError: string | null = null;
+    // Validate trajectory file shape if it exists. Mismatch is surfaced later
+    // as a blocking source-validation error; never silently change labels or
+    // tensor metadata at export time.
     const npzPath = generateNpzPath(match_id, ann.clip_id);
     const fullPath = getNpzFullPath(npzPath);
     if (fullPath) {
       try {
-        const safePath = fullPath.replace(/\\/g, "/");
-        const cmd = `python -c "import numpy as np; d = np.load('${safePath}'); print(list(d['trajectory'].shape))"`;
-        const stdout = execSync(cmd, {
+        const stdout = execFileSync("python", [
+          "-c",
+          "import json, sys, numpy as np; d=np.load(sys.argv[1]); print(json.dumps(list(d['trajectory'].shape)))",
+          fullPath,
+        ], {
           encoding: "utf-8",
           timeout: 5000,
           stdio: ["pipe", "pipe", "pipe"],
@@ -275,12 +311,11 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
             actualShape[1] !== 23 ||
             actualShape[2] !== 4
           ) {
-            tensorShape = [actualShape[0], actualShape[1], actualShape[2]];
-            padding_mask = computePaddingMask(actualShape[0]);
+            npzShapeError = `NPZ trajectory shape ${JSON.stringify(actualShape)} does not match expected ${JSON.stringify(tensorShape)}`;
           }
         }
       } catch (error) {
-        console.error(`Failed to validate NPZ shape for ${fullPath}:`, error);
+        npzShapeError = `Failed to inspect NPZ trajectory shape for ${npzPath}`;
       }
     }
 
@@ -356,6 +391,7 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
         tensor_shape: tensorShape,
         tensor_fps: tensorFps,
         padding_mask,
+        ...(npzShapeError ? { npz_shape_error: npzShapeError } : {}),
       },
       team: {
         label: primary_label,
@@ -701,7 +737,32 @@ export async function POST(request: NextRequest) {
     const url = new URL(request.url);
     const mode = url.searchParams.get("mode") || "train";
 
-    const matchId = matchConfig?.match_id || "unknown";
+    if (!Array.isArray(anns) || anns.length === 0) {
+      return NextResponse.json(
+        { error: "No annotations to export" },
+        { status: 400 },
+      );
+    }
+
+    const preflightReport = validateAnnotationSession(anns, {
+      cwd: process.cwd(),
+      requireNpz: mode === "train",
+      requireContiguous: mode === "train",
+      requireReviewConfirmation: mode === "train",
+    });
+    if (!preflightReport.ok) {
+      return NextResponse.json(
+        {
+          error: "Export validation failed",
+          gate_failures: preflightReport.errors.map((entry) => entry.message),
+          warnings: preflightReport.warnings.map((entry) => entry.message),
+          report: preflightReport,
+        },
+        { status: 422 },
+      );
+    }
+
+    const matchId = sanitizeFileStem(matchConfig?.match_id || "unknown");
     const modeSuffix = mode === "train" ? "_TRAIN" : "";
     const fileName = `TACTIC_FP_Annotated_${matchId}${modeSuffix}.json`;
     const filePath = path.join(getExportsDir(), fileName);
@@ -740,21 +801,16 @@ export async function POST(request: NextRequest) {
       exportedData = fullData;
     }
 
-    // Validate only non-excluded samples. Exclusion rows are skipped by training.
-    const missingNpz: string[] = [];
-    for (const half of exportedData.halves) {
-      for (const segment of half.segments) {
-        if (
-          !segment.exclusion &&
-          segment.reconstruction?.npz_path &&
-          !validateNpzExists(segment.reconstruction.npz_path)
-        ) {
-          missingNpz.push(segment.reconstruction.npz_path);
-        }
-      }
-    }
+    exportedData.export_metadata = {
+      schema_version: "1.0.0",
+      tool_version: "tactic-annotator-v3.0",
+      export_mode: mode,
+      export_timestamp: new Date().toISOString(),
+      git_commit: getGitCommit(),
+    };
+    exportedData.export_metadata.dataset_fingerprint = datasetFingerprint(exportedData);
 
-    fs.writeFileSync(filePath, JSON.stringify(exportedData, null, 2));
+    atomicWriteJson(filePath, exportedData);
 
     return NextResponse.json({
       success: true,
@@ -767,8 +823,8 @@ export async function POST(request: NextRequest) {
       ),
       exportedData,
       warning:
-        missingNpz.length > 0
-          ? `Intent labels exported successfully. ${missingNpz.length} non-excluded training NPZ file(s) are still missing from trajectories directory; run the video-to-trajectory pipeline before model training.`
+        preflightReport.warnings.length > 0
+          ? `${preflightReport.warnings.length} warning(s) were included in the validation report.`
           : null,
     });
   } catch (error: any) {
