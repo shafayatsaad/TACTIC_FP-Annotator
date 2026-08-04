@@ -963,7 +963,6 @@ export default function AnnotatorClient() {
     videoDurationSec,
     saveSegmentToServer,
     currentClip,
-    createSegmentsFromBoundary,
   ]);
 
   // New-segment workflow callbacks, passed to VideoPlayer.
@@ -3036,7 +3035,6 @@ export default function AnnotatorClient() {
     coverageEstimate,
     isMixedPhase,
     isUncertain,
-    autoNext,
     currentClipIndex,
     clips,
     teamConfig,
@@ -3045,7 +3043,10 @@ export default function AnnotatorClient() {
     currentTeam,
     manualPossession,
     createSegmentsFromBoundary,
+    buildSplitAnnotations,
     saveSegmentToServer,
+    detectedPossessionTeam,
+    trackedPlayers,
     exclusion,
     modelSplit,
   ]);
@@ -3756,7 +3757,7 @@ export default function AnnotatorClient() {
   const resetSession = useCallback(() => {
     if (
       !window.confirm(
-        "Reset session and clear generated annotations, manifests, exports, and converted MP4 files? Original raw videos are kept.",
+        "Reset session and clear generated annotations, segments, manifest, and exports? Raw videos, converted MP4 files, and trajectories are kept.",
       )
     )
       return;
@@ -3796,7 +3797,7 @@ export default function AnnotatorClient() {
           setStatusMessage(`Reset failed: ${res.status} ${text}`);
           return;
         }
-        setStatusMessage("Session reset. Raw videos kept.");
+        setStatusMessage("Session reset. Raw videos and trajectories kept.");
       })
       .catch((err) => setStatusMessage(`Reset failed: ${err.message}`));
   }, []);
@@ -4288,8 +4289,6 @@ export default function AnnotatorClient() {
         <AnnotationPanel
           currentClip={currentClip}
           onUpdateSegmentTimes={handleUpdateSegmentTimes}
-          onUpdateSegmentStart={handleUpdateSegmentStart}
-          onUpdateSegmentEnd={handleUpdateSegmentEnd}
           currentTeam={currentTeam}
           onTeamChange={setCurrentTeam}
           teamConfig={teamConfig}
