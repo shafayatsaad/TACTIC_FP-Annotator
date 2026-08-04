@@ -33,6 +33,38 @@ export function getVideosDir() {
   return VIDEOS_DIR;
 }
 
+export function sanitizeFileStem(value: unknown, fallback = "unknown"): string {
+  const stem = String(value ?? "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return stem || fallback;
+}
+
+export function resolveInsideDir(baseDir: string, unsafePath: string): string | null {
+  const normalizedInput = unsafePath.replace(/^raw_videos[\\/]/i, "");
+  const resolvedBase = path.resolve(baseDir);
+  const resolvedPath = path.resolve(resolvedBase, normalizedInput);
+  const relative = path.relative(resolvedBase, resolvedPath);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
+  return resolvedPath;
+}
+
+export function atomicWriteText(filePath: string, contents: string) {
+  const dir = path.dirname(filePath);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmpPath = path.join(
+    dir,
+    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`,
+  );
+  fs.writeFileSync(tmpPath, contents, "utf-8");
+  fs.renameSync(tmpPath, filePath);
+}
+
+export function atomicWriteJson(filePath: string, value: unknown) {
+  atomicWriteText(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
 export function readManifest(): any[] {
   try {
     const raw = fs.readFileSync(getManifestPath(), "utf-8");
@@ -115,31 +147,21 @@ export function writeAnnotations(
   matchConfig?: any,
 ) {
   const uniqueAnnotations = dedupeAnnotationsByClipId(annotations);
-  fs.writeFileSync(
-    getAnnotationsPath(),
-    JSON.stringify(
-      {
-        schema_version: "1.0.0",
-        dataset: "TACTIC-Bench",
-        team_config: teamConfig,
-        match_config: matchConfig,
-        annotations: uniqueAnnotations,
-      },
-      null,
-      2,
-    ),
-  );
+  atomicWriteJson(getAnnotationsPath(), {
+    schema_version: "1.0.0",
+    dataset: "TACTIC-Bench",
+    team_config: teamConfig,
+    match_config: matchConfig,
+    annotations: uniqueAnnotations,
+  });
 }
 
 export function resetAnnotations() {
-  fs.writeFileSync(
-    getAnnotationsPath(),
-    JSON.stringify(
-      { schema_version: "1.0.0", dataset: "TACTIC-Bench", annotations: [] },
-      null,
-      2,
-    ),
-  );
+  atomicWriteJson(getAnnotationsPath(), {
+    schema_version: "1.0.0",
+    dataset: "TACTIC-Bench",
+    annotations: [],
+  });
 }
 
 // ─── Segments persistence ───
@@ -156,7 +178,7 @@ export function readSegments(): any[] {
 }
 
 export function writeSegments(segments: any[]) {
-  fs.writeFileSync(getSegmentsPath(), JSON.stringify(segments, null, 2));
+  atomicWriteJson(getSegmentsPath(), segments);
 }
 
 export function deleteSegment(clipId: string) {
@@ -173,24 +195,29 @@ export function deleteAnnotation(clipId: string) {
 
 export function resetGeneratedSessionFiles() {
   ensureDirectories();
-  const safeRemove = (target: string) => {
-    if (fs.existsSync(target))
-      fs.rmSync(target, { recursive: true, force: true });
+  const safeUnlink = (target: string) => {
+    if (fs.existsSync(target) && fs.statSync(target).isFile()) {
+      fs.unlinkSync(target);
+    }
+  };
+  const emptyDir = (target: string) => {
+    if (!fs.existsSync(target)) return;
+    for (const entry of fs.readdirSync(target)) {
+      fs.rmSync(path.join(target, entry), { recursive: true, force: true });
+    }
   };
 
-  safeRemove(DATA_DIR);
+  safeUnlink(getManifestPath());
+  safeUnlink(getSegmentsPath());
+  emptyDir(EXPORTS_DIR);
   ensureDirectories();
   resetAnnotations();
 }
 
 export function getVideoPath(relativePath: string): string | null {
-  const candidates = [
-    path.join(process.cwd(), relativePath),
-    path.join(VIDEOS_DIR, path.basename(relativePath)),
-    path.join(process.cwd(), "raw_videos", path.basename(relativePath)),
-  ];
-  for (const p of candidates) {
-    if (fs.existsSync(p)) return p;
+  const resolved = resolveInsideDir(VIDEOS_DIR, relativePath);
+  if (resolved && fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+    return resolved;
   }
   return null;
 }
