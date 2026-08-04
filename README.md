@@ -13,7 +13,7 @@
 
 <!-- BADGES — Tech Stack -->
 
-[![Next.js](https://img.shields.io/badge/Next.js-14.2-000000?style=flat-square&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-15.5-000000?style=flat-square&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.4-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org/)
@@ -161,7 +161,7 @@ flowchart TD
 
 | Layer | Technology | Version |
 | :--- | :--- | :--- |
-| Frontend Framework | Next.js (App Router) | 14.2.x |
+| Frontend Framework | Next.js (App Router) | 15.5.x |
 | UI Library | React + React DOM | 18.3.x |
 | Language | TypeScript | 5.4.x |
 | Styling | Tailwind CSS + PostCSS | 3.4.x |
@@ -420,6 +420,20 @@ TACTIC_FP-Annotator/
 >
 > - `?mode=train` (default) — pruned training schema with quantized timestamps (100 ms grid), orphan-parent removal, temporal gap filling, primary-team-only block
 > - `?mode=annotator` — full annotator schema with team_home/team_away, formations, decisive actions, tactical shift detection
+
+### Validation Gates
+
+Training export is intentionally strict. The server rejects invalid data before
+writing an export if annotations contain invalid timing, overlapping or gapped
+segments, missing or duplicate IDs, missing primary intent, possession/intent
+contradictions, low coverage, missing NPZ trajectory files, tensor metadata
+mismatches, or unreviewed low-confidence labels. CSV export is still available
+for human inspection, but it also validates the annotation schema and domain
+rules before writing.
+
+All server-side annotation, segment, and export writes are atomic: data is
+written to a temporary file first and then renamed into place to avoid partial
+JSON/CSV files after an interrupted write.
 
 ---
 
