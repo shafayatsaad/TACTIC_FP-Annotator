@@ -114,11 +114,11 @@ function createSafeStream(
   });
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { path?: string[] } },
-) {
+type VideoRouteContext = { params: Promise<{ path?: string[] }> };
+
+export async function GET(request: NextRequest, context: VideoRouteContext) {
   try {
+    const params = await context.params;
     const relativePath = params.path?.join("/") || "";
 
     // Handle /api/videos/list - return available video files
@@ -182,9 +182,10 @@ export async function GET(
 
 export async function HEAD(
   _request: NextRequest,
-  { params }: { params: { path?: string[] } },
+  context: VideoRouteContext,
 ) {
   try {
+    const params = await context.params;
     const relativePath = params.path?.join("/") || "";
     const videoPath = getVideoPath(relativePath);
     if (!videoPath)
