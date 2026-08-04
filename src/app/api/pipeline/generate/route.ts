@@ -8,6 +8,24 @@ export async function POST(request: NextRequest) {
     const clipDuration = body.clip_duration ?? 30;
     const annotationWindow = body.annotation_window ?? 6;
     const stepDuration = body.step_duration ?? 7;
+    const allowedClipDurations = new Set([10, 18, 30]);
+    if (
+      !allowedClipDurations.has(Number(clipDuration)) ||
+      !Number.isFinite(Number(annotationWindow)) ||
+      !Number.isFinite(Number(stepDuration)) ||
+      Number(annotationWindow) < 2 ||
+      Number(annotationWindow) > Number(clipDuration) ||
+      Number(stepDuration) <= 0
+    ) {
+      return NextResponse.json(
+        {
+          error: "Invalid pipeline parameters",
+          detail:
+            "clip_duration must be 10, 18, or 30; annotation_window must be 2..clip_duration; step_duration must be positive.",
+        },
+        { status: 400 },
+      );
+    }
 
     const runPipeline = (pythonCmd: string): Promise<NextResponse> => {
       return new Promise((resolve) => {
