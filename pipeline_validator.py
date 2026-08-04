@@ -13,7 +13,7 @@ def check_ffmpeg():
 def check_directory_structure():
     for d in ["raw_videos", "data/trajectories"]:
         if os.path.exists(d): print(f"[OK] {d}/ exists")
-        else: print(f"[WARN] {d}/ missing (creating)"); os.makedirs(d, exist_ok=True)
+        else: print(f"[WARN] {d}/ missing")
     return True
 
 def check_clips():
@@ -81,4 +81,3 @@ def main():
     print("\nStart: npm run dev")
 
 if __name__ == "__main__": sys.exit(main())
-
