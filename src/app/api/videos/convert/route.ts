@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
-import { getVideosDir } from "@/lib/server-utils";
+import { getVideosDir, resolveInsideDir, sanitizeFileStem } from "@/lib/server-utils";
 
 // ─── In-memory job registry ───────────────────────────────────────────────────
 // Keyed by jobId (UUID-style timestamp string). Each entry tracks the
@@ -56,14 +56,18 @@ export async function POST(request: NextRequest): Promise<Response> {
     const sourceName: string = body.source;
     if (!sourceName)
       return NextResponse.json({ error: "No source filename provided" }, { status: 400 });
+    if (typeof sourceName !== "string")
+      return NextResponse.json({ error: "Invalid source filename" }, { status: 400 });
 
     const videosDir = getVideosDir();
-    const sourcePath = path.join(videosDir, sourceName);
+    const sourcePath = resolveInsideDir(videosDir, sourceName);
+    if (!sourcePath)
+      return NextResponse.json({ error: "Invalid source filename" }, { status: 400 });
     if (!fs.existsSync(sourcePath))
       return NextResponse.json({ error: "Source video not found" }, { status: 404 });
 
     const ext = path.extname(sourceName);
-    const baseName = path.basename(sourceName, ext);
+    const baseName = sanitizeFileStem(path.basename(sourceName, ext), "video");
     const mp4Name = `${baseName}_720p.mp4`;
     const mp4Path = path.join(videosDir, mp4Name);
 
