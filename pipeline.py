@@ -13,7 +13,7 @@ manifest's annotations to form the training dataset.
 Usage:
     python pipeline.py --input-dir raw_videos --clip-duration 30
 """
-import os, sys, json, argparse, random
+import os, sys, json, argparse
 from pathlib import Path
 
 try:
@@ -83,7 +83,7 @@ def process_pipeline():
             event_count += 1
             end = start + clip_dur
 
-            event_info = random.choice(event_templates)
+            event_info = event_templates[(event_count - 1) % len(event_templates)]
             event_type, event_desc = event_info["type"], event_info["description"]
 
             ann_start = start + pre_context
@@ -170,6 +170,7 @@ def process_pipeline():
                           if c["match_id"] == match_id])
         print(f"Finished {match_id}: {clip_count} segments.")
 
+    os.makedirs("data", exist_ok=True)
     output_file = os.path.join("data", "clip_manifest.json")
     with open(output_file, "w") as f:
         json.dump(manifest_clips, f, indent=2)
