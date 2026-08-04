@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
 import path from "path";
-import { getExportsDir } from "@/lib/server-utils";
+import { atomicWriteText, getExportsDir, sanitizeFileStem } from "@/lib/server-utils";
+import { validateAnnotationSession } from "@/lib/annotation-validation";
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,13 +9,33 @@ export async function POST(request: NextRequest) {
     const anns = body.annotations || [];
     const teamConfig = body.team_config;
     if (anns.length === 0) return NextResponse.json({ error: "No annotations to export" }, { status: 400 });
+    const report = validateAnnotationSession(anns);
+    if (!report.ok) {
+      return NextResponse.json(
+        {
+          error: "CSV export validation failed",
+          gate_failures: report.errors.map((entry) => entry.message),
+          warnings: report.warnings.map((entry) => entry.message),
+          report,
+        },
+        { status: 422 },
+      );
+    }
 
-    const matchId = anns[0].match_id || "unknown";
+    const matchId = sanitizeFileStem(anns[0].match_id || "unknown");
     const fileName = `TACTIC_FP_Annotated_${matchId}.csv`;
     const filePath = path.join(getExportsDir(), fileName);
 
     const headers = ["clip_id","match_id","match_name","half","window_idx","video_path","seek_start_sec","label_start_sec","label_end_sec","seek_end_sec","team_a_id","team_a_name","team_a_jersey_color","team_a_intent","team_a_confidence","team_a_possession","team_b_id","team_b_name","team_b_jersey_color","team_b_intent","team_b_confidence","team_b_possession","exclusion","flagged_review","skipped","annotated_at"];
-    const toCsvVal = (val: any): string => { if (val == null) return ""; if (typeof val === "boolean") return val ? "true" : "false"; const s = String(val); return s.includes(",") || s.includes('"') || s.includes("\n") ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const toCsvVal = (val: any): string => {
+      if (val == null) return "";
+      if (typeof val === "boolean") return val ? "true" : "false";
+      const unsafe = String(val);
+      const s = /^[=+\-@]/.test(unsafe) ? `'${unsafe}` : unsafe;
+      return s.includes(",") || s.includes('"') || s.includes("\n")
+        ? '"' + s.replace(/"/g, '""') + '"'
+        : s;
+    };
 
     const flatten = (ann: any) => ({
       clip_id: ann.clip_id,
@@ -46,7 +66,7 @@ export async function POST(request: NextRequest) {
       annotated_at: ann.agreement?.annotated_at,
     });
     const rows = [headers.join(","), ...anns.map((ann: any) => { const row = flatten(ann); return headers.map((h) => toCsvVal((row as any)[h])).join(","); })];
-    fs.writeFileSync(filePath, rows.join("\r\n"));
+    atomicWriteText(filePath, rows.join("\r\n"));
 
     return NextResponse.json({ success: true, fileName });
   } catch (error: any) { return NextResponse.json({ error: "Failed to export CSV", detail: error.message }, { status: 500 }); }
