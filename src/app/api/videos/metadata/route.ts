@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { execFileSync } from "child_process";
-import path from "path";
 import fs from "fs";
-import { getVideosDir } from "@/lib/server-utils";
+import { getVideosDir, resolveInsideDir } from "@/lib/server-utils";
 
 // GET /api/videos/metadata?path=raw_videos/match.mp4
 // Returns { durationSec, width, height, fps } for any video in raw_videos/.
@@ -15,7 +14,9 @@ export async function GET(request: NextRequest): Promise<Response> {
     const videosDir = getVideosDir();
     // Strip leading "raw_videos/" if the client sends the full path
     const filename = relativePath.replace(/^raw_videos\//i, "");
-    const videoPath = path.join(videosDir, filename);
+    const videoPath = resolveInsideDir(videosDir, filename);
+    if (!videoPath)
+      return NextResponse.json({ error: "Invalid video path" }, { status: 400 });
 
     if (!fs.existsSync(videoPath))
       return NextResponse.json({ error: "Video not found" }, { status: 404 });
