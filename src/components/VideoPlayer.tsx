@@ -12,6 +12,7 @@ import {
   FolderOpen,
 } from "lucide-react";
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import type { Clip, AnnotatorState } from "@/lib/constants";
 import { formatMatchClock, formatSec } from "@/lib/utils";
 import { getIntentGroupHex } from "@/lib/constants";
@@ -145,6 +146,10 @@ export default function VideoPlayer(props: Props) {
   const macroBarRef = useRef<HTMLDivElement>(null);
   const zoomProgressBarRef = useRef<HTMLDivElement>(null);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
+  const [draggingEdge, setDraggingEdge] = useState<{
+    clipId: string;
+    edge: "start" | "end";
+  } | null>(null);
   const [clickFlash, setClickFlash] = useState<{
     type: "play" | "pause";
     id: number;
