@@ -65,41 +65,23 @@ export default function Header({
             {statusMessage}
           </span>
         )}
-        {/* ─── Dev Portfolio — Premium Animated Badge ─── */}
+        {/* ─── Dev Portfolio — Next-Gen Glowing Rainbow Glass Badge ─── */}
         <motion.a
-          whileHover={{ scale: 1.08, y: -2 }}
-          whileTap={{ scale: 0.95 }}
           href="https://shafayatsaad.vercel.app/"
           target="_blank"
           rel="noopener noreferrer"
-          className="relative group flex items-center gap-2 px-4 py-1.5 rounded-xl overflow-hidden portfolio-glow cursor-pointer"
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.2), rgba(217,70,239,0.15))",
-            border: "1px solid rgba(139,92,246,0.4)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-          }}
+          className="portfolio-border-glow group flex items-center gap-2 px-3.5 py-1.5 cursor-pointer text-white no-underline"
         >
-          {/* Shimmer overlay */}
-          <span
-            className="absolute inset-0 portfolio-shimmer rounded-xl pointer-events-none"
-            aria-hidden="true"
-          />
-          {/* Gradient border glow on hover */}
-          <span
-            className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.12), rgba(217,70,239,0.08))",
-            }}
-            aria-hidden="true"
-          />
-          <Sparkles className="w-3.5 h-3.5 text-violet-300 relative z-10" />
-          <span className="text-[10px] font-bold text-white uppercase tracking-widest relative z-10">
+          {/* Pulsing indicator dot */}
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-400"></span>
+          </span>
+          <Sparkles className="w-3.5 h-3.5 text-purple-300 group-hover:rotate-12 transition-transform duration-300" />
+          <span className="text-[10px] font-extrabold uppercase tracking-widest bg-gradient-to-r from-white via-slate-100 to-purple-200 bg-clip-text text-transparent">
             Dev Portfolio
           </span>
-          <ArrowRight className="w-3 h-3 text-violet-300 group-hover:translate-x-0.5 transition-transform relative z-10" />
+          <ArrowRight className="w-3 h-3 text-purple-300 group-hover:translate-x-1 transition-transform duration-300" />
         </motion.a>
       </div>
     </header>
