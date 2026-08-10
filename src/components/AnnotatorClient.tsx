@@ -3772,19 +3772,6 @@ export default function AnnotatorClient() {
       `Split at ${formatTime(splitPoint)}. Segment 1: ${formatTime(start)}–${formatTime(splitPoint)}, Segment 2: ${formatTime(splitPoint)}–${formatTime(end)}.`,
     );
   }, [currentClip, readPlayhead]);
-
-  const handleSplitPromptContinue = useCallback(() => {
-    setShowSplitPrompt(false);
-    hasShownSplitPromptRef.current = true;
-  }, []);
-
-  // Stable video event handlers to prevent infinite re-render loops
-  const handleToggleLoop = useCallback(() => {
-    setLoopClip((prev) => !prev);
-  }, []);
-
-  const handleVideoPlay = useCallback(() => {
-    setIsPlaying(true);
   }, []);
 
   const handleVideoPause = useCallback(() => {
