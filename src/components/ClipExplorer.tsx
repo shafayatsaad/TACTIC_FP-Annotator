@@ -51,7 +51,7 @@ export default function ClipExplorer({
   onBrowseVideo,
 }: Props) {
   return (
-    <aside className="w-64 bg-black/40 border-r border-white/10 flex flex-col shrink-0" style={{ backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
+    <aside className="w-56 bg-black/40 border-r border-white/10 flex flex-col shrink-0" style={{ backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
       <div className="flex flex-col flex-1 min-h-0 p-3 border-b border-white/5">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
