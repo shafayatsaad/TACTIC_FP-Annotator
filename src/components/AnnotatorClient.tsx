@@ -271,6 +271,168 @@ export default function AnnotatorClient() {
   const [selectedIntentB, setSelectedIntentB] = useState("");
   const [isUncertain, setIsUncertain] = useState(false);
   const [autoNext, setAutoNext] = useState(true);
+
+  const exportCsv = useCallback(() => {
+    const matchId = clips[0]?.match_id ?? "unknown";
+    const exportAnnotations = annotations.map((ann) => {
+      const clip = clips.find((c) => c.clip_id === ann.clip_id);
+      return {
+        clip_id: ann.clip_id,
+        match_id: clip?.match_id,
+        start: clip?.annotation_start,
+        end: clip?.annotation_end,
+        team_a_id: ann.team_a?.team_id,
+        team_a_name: ann.team_a?.team_name || teamConfig.team_a.name,
+        team_a_jersey_color:
+          ann.team_a?.jersey_color || teamConfig.team_a.jersey_color,
+        team_a_intent: ann.team_a?.label?.intent_class,
+        team_a_confidence: ann.team_a?.label?.confidence,
+        team_a_possession: ann.team_a?.possession,
+        team_b_id: ann.team_b?.team_id,
+        team_b_name: ann.team_b?.team_name || teamConfig.team_b.name,
+        team_b_jersey_color:
+          ann.team_b?.jersey_color || teamConfig.team_b.jersey_color,
+        team_b_intent: ann.team_b?.label?.intent_class,
+        team_b_confidence: ann.team_b?.label?.confidence,
+        team_b_possession: ann.team_b?.possession,
+        exclusion: ann.exclusion,
+        flagged_review: ann.agreement?.flagged_review,
+        skipped: ann.agreement?.skipped,
+        annotated_at: ann.agreement?.annotated_at,
+      };
+    });
+
+    const headers = [
+      "clip_id",
+      "match_id",
+      "start",
+      "end",
+      "team_a_id",
+      "team_a_name",
+      "team_a_jersey_color",
+      "team_a_intent",
+      "team_a_confidence",
+      "team_a_possession",
+      "team_b_id",
+      "team_b_name",
+      "team_b_jersey_color",
+      "team_b_intent",
+      "team_b_confidence",
+      "team_b_possession",
+      "exclusion",
+      "flagged_review",
+      "skipped",
+      "annotated_at",
+    ];
+
+    const flatten = (ann: any) => ({
+      ...ann,
+    });
+    const csvVal = (val: any) =>
+      val === undefined || val === null ? "" : `"${String(val).replace(/"/g, '""')}"`;
+    const rows = [
+      headers.join(","),
+      ...exportAnnotations.map((ann) => {
+        const row = flatten(ann);
+        return headers.map((h) => csvVal((row as any)[h])).join(",");
+      }),
+    ];
+    const blob = new Blob([rows.join("\r\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `TACTIC_FP_Annotated_${matchId}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1000);
+  }, [annotations, clips, teamConfig, activeVideoPath]);
+
+  // ─── Reset ───
+  const resetSession = useCallback(() => {
+    if (
+      !window.confirm(
+        "Reset session and clear generated annotations, segments, manifest, and exports? Raw videos, converted MP4 files, and trajectories are kept.",
+      )
+    )
+      return;
+    // Clear all client state
+    setAnnotations([]);
+    setClips([]);
+    setActiveVideoPath(null);
+    setCurrentClipIndex(0);
+    setCreatingSegment(null);
+    setSelectedIntentA("");
+    setSelectedIntentB("");
+    setConfidence(4);
+    setConfidenceA(4);
+    setConfidenceB(4);
+    setCertaintyA("high");
+    setCertaintyB("high");
+    setCoverageEstimate(95);
+    setIsMixedPhase(false);
+    setSegmentAdjustTenths(0);
+    setBreakAcknowledgedAt(0);
+    setIsUncertain(false);
+    setTeamConfig(DEFAULT_TEAM_CONFIG);
+    setMatchConfig(DEFAULT_MATCH_CONFIG);
+    setGameState(DEFAULT_GAME_STATE);
+    setManualPossession(null);
+    setVideoError("");
+    setVideoDurationSec(MATCH_DURATION_SEC);
+    setStatusMessage("Resetting generated session files...");
+    fetch(`${SERVER_URL}/annotations/reset`, { method: "POST" })
+      .then(async (res) => {
+        if (!res.ok) {
+          const text = await res.text();
+          setStatusMessage(`Reset failed: ${res.status} ${text}`);
+          return;
+        }
+        setStatusMessage("Session reset. Raw videos and trajectories kept.");
+      })
+      .catch((err) => setStatusMessage(`Reset failed: ${err.message}`));
+  }, []);
+
+  const seekBy = useCallback((deltaSec: number) => {
+    if (videoRef.current) {
+      const cur = videoRef.current.currentTime || 0;
+      const maxDur = videoDurationSec || videoRef.current.duration || 99999;
+      const nextTime = Math.max(0, Math.min(maxDur, cur + deltaSec));
+      videoRef.current.currentTime = nextTime;
+      setVideoCurrentTime(nextTime);
+    }
+  }, [videoDurationSec]);
+
+  // ─── Keyboard shortcuts ───
+  // Stable refs for handlers invoked from the global keydown listener.
+  const togglePlaybackRef = useRef(togglePlayback);
+  togglePlaybackRef.current = togglePlayback;
+  const saveAnnotationRef = useRef<() => void>(saveAnnotation);
+  saveAnnotationRef.current = saveAnnotation;
+  const handleStartSegmentCreateRef = useRef(handleStartSegmentCreate);
+  handleStartSegmentCreateRef.current = handleStartSegmentCreate;
+  const handleCancelSegmentCreateRef = useRef(() => setCreatingSegment(null));
+  const handleConfirmSegmentCreateRef = useRef(handleConfirmSegmentCreate);
+  handleConfirmSegmentCreateRef.current = handleConfirmSegmentCreate;
+  const toggleMuteRef = useRef(toggleMute);
+  toggleMuteRef.current = toggleMute;
+  const toggleFullscreenRef = useRef(toggleFullscreen);
+  toggleFullscreenRef.current = toggleFullscreen;
+  const seekByRef = useRef(seekBy);
+  seekByRef.current = seekBy;
+  const setShowHelpRef = useRef(setShowHelp);
+  setShowHelpRef.current = setShowHelp;
+  const handleSetSegmentStartRef = useRef(handleSetSegmentStart);
+  handleSetSegmentStartRef.current = handleSetSegmentStart;
+  const handleSetSegmentEndRef = useRef(handleSetSegmentEnd);
+  handleSetSegmentEndRef.current = handleSetSegmentEnd;
+  const handleToggleExclusionRef = useRef(handleToggleExclusion);
+  handleToggleExclusionRef.current = handleToggleExclusion;
+  const exclusionRef = useRef(exclusion);
+  exclusionRef.current = exclusion;
+
   const [teamConfig, setTeamConfig] = useState(DEFAULT_TEAM_CONFIG);
   const [matchConfig, setMatchConfig] =
     useState<MatchConfig>(DEFAULT_MATCH_CONFIG);
@@ -3354,24 +3516,6 @@ export default function AnnotatorClient() {
       team_a_intent: ann.team_a?.label?.intent_class,
       team_a_confidence: ann.team_a?.label?.confidence,
       team_a_possession: ann.team_a?.possession,
-      team_b_id: ann.team_b?.team_id,
-      team_b_name: ann.team_b?.team_name || teamConfig.team_b.name,
-      team_b_jersey_color:
-        ann.team_b?.jersey_color || teamConfig.team_b.jersey_color,
-      team_b_intent: ann.team_b?.label?.intent_class,
-      team_b_confidence: ann.team_b?.label?.confidence,
-      team_b_possession: ann.team_b?.possession,
-      exclusion: ann.exclusion,
-      flagged_review: ann.agreement?.flagged_review,
-      skipped: ann.agreement?.skipped,
-      annotated_at: ann.agreement?.annotated_at,
-    });
-    const rows = [
-      headers.join(","),
-      ...exportAnnotations.map((ann) => {
-        const row = flatten(ann);
-        "Reset session and clear generated annotations, segments, manifest, and exports? Raw videos, converted MP4 files, and trajectories are kept.",
-
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (
