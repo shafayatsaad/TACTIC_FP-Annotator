@@ -394,6 +394,11 @@ export interface Annotation {
     following_event?: string;
     coverage_estimate: number;
     is_mixed_phase: boolean;
+    parent_segment_id?: string;
+    split_index?: number;
+    split_count?: number;
+    split_source_start_sec?: number;
+    split_source_end_sec?: number;
   };
   reconstruction: {
     npz_path: string;
