@@ -6,6 +6,7 @@ import { execFileSync } from "child_process";
 import { atomicWriteJson, getExportsDir, sanitizeFileStem } from "@/lib/server-utils";
 import { validateAnnotationSession } from "@/lib/annotation-validation";
 import {
+  generateClipId,
   generateNpzPath,
   MODEL_FPS,
   MAX_MODEL_FRAMES,
@@ -267,7 +268,7 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
   });
 
   // Reconstruct segments
-  const segmentsList = sortedAnns.map((ann, idx) => {
+  const segmentsList = sortedAnns.map((ann) => {
     const start_sec = Number(
       ann.segment_metadata?.start_sec ?? ann.video_source?.label_start_sec ?? 0,
     );
@@ -277,6 +278,9 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
     const duration_sec = Number(
       ann.segment_metadata?.duration_sec ?? end_sec - start_sec,
     );
+    const halfNumber = Number(ann.half) || (ann.half === "2nd" ? 2 : 1);
+    const segmentId =
+      ann.clip_id || generateClipId(match_id, halfNumber, start_sec);
     const coverage_estimate = normalizeCoverage(
       ann.segment_metadata?.coverage_estimate ?? 1,
     );
@@ -291,7 +295,7 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
     // Validate trajectory file shape if it exists. Mismatch is surfaced later
     // as a blocking source-validation error; never silently change labels or
     // tensor metadata at export time.
-    const npzPath = generateNpzPath(match_id, ann.clip_id);
+    const npzPath = generateNpzPath(match_id, segmentId);
     const fullPath = getNpzFullPath(npzPath);
     if (fullPath) {
       try {
@@ -378,16 +382,15 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
       : ann.model_split?.assigned_split || "train";
 
     return {
-      segment_id:
-        ann.clip_id || `${match_id}_seg${String(idx).padStart(3, "0")}`,
-      half: Number(ann.half) || (ann.half === "2nd" ? 2 : 1),
+      segment_id: segmentId,
+      half: halfNumber,
       start_ms: quantizeMs(Math.round(start_sec * 1000)),
       end_ms: quantizeMs(Math.round(end_sec * 1000)),
       duration_ms: quantizeMs(Math.round(duration_sec * 1000)),
       time_from_kickoff_ms: quantizeMs(Math.round(start_sec * 1000)),
       coverage_estimate: Number(coverage_estimate.toFixed(3)),
       reconstruction: {
-        npz_path: generateNpzPath(match_id, ann.clip_id),
+        npz_path: generateNpzPath(match_id, segmentId),
         tensor_shape: tensorShape,
         tensor_fps: tensorFps,
         padding_mask,
