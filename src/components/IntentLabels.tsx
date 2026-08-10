@@ -49,7 +49,7 @@ export default function IntentLabels({
   const teamBColor = teamConfig.team_b.jersey_color;
 
   return (
-    <div className="shrink-0 rounded-xl p-4 glass-card">
+    <div className="shrink-0 rounded-xl p-3 glass-card overflow-visible">
       <div className="flex items-center justify-between mb-3.5">
         <div className="flex items-center gap-2">
           <div className="w-5 h-5 rounded-md bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
