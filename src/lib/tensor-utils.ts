@@ -41,8 +41,20 @@ export function generateClipId(
   startSec: number,
   suffix?: string,
 ): string {
-  const base = `${matchId}_h${half}_${Math.floor(startSec * 10)
+  const safeMatch = String(matchId || "match")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const safeHalf = Number.isFinite(Number(half))
+    ? Math.max(1, Math.trunc(Number(half)))
+    : 1;
+  const startDecisecond = Math.max(0, Math.round(Number(startSec || 0) * 10));
+  const base = `${safeMatch || "match"}_h${safeHalf}_${startDecisecond
     .toString()
     .padStart(5, "0")}`;
-  return suffix ? `${base}_${suffix}` : base;
+  const safeSuffix = suffix
+    ?.trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return safeSuffix ? `${base}_${safeSuffix}` : base;
 }
