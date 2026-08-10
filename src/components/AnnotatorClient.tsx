@@ -3846,7 +3846,7 @@ export default function AnnotatorClient() {
           onDeleteSegment={handleDeleteSegment}
           onBrowseVideo={handleBrowseVideoFile}
         />
-        <main className="flex-1 flex flex-col p-2.5 gap-2 overflow-hidden">
+        <main className="flex-1 flex flex-col p-2.5 gap-2 overflow-y-auto custom-scrollbar">
           <VideoPlayer
             videoRef={videoRef}
             videoContainerRef={videoContainerRef}
