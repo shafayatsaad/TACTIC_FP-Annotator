@@ -105,37 +105,37 @@ export default function IntentLabels({
                     <motion.button
                       key={item.id}
                       disabled={isDisabled}
-                      whileHover={!isDisabled ? { scale: 1.02, y: -1 } : undefined}
+                      whileHover={!isDisabled ? { scale: 1.03, y: -1 } : undefined}
                       whileTap={!isDisabled ? { scale: 0.97 } : undefined}
                       onClick={() => onIntentClick(item.id)}
-                      className={`relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-all cursor-pointer ${
+                      className={`relative flex items-center gap-2 px-2.5 py-2 rounded-xl text-left transition-all duration-200 cursor-pointer group ${
                         isDisabled
-                          ? "cursor-not-allowed opacity-40 glass-btn"
+                          ? "cursor-not-allowed opacity-30 bg-white/[0.01] border border-white/5"
                           : isSelected
-                            ? "glass-card shadow-[0_4px_20px_rgba(0,0,0,0.4)]"
-                            : "glass-btn hover:bg-white/[0.08]"
+                            ? "bg-slate-900/90 border shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
+                            : "bg-[#11141c]/80 hover:bg-[#181c28]/90 border border-white/8 hover:border-white/20 shadow-sm"
                       }`}
                       style={
                         isSelected
                           ? {
                               borderColor: activeTeam.jersey_color,
-                              background: `linear-gradient(90deg, ${activeTeam.jersey_color}22 0%, rgba(255,255,255,0.03) 100%)`,
-                              boxShadow: `0 0 16px ${activeTeam.jersey_color}25, inset 2px 0 0 0 ${activeTeam.jersey_color}`,
+                              background: `linear-gradient(135deg, ${activeTeam.jersey_color}25 0%, rgba(15,23,42,0.95) 100%)`,
+                              boxShadow: `0 0 20px ${activeTeam.jersey_color}30, 0 4px 12px rgba(0,0,0,0.4), inset 3px 0 0 0 ${activeTeam.jersey_color}`,
                             }
                           : {}
                       }
                       title={`${item.label} (${item.hotkey})`}
                     >
-                      {/* Physical Keycap Hotkey Badge */}
+                      {/* Hotkey Badge Pill */}
                       <span
-                        className={`keycap text-[10px] font-extrabold font-mono min-w-[20px] h-[20px] flex items-center justify-center shrink-0 ${
+                        className={`text-[10px] font-extrabold font-mono px-1.5 py-0.5 rounded-md flex items-center justify-center shrink-0 transition-colors ${
                           isSelected
-                            ? "text-white border-white/40"
-                            : "text-slate-300"
+                            ? "bg-white/20 text-white shadow-sm"
+                            : "bg-white/5 group-hover:bg-white/10 text-slate-300 border border-white/10"
                         }`}
                         style={
                           isSelected
-                            ? { backgroundColor: `${activeTeam.jersey_color}40`, borderColor: activeTeam.jersey_color }
+                            ? { backgroundColor: `${activeTeam.jersey_color}50`, color: "#fff" }
                             : {}
                         }
                       >
@@ -144,10 +144,10 @@ export default function IntentLabels({
 
                       {/* Intent Label Text */}
                       <span
-                        className={`text-[11px] truncate font-medium ${
+                        className={`text-[11px] truncate tracking-tight ${
                           isSelected
-                            ? "text-white font-bold tracking-tight"
-                            : "text-slate-300 group-hover:text-white"
+                            ? "text-white font-bold"
+                            : "text-slate-300 group-hover:text-white font-medium"
                         }`}
                       >
                         {item.label}
@@ -158,14 +158,14 @@ export default function IntentLabels({
                         <span className="ml-auto flex items-center gap-1 shrink-0">
                           {selectedByA && (
                             <span
-                              className="h-2 w-2 rounded-full ring-2 ring-black/40 shadow-[0_0_6px_currentColor]"
+                              className="h-2 w-2 rounded-full ring-2 ring-black/60 shadow-[0_0_8px_currentColor]"
                               style={{ backgroundColor: teamAColor }}
                               title={`${teamConfig.team_a.name} selected`}
                             />
                           )}
                           {selectedByB && (
                             <span
-                              className="h-2 w-2 rounded-full ring-2 ring-black/40 shadow-[0_0_6px_currentColor]"
+                              className="h-2 w-2 rounded-full ring-2 ring-black/60 shadow-[0_0_8px_currentColor]"
                               style={{ backgroundColor: teamBColor }}
                               title={`${teamConfig.team_b.name} selected`}
                             />
