@@ -42,11 +42,23 @@ export default function IntentLabels({
   gameState,
   onGameStateChange,
 }: Props) {
+  const [showSetPieceMenu, setShowSetPieceMenu] = useState(false);
   const selectedId = currentTeam === "A" ? selectedIntentA : selectedIntentB;
   const activeTeam =
     currentTeam === "A" ? teamConfig.team_a : teamConfig.team_b;
   const teamAColor = teamConfig.team_a.jersey_color;
   const teamBColor = teamConfig.team_b.jersey_color;
+
+  const handleItemClick = (groupName: string, itemId: string) => {
+    if (groupName === "SETPIECE") {
+      onGameStateChange({
+        ...gameState,
+        set_piece: true,
+        set_piece_type: gameState.set_piece_type || "corner",
+      });
+    }
+    onIntentClick(itemId);
+  };
 
   return (
     <div className="shrink-0 rounded-xl p-3 glass-card overflow-visible">
