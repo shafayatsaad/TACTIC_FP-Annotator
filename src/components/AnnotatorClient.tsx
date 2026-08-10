@@ -3790,65 +3790,6 @@ export default function AnnotatorClient() {
   const handleVideoPause = useCallback(() => {
     setIsPlaying(false);
   }, []);
-
-  const handleVideoWaiting = useCallback(() => {
-    setIsBuffering(true);
-  }, []);
-
-  const handleVideoPlaying = useCallback(() => {
-    setIsBuffering(false);
-  }, []);
-
-  const handleVideoError = useCallback(() => {
-    setIsPlaying(false);
-    const isMkv = (currentClip?.path ?? activeVideoPath)?.endsWith(".mkv");
-    setVideoError(
-      isMkv ? 'MKV not supported. Click "Convert to MP4".' : "Video load error",
-    );
-  }, [currentClip?.path, activeVideoPath]);
-
-  return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#0a0c10] text-slate-200 font-sans selection:bg-indigo-500/30">
-      <Header
-        coverageStats={coverageStats}
-        currentClip={currentClip}
-        currentClipIndex={currentClipIndex}
-        totalClips={clips.length}
-        annotatedCount={annotations.length}
-            isBuffering={isBuffering}
-            videoCurrentTime={videoCurrentTime}
-            isMuted={isMuted}
-            playbackRate={playbackRate}
-            loopClip={loopClip}
-            videoError={videoError}
-            isConverting={isConverting}
-            convertProgress={convertProgress}
-            creatingSegment={creatingSegment}
-            onTogglePlayback={togglePlayback}
-            onReplayClip={replayClip}
-            onToggleFullscreen={toggleFullscreen}
-            onProgressClick={handleProgressClick}
-            onCycleSpeed={cycleSpeed}
-            onToggleMute={toggleMute}
-            onToggleLoop={handleToggleLoop}
-            onVideoPlay={handleVideoPlay}
-            onVideoPause={handleVideoPause}
-            onVideoWaiting={handleVideoWaiting}
-            onVideoPlaying={handleVideoPlaying}
-            onVideoError={handleVideoError}
-            onConvertVideo={handleConvertVideo}
-            onLoadVideoDirect={handleLoadVideoDirect}
-            onBoundaryNudge={handleBoundaryNudge}
-            onStartSegmentCreate={handleStartSegmentCreate}
-            onUpdateSegmentDraft={handleUpdateSegmentDraft}
-            onCancelSegmentCreate={handleCancelSegmentCreate}
-            onConfirmSegmentCreate={handleConfirmSegmentCreate}
-            onHelp={() => setShowHelp(true)}
-            getAnnotatorState={getAnnotatorState}
-            formatTime={formatTime}
-            setVideoError={setVideoError}
-            onSetSegmentStart={handleSetSegmentStart}
-            onSetSegmentEnd={handleSetSegmentEnd}
             annotations={annotations}
             onAddNextSegment={handleAddNextSegment}
             onTimeUpdate={handleTimeUpdate}
