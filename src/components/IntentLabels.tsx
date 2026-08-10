@@ -332,7 +332,7 @@ export default function IntentLabels({
             whileHover={{ scale: 1.02, y: -1 }}
             whileTap={{ scale: 0.98 }}
             onClick={onSubmit}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-[11px] font-bold uppercase tracking-wider text-white transition-all cursor-pointer"
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider text-white transition-all cursor-pointer"
             style={{
               backgroundColor: activeTeam.jersey_color,
               boxShadow: `0 4px 20px ${activeTeam.jersey_color}35, 0 0 35px ${activeTeam.jersey_color}15`,
