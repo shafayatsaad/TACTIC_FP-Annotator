@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     const fileName = `TACTIC_FP_Annotated_${matchId}.csv`;
     const filePath = path.join(getExportsDir(), fileName);
 
-    const headers = ["clip_id","match_id","match_name","half","window_idx","video_path","seek_start_sec","label_start_sec","label_end_sec","seek_end_sec","team_a_id","team_a_name","team_a_jersey_color","team_a_intent","team_a_confidence","team_a_possession","team_b_id","team_b_name","team_b_jersey_color","team_b_intent","team_b_confidence","team_b_possession","exclusion","flagged_review","skipped","annotated_at"];
+    const headers = ["clip_id","match_id","match_name","half","window_idx","parent_segment_id","split_index","split_count","split_source_start_sec","split_source_end_sec","video_path","seek_start_sec","label_start_sec","label_end_sec","seek_end_sec","team_a_id","team_a_name","team_a_jersey_color","team_a_intent","team_a_confidence","team_a_possession","team_b_id","team_b_name","team_b_jersey_color","team_b_intent","team_b_confidence","team_b_possession","exclusion","flagged_review","skipped","annotated_at"];
     const toCsvVal = (val: any): string => {
       if (val == null) return "";
       if (typeof val === "boolean") return val ? "true" : "false";
@@ -43,6 +43,11 @@ export async function POST(request: NextRequest) {
       match_name: ann.match_name,
       half: ann.half,
       window_idx: ann.window_idx,
+      parent_segment_id: ann.segment_metadata?.parent_segment_id,
+      split_index: ann.segment_metadata?.split_index,
+      split_count: ann.segment_metadata?.split_count,
+      split_source_start_sec: ann.segment_metadata?.split_source_start_sec,
+      split_source_end_sec: ann.segment_metadata?.split_source_end_sec,
       video_path: ann.video_source?.video_path,
       seek_start_sec: ann.video_source?.seek_start_sec,
       label_start_sec: ann.video_source?.label_start_sec,
