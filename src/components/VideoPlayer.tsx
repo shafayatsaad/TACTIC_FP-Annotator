@@ -155,6 +155,17 @@ export default function VideoPlayer(props: Props) {
     id: number;
   } | null>(null);
 
+  // Debounced buffering indicator to prevent spinner flashes during fast key seeking
+  const [showBufferSpinner, setShowBufferSpinner] = useState(false);
+  useEffect(() => {
+    if (!isBuffering) {
+      setShowBufferSpinner(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowBufferSpinner(true), 300);
+    return () => clearTimeout(timer);
+  }, [isBuffering]);
+
   const handleScreenClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setClickFlash({ type: isPlaying ? "pause" : "play", id: Date.now() });
@@ -435,7 +446,7 @@ export default function VideoPlayer(props: Props) {
               ref={videoRef}
               className="w-full h-full object-contain cursor-pointer"
               controls={false}
-              preload="metadata"
+              preload="auto"
               playsInline
               controlsList="nodownload noremoteplayback"
               disablePictureInPicture
@@ -476,7 +487,7 @@ export default function VideoPlayer(props: Props) {
                 </div>
               </div>
             )}
-            {isBuffering && isPlaying && (
+            {showBufferSpinner && isPlaying && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="w-12 h-12 rounded-full border-[3px] border-white/15 border-t-white/80 animate-spin" />
               </div>
