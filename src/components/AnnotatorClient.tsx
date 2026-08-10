@@ -3815,20 +3815,6 @@ export default function AnnotatorClient() {
         currentClipIndex={currentClipIndex}
         totalClips={clips.length}
         annotatedCount={annotations.length}
-        isGenerating={isGenerating}
-        statusMessage={statusMessage}
-        onLoadManifest={handleLoadManifest}
-        onGenerateManifest={handleGenerateManifest}
-        onLoadVideoDirect={handleLoadVideoDirect}
-      />
-
-          formatTime={formatTime}
-          formatMatchClock={formatMatchClock}
-            clips={clips}
-            currentClipIndex={currentClipIndex}
-            matchDurationSec={videoDurationSec}
-            isLoading={isLoading}
-            isPlaying={isPlaying}
             isBuffering={isBuffering}
             videoCurrentTime={videoCurrentTime}
             isMuted={isMuted}
