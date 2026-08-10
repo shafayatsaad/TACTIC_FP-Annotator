@@ -1,7 +1,8 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { Target, ArrowRight, Video, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Target, ExternalLink, Video, Code2 } from "lucide-react";
 import type { Clip } from "@/lib/constants";
 import CoverageMeter, { type CoverageStats } from "./CoverageMeter";
 
@@ -27,6 +28,8 @@ export default function Header({
   statusMessage,
   onLoadVideoDirect,
 }: HeaderProps) {
+  const [isHovered, setIsHovered] = useState(false);
+
   return (
     <header className="h-14 px-4 flex items-center justify-between shrink-0 border-b border-white/10 relative z-10 bg-[#0a0c10]/95 backdrop-blur-md">
       <div className="flex items-center gap-3">
@@ -50,7 +53,7 @@ export default function Header({
             </span>
           </div>
         )}
-        {/* Load Video — glass emerald pill */}
+        {/* Load Video */}
         <motion.button
           whileHover={{ scale: 1.05, y: -1 }}
           whileTap={{ scale: 0.95 }}
@@ -66,37 +69,77 @@ export default function Header({
           </span>
         )}
 
-        {/* ─── Dev Portfolio — Showstopping High-Contrast Shimmer Button ─── */}
+        {/* ─── Dev Portfolio — Premium Floating Card Button ─── */}
         <motion.a
-          whileHover={{ scale: 1.05, y: -1 }}
-          whileTap={{ scale: 0.95 }}
           href="https://shafayatsaad.vercel.app/"
           target="_blank"
           rel="noopener noreferrer"
-          className="relative inline-flex items-center gap-2.5 h-9 px-4 rounded-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 border border-white/30 shadow-[0_0_20px_rgba(168,85,247,0.5),0_0_40px_rgba(236,72,153,0.3)] hover:shadow-[0_0_30px_rgba(168,85,247,0.85),0_0_50px_rgba(236,72,153,0.55)] transition-all duration-300 group overflow-hidden cursor-pointer no-underline"
+          onHoverStart={() => setIsHovered(true)}
+          onHoverEnd={() => setIsHovered(false)}
+          whileHover={{ y: -3 }}
+          whileTap={{ scale: 0.97 }}
+          className="relative flex items-center gap-2 h-8 px-3.5 rounded-lg cursor-pointer no-underline overflow-hidden"
+          style={{
+            background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4c1d95 100%)",
+            border: "1px solid rgba(139, 92, 246, 0.5)",
+            boxShadow: isHovered
+              ? "0 8px 32px rgba(139, 92, 246, 0.5), 0 0 0 1px rgba(139, 92, 246, 0.3), inset 0 1px 0 rgba(255,255,255,0.15)"
+              : "0 4px 16px rgba(139, 92, 246, 0.25), inset 0 1px 0 rgba(255,255,255,0.1)",
+            transition: "box-shadow 0.3s ease, border-color 0.3s ease",
+            borderColor: isHovered ? "rgba(167, 139, 250, 0.7)" : "rgba(139, 92, 246, 0.5)",
+          }}
         >
-          {/* Continuous High-Brightness Shimmer Light Sweep */}
-          <span className="absolute inset-0 rounded-full overflow-hidden pointer-events-none">
-            <span className="absolute -top-1/2 -bottom-1/2 left-0 shimmer-bright pointer-events-none" />
-          </span>
-
-          {/* Glossy Top Rim Reflection */}
-          <span className="absolute top-0 left-3 right-3 h-[1px] bg-gradient-to-r from-transparent via-white/60 to-transparent pointer-events-none" />
-
-          {/* Left Sparkles Icon in translucent white glass badge */}
-          <div className="flex items-center justify-center w-5 h-5 rounded-full bg-white/20 border border-white/30 text-amber-200 shadow-inner shrink-0 group-hover:rotate-12 transition-transform duration-300">
-            <Sparkles className="w-3 h-3 fill-amber-200 text-amber-200" />
+          {/* Animated shimmer sweep */}
+          <div className="absolute inset-0 overflow-hidden rounded-lg pointer-events-none">
+            <motion.div
+              className="absolute -top-1/2 -bottom-1/2 w-[60%]"
+              style={{
+                background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), rgba(255,255,255,0.5), rgba(255,255,255,0.2), transparent)",
+                transform: "rotate(25deg)",
+              }}
+              animate={{
+                x: ["-150%", "350%"],
+              }}
+              transition={{
+                duration: 2.5,
+                repeat: Infinity,
+                ease: "easeInOut",
+                repeatDelay: 1,
+              }}
+            />
           </div>
 
-          {/* High-Contrast Bold White Text */}
-          <span className="font-extrabold text-[11px] uppercase tracking-wider text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+          {/* Top glass highlight */}
+          <span className="absolute top-0 left-2 right-2 h-[1px] bg-gradient-to-r from-transparent via-violet-300/50 to-transparent pointer-events-none" />
+
+          {/* Code icon */}
+          <motion.div
+            animate={isHovered ? { rotate: [0, -10, 10, 0] } : { rotate: 0 }}
+            transition={{ duration: 0.5 }}
+            className="flex items-center justify-center w-5 h-5 rounded-md bg-violet-500/30 border border-violet-400/40 shrink-0"
+          >
+            <Code2 className="w-3 h-3 text-violet-200" />
+          </motion.div>
+
+          {/* Text */}
+          <span className="text-[11px] font-bold tracking-wide text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)] whitespace-nowrap">
             Dev Portfolio
           </span>
 
-          {/* Crisp White Circle Badge with Arrow */}
-          <div className="flex items-center justify-center w-5 h-5 rounded-full bg-white text-purple-700 shadow-md group-hover:translate-x-1 transition-transform duration-300 shrink-0">
-            <ArrowRight className="w-3 h-3 stroke-[2.5]" />
-          </div>
+          {/* External link icon */}
+          <AnimatePresence>
+            {isHovered && (
+              <motion.div
+                initial={{ opacity: 0, x: -4, width: 0 }}
+                animate={{ opacity: 1, x: 0, width: "auto" }}
+                exit={{ opacity: 0, x: -4, width: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <ExternalLink className="w-3 h-3 text-violet-200" />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.a>
       </div>
     </header>
