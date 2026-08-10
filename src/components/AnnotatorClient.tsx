@@ -3822,36 +3822,8 @@ export default function AnnotatorClient() {
         onLoadVideoDirect={handleLoadVideoDirect}
       />
 
-      <div className="flex-1 flex overflow-hidden">
-        <ClipExplorer
-          clips={clips}
-          filteredClips={filteredClips}
-          currentClipIndex={currentClipIndex}
-          annotations={annotations}
-          clipFilter={clipFilter}
-          clipSearch={clipSearch}
-          clipListRef={clipListRef}
-          isLoading={isLoading}
-          onClipFilterChange={setClipFilter}
-          onClipSearchChange={setClipSearch}
-          onClipSelect={setCurrentClipIndex}
-          onLoadManifest={handleLoadManifest}
-          onLoadVideoDirect={handleLoadVideoDirect}
-          onGenerateManifest={handleGenerateManifest}
-          isGenerating={isGenerating}
           formatTime={formatTime}
           formatMatchClock={formatMatchClock}
-          hasAnnotated={hasAnnotated}
-          recentlyCreatedClipId={recentlyCreatedClipId}
-          onDeleteSegment={handleDeleteSegment}
-          onBrowseVideo={handleBrowseVideoFile}
-        />
-        <main className="flex-1 flex flex-col p-4 overflow-hidden">
-           <VideoPlayer
-            videoRef={videoRef}
-            videoContainerRef={videoContainerRef}
-            currentClip={currentClip}
-            videoPath={currentClip ? currentClip.path : activeVideoPath}
             clips={clips}
             currentClipIndex={currentClipIndex}
             matchDurationSec={videoDurationSec}
