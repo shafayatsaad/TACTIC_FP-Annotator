@@ -41,7 +41,161 @@
 }
 
 @layer utilities {
-  /* One-shot glow for newly created segments */
+  /* ─── Glassmorphism base ─── */
+  .glass-btn {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    transition: all 0.2s ease;
+  }
+  .glass-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow:
+      0 4px 16px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+
+  /* Color-tinted glass variants */
+  .glass-btn-emerald {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    box-shadow:
+      0 2px 12px rgba(16, 185, 129, 0.12),
+      inset 0 1px 0 rgba(16, 185, 129, 0.1);
+    transition: all 0.25s ease;
+  }
+  .glass-btn-emerald:hover {
+    background: rgba(16, 185, 129, 0.18);
+    border-color: rgba(16, 185, 129, 0.4);
+    box-shadow:
+      0 4px 20px rgba(16, 185, 129, 0.2),
+      inset 0 1px 0 rgba(16, 185, 129, 0.15);
+  }
+
+  .glass-btn-indigo {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    box-shadow:
+      0 2px 12px rgba(99, 102, 241, 0.12),
+      inset 0 1px 0 rgba(99, 102, 241, 0.1);
+    transition: all 0.25s ease;
+  }
+  .glass-btn-indigo:hover {
+    background: rgba(99, 102, 241, 0.18);
+    border-color: rgba(99, 102, 241, 0.4);
+    box-shadow:
+      0 4px 20px rgba(99, 102, 241, 0.2),
+      inset 0 1px 0 rgba(99, 102, 241, 0.15);
+  }
+
+  .glass-btn-rose {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: rgba(244, 63, 94, 0.08);
+    border: 1px solid rgba(244, 63, 94, 0.2);
+    box-shadow:
+      0 2px 12px rgba(244, 63, 94, 0.1),
+      inset 0 1px 0 rgba(244, 63, 94, 0.08);
+    transition: all 0.25s ease;
+  }
+  .glass-btn-rose:hover {
+    background: rgba(244, 63, 94, 0.15);
+    border-color: rgba(244, 63, 94, 0.35);
+    box-shadow:
+      0 4px 20px rgba(244, 63, 94, 0.18),
+      inset 0 1px 0 rgba(244, 63, 94, 0.12);
+  }
+
+  .glass-btn-amber {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    box-shadow:
+      0 2px 12px rgba(245, 158, 11, 0.1),
+      inset 0 1px 0 rgba(245, 158, 11, 0.08);
+    transition: all 0.25s ease;
+  }
+  .glass-btn-amber:hover {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.35);
+    box-shadow:
+      0 4px 20px rgba(245, 158, 11, 0.18),
+      inset 0 1px 0 rgba(245, 158, 11, 0.12);
+  }
+
+  /* Glass card for sidebar sections */
+  .glass-card {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+      0 2px 16px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    border-radius: 0.75rem;
+  }
+
+  /* Glass pill for status messages */
+  .glass-pill {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    box-shadow: 0 1px 8px rgba(16, 185, 129, 0.1);
+  }
+
+  /* ─── Dev Portfolio shimmer ─── */
+  @keyframes shimmer {
+    0% {
+      background-position: -200% center;
+    }
+    100% {
+      background-position: 200% center;
+    }
+  }
+  .portfolio-shimmer {
+    background: linear-gradient(
+      110deg,
+      transparent 20%,
+      rgba(255, 255, 255, 0.12) 40%,
+      rgba(255, 255, 255, 0.2) 50%,
+      rgba(255, 255, 255, 0.12) 60%,
+      transparent 80%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 3s ease-in-out infinite;
+  }
+
+  @keyframes portfolio-glow {
+    0%,
+    100% {
+      box-shadow:
+        0 0 12px rgba(139, 92, 246, 0.3),
+        0 0 30px rgba(139, 92, 246, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+    50% {
+      box-shadow:
+        0 0 20px rgba(139, 92, 246, 0.5),
+        0 0 50px rgba(139, 92, 246, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+  }
+  .portfolio-glow {
+    animation: portfolio-glow 2.5s ease-in-out infinite;
+  }
+
+  /* ─── One-shot glow for newly created segments ─── */
   @keyframes clip-pulse {
     0% {
       box-shadow:
