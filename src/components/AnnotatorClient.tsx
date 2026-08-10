@@ -3772,6 +3772,128 @@ export default function AnnotatorClient() {
       `Split at ${formatTime(splitPoint)}. Segment 1: ${formatTime(start)}–${formatTime(splitPoint)}, Segment 2: ${formatTime(splitPoint)}–${formatTime(end)}.`,
     );
   }, [currentClip, readPlayhead]);
+
+  const handleSplitPromptContinue = useCallback(() => {
+    setShowSplitPrompt(false);
+    hasShownSplitPromptRef.current = true;
+  }, []);
+
+  // Stable video event handlers to prevent infinite re-render loops
+  const handleToggleLoop = useCallback(() => {
+    setLoopClip((prev) => !prev);
+  }, []);
+
+  const handleVideoPlay = useCallback(() => {
+    setIsPlaying(true);
+  }, []);
+
+  const handleVideoPause = useCallback(() => {
+    setIsPlaying(false);
+  }, []);
+
+  const handleVideoWaiting = useCallback(() => {
+    setIsBuffering(true);
+  }, []);
+
+  const handleVideoPlaying = useCallback(() => {
+    setIsBuffering(false);
+  }, []);
+
+  const handleVideoError = useCallback(() => {
+    setIsPlaying(false);
+    const isMkv = (currentClip?.path ?? activeVideoPath)?.endsWith(".mkv");
+    setVideoError(
+      isMkv ? 'MKV not supported. Click "Convert to MP4".' : "Video load error",
+    );
+  }, [currentClip?.path, activeVideoPath]);
+
+  return (
+    <div className="flex h-screen flex-col overflow-hidden bg-[#0a0c10] text-slate-200 font-sans selection:bg-indigo-500/30">
+      <Header
+        coverageStats={coverageStats}
+        currentClip={currentClip}
+        currentClipIndex={currentClipIndex}
+        totalClips={clips.length}
+        annotatedCount={annotations.length}
+        isGenerating={isGenerating}
+        statusMessage={statusMessage}
+        onLoadManifest={handleLoadManifest}
+        onGenerateManifest={handleGenerateManifest}
+        onLoadVideoDirect={handleLoadVideoDirect}
+      />
+
+      <div className="flex-1 flex overflow-hidden">
+        <ClipExplorer
+          clips={clips}
+          filteredClips={filteredClips}
+          currentClipIndex={currentClipIndex}
+          annotations={annotations}
+          clipFilter={clipFilter}
+          clipSearch={clipSearch}
+          clipListRef={clipListRef}
+          isLoading={isLoading}
+          onClipFilterChange={setClipFilter}
+          onClipSearchChange={setClipSearch}
+          onClipSelect={setCurrentClipIndex}
+          onLoadManifest={handleLoadManifest}
+          onLoadVideoDirect={handleLoadVideoDirect}
+          onGenerateManifest={handleGenerateManifest}
+          isGenerating={isGenerating}
+          formatTime={formatTime}
+          formatMatchClock={formatMatchClock}
+          hasAnnotated={hasAnnotated}
+          recentlyCreatedClipId={recentlyCreatedClipId}
+          onDeleteSegment={handleDeleteSegment}
+          onBrowseVideo={handleBrowseVideoFile}
+        />
+        <main className="flex-1 flex flex-col p-2.5 gap-2 overflow-hidden">
+          <VideoPlayer
+            videoRef={videoRef}
+            videoContainerRef={videoContainerRef}
+            currentClip={currentClip}
+            videoPath={currentClip ? currentClip.path : activeVideoPath}
+            clips={clips}
+            currentClipIndex={currentClipIndex}
+            matchDurationSec={videoDurationSec}
+            isLoading={isLoading}
+            isPlaying={isPlaying}
+            isBuffering={isBuffering}
+            videoCurrentTime={videoCurrentTime}
+            isMuted={isMuted}
+            playbackRate={playbackRate}
+            loopClip={loopClip}
+            videoError={videoError}
+            isConverting={isConverting}
+            convertProgress={convertProgress}
+            creatingSegment={creatingSegment}
+            onTogglePlayback={togglePlayback}
+            onReplayClip={replayClip}
+            onToggleFullscreen={toggleFullscreen}
+            onProgressClick={handleProgressClick}
+            onCycleSpeed={cycleSpeed}
+            onToggleMute={toggleMute}
+            onToggleLoop={handleToggleLoop}
+            onVideoPlay={handleVideoPlay}
+            onVideoPause={handleVideoPause}
+            onVideoWaiting={handleVideoWaiting}
+            onVideoPlaying={handleVideoPlaying}
+            onVideoError={handleVideoError}
+            onConvertVideo={handleConvertVideo}
+            onLoadVideoDirect={handleLoadVideoDirect}
+            onBoundaryNudge={handleBoundaryNudge}
+            onStartSegmentCreate={handleStartSegmentCreate}
+            onUpdateSegmentDraft={handleUpdateSegmentDraft}
+            onCancelSegmentCreate={handleCancelSegmentCreate}
+            onConfirmSegmentCreate={handleConfirmSegmentCreate}
+            onHelp={() => setShowHelp(true)}
+            getAnnotatorState={getAnnotatorState}
+            formatTime={formatTime}
+            setVideoError={setVideoError}
+            onSetSegmentStart={handleSetSegmentStart}
+            onSetSegmentEnd={handleSetSegmentEnd}
+            annotations={annotations}
+            onAddNextSegment={handleAddNextSegment}
+            onTimeUpdate={handleTimeUpdate}
           />
           <IntentLabels
             currentTeam={currentTeam}
