@@ -317,37 +317,6 @@ export default function IntentLabels({
           </span>
         </span>
       </div>
-
-      {/* Submit button */}
-      {onSubmit && (
-        <div
-          className="mt-3 pt-3 border-t border-white/10 flex items-center gap-3 sticky bottom-0"
-          style={{
-            backdropFilter: "blur(12px)",
-            WebkitBackdropFilter: "blur(12px)",
-            background: "rgba(10, 12, 16, 0.6)",
-          }}
-        >
-          <motion.button
-            whileHover={{ scale: 1.02, y: -1 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={onSubmit}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider text-white transition-all cursor-pointer"
-            style={{
-              backgroundColor: activeTeam.jersey_color,
-              boxShadow: `0 4px 20px ${activeTeam.jersey_color}35, 0 0 35px ${activeTeam.jersey_color}15`,
-              border: `1px solid ${activeTeam.jersey_color}70`,
-            }}
-            title="Submit annotation (Enter)"
-          >
-            <Check className="w-3.5 h-3.5" />
-            Submit Annotation ({currentTeam})
-            <kbd className="ml-1.5 bg-black/40 px-1.5 py-0.5 rounded text-[9px] font-mono text-white/90">
-              Enter
-            </kbd>
-          </motion.button>
-        </div>
-      )}
     </div>
   );
 }
