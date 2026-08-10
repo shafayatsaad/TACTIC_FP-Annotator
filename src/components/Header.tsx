@@ -28,7 +28,7 @@ export default function Header({
   onLoadVideoDirect,
 }: HeaderProps) {
   return (
-    <header className="h-14 px-4 flex items-center justify-between shrink-0 border-b border-white/10 relative z-10 bg-[#0a0c10]/90 backdrop-blur-md">
+    <header className="h-14 px-4 flex items-center justify-between shrink-0 border-b border-white/10 relative z-10 bg-[#0a0c10]/95 backdrop-blur-md">
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-600/20">
           <Target className="w-5 h-5 text-white" />
@@ -55,7 +55,7 @@ export default function Header({
           whileHover={{ scale: 1.05, y: -1 }}
           whileTap={{ scale: 0.95 }}
           onClick={onLoadVideoDirect}
-          className="flex items-center gap-1.5 glass-btn-emerald px-3 py-1.5 rounded-full text-[10px] font-bold text-emerald-300 uppercase tracking-wider cursor-pointer"
+          className="flex items-center gap-1.5 glass-btn-emerald px-3.5 py-1.5 rounded-full text-[10px] font-bold text-emerald-300 uppercase tracking-wider cursor-pointer"
         >
           <Video className="w-3.5 h-3.5" /> Load Video
         </motion.button>
@@ -66,35 +66,37 @@ export default function Header({
           </span>
         )}
 
-        {/* ─── Dev Portfolio — Premium Radiant Shimmer Button ─── */}
+        {/* ─── Dev Portfolio — Showstopping High-Contrast Shimmer Button ─── */}
         <motion.a
-          whileHover={{ scale: 1.06, y: -1 }}
+          whileHover={{ scale: 1.05, y: -1 }}
           whileTap={{ scale: 0.95 }}
           href="https://shafayatsaad.vercel.app/"
           target="_blank"
           rel="noopener noreferrer"
-          className="relative inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-[#0d0f17] border border-violet-500/40 hover:border-violet-400/80 shadow-[0_0_20px_rgba(139,92,246,0.35),0_0_40px_rgba(59,130,246,0.15)] hover:shadow-[0_0_30px_rgba(139,92,246,0.65),0_0_50px_rgba(236,72,153,0.3)] transition-all duration-300 backdrop-blur-xl group overflow-hidden cursor-pointer no-underline"
+          className="relative inline-flex items-center gap-2.5 h-9 px-4 rounded-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 border border-white/30 shadow-[0_0_20px_rgba(168,85,247,0.5),0_0_40px_rgba(236,72,153,0.3)] hover:shadow-[0_0_30px_rgba(168,85,247,0.85),0_0_50px_rgba(236,72,153,0.55)] transition-all duration-300 group overflow-hidden cursor-pointer no-underline"
         >
-          {/* Continuous Shimmer Light Sweep Beam */}
+          {/* Continuous High-Brightness Shimmer Light Sweep */}
           <span className="absolute inset-0 rounded-full overflow-hidden pointer-events-none">
-            <span className="absolute -top-1/2 -bottom-1/2 left-0 shimmer-beam pointer-events-none" />
+            <span className="absolute -top-1/2 -bottom-1/2 left-0 shimmer-bright pointer-events-none" />
           </span>
 
-          {/* Inner Glossy Top Rim */}
-          <span className="absolute top-0 left-3 right-3 h-[1px] bg-gradient-to-r from-transparent via-white/40 to-transparent pointer-events-none" />
+          {/* Glossy Top Rim Reflection */}
+          <span className="absolute top-0 left-3 right-3 h-[1px] bg-gradient-to-r from-transparent via-white/60 to-transparent pointer-events-none" />
 
-          {/* Left Sparkles Icon in glowing violet badge */}
-          <div className="relative flex items-center justify-center w-5 h-5 rounded-full bg-gradient-to-tr from-violet-600 to-indigo-500 text-white shadow-[0_0_10px_rgba(139,92,246,0.6)] shrink-0">
-            <Sparkles className="w-3 h-3 text-amber-200 fill-amber-200 animate-pulse" />
+          {/* Left Sparkles Icon in translucent white glass badge */}
+          <div className="flex items-center justify-center w-5 h-5 rounded-full bg-white/20 border border-white/30 text-amber-200 shadow-inner shrink-0 group-hover:rotate-12 transition-transform duration-300">
+            <Sparkles className="w-3 h-3 fill-amber-200 text-amber-200" />
           </div>
 
-          {/* Text Label */}
-          <span className="font-bold text-[11px] tracking-wide bg-gradient-to-r from-white via-violet-100 to-sky-200 bg-clip-text text-transparent">
+          {/* High-Contrast Bold White Text */}
+          <span className="font-extrabold text-[11px] uppercase tracking-wider text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
             Dev Portfolio
           </span>
 
-          {/* Right Arrow badge */}
-          <ArrowRight className="w-3.5 h-3.5 text-violet-300 group-hover:text-white group-hover:translate-x-1 transition-transform duration-300 shrink-0" />
+          {/* Crisp White Circle Badge with Arrow */}
+          <div className="flex items-center justify-center w-5 h-5 rounded-full bg-white text-purple-700 shadow-md group-hover:translate-x-1 transition-transform duration-300 shrink-0">
+            <ArrowRight className="w-3 h-3 stroke-[2.5]" />
+          </div>
         </motion.a>
       </div>
     </header>
