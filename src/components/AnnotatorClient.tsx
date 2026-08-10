@@ -624,8 +624,6 @@ export default function AnnotatorClient() {
     [],
   );
 
-  const splitCounterRef = useRef(0);
-
   const createSegmentsFromBoundary = useCallback(
     (
       matchId: string,
@@ -648,17 +646,7 @@ export default function AnnotatorClient() {
         const chunkStartSec = bound.start / 1000;
         const chunkEndSec = bound.end / 1000;
         const chunkDuration = chunkEndSec - chunkStartSec;
-        const isMultiPart = bounds.length > 1;
-
-        // Generate unique clip ID with counter to avoid duplicates
-        splitCounterRef.current += 1;
-        const counter = splitCounterRef.current;
-        const clipId = generateClipId(
-          matchId,
-          half,
-          chunkStartSec,
-          isMultiPart ? `p${i + 1}_${counter}` : undefined,
-        );
+        const clipId = generateClipId(matchId, half, chunkStartSec);
 
         const chunk: Clip = {
           ...baseClip,
@@ -2477,7 +2465,11 @@ export default function AnnotatorClient() {
     const isDraft = currentClip.clip_id === "Draft Segment";
     const matchId = matchConfig.match_id || currentClip.match_id || "manual";
     const realClipId = isDraft
-      ? `${matchId}_seg${String(clips.length).padStart(3, "0")}`
+      ? generateClipId(
+          matchId,
+          currentClip.half ?? 1,
+          currentClip.annotation_start,
+        )
       : currentClip.clip_id;
 
     const newClip: Clip = isDraft
@@ -2534,7 +2526,11 @@ export default function AnnotatorClient() {
       const isDraft = currentClip.clip_id === "Draft Segment";
       const matchId = matchConfig.match_id || currentClip.match_id || "manual";
       const realClipId = isDraft
-        ? `${matchId}_seg${String(clips.length).padStart(3, "0")}`
+        ? generateClipId(
+            matchId,
+            currentClip.half ?? 1,
+            currentClip.annotation_start,
+          )
         : currentClip.clip_id;
 
       const newClip: Clip = isDraft
@@ -3311,16 +3307,24 @@ export default function AnnotatorClient() {
           return Number(aStart) - Number(bStart);
         });
 
+        const fallbackAnnotationClipId = (ann: Annotation) => {
+          const startSec = Number(
+            ann.segment_metadata?.start_sec ??
+              ann.video_source?.label_start_sec ??
+              0,
+          );
+          const halfNumber = Number(ann.half) || (ann.half === "2nd" ? 2 : 1);
+          return generateClipId(matchConfig.match_id, halfNumber, startSec);
+        };
+
         const segmentsList = sortedAnnotations.map((ann, idx, arr) => {
           const prevAnn = idx > 0 ? arr[idx - 1] : null;
           const nextAnn = idx < arr.length - 1 ? arr[idx + 1] : null;
           const prevSegId = prevAnn
-            ? prevAnn.clip_id ||
-              `${matchConfig.match_id}_seg${String(idx - 1).padStart(3, "0")}`
+            ? prevAnn.clip_id || fallbackAnnotationClipId(prevAnn)
             : null;
           const nextSegId = nextAnn
-            ? nextAnn.clip_id ||
-              `${matchConfig.match_id}_seg${String(idx + 1).padStart(3, "0")}`
+            ? nextAnn.clip_id || fallbackAnnotationClipId(nextAnn)
             : null;
           const start_sec = Number(
             ann.segment_metadata?.start_sec ??
@@ -3409,11 +3413,10 @@ export default function AnnotatorClient() {
             Math.round(Math.round(start_sec * 1000) / 100) * 100;
           const durationMs = tensorFrames * 100;
           const endMs = startMs + durationMs;
+          const segmentId = ann.clip_id || fallbackAnnotationClipId(ann);
 
           return {
-            segment_id:
-              ann.clip_id ||
-              `${matchConfig.match_id}_seg${String(idx).padStart(3, "0")}`,
+            segment_id: segmentId,
             previous_segment: prevSegId,
             next_segment: nextSegId,
             half: Number(ann.half) || (ann.half === "2nd" ? 2 : 1),
@@ -3443,7 +3446,7 @@ export default function AnnotatorClient() {
             reconstruction: {
               npz_path:
                 ann.reconstruction?.npz_path ||
-                `data/trajectories/${matchConfig.match_id}/${ann.clip_id}.npz`,
+                generateNpzPath(matchConfig.match_id, segmentId),
               tensor_shape: ann.reconstruction?.tensor_shape || [
                 tensorFrames,
                 23,
@@ -4103,10 +4106,7 @@ export default function AnnotatorClient() {
     const half = currentClip.half;
     const matchId = currentClip.match_id;
     const seg1Id = currentClip.clip_id;
-    const existingCount = clips.filter(
-      (c) => c.annotation_start < splitPoint && c.match_id === matchId,
-    ).length;
-    const seg2Id = `${matchId}_seg${String(existingCount).padStart(3, "0")}`;
+    const seg2Id = generateClipId(matchId, half, splitPoint);
     const seg1: Clip = {
       ...currentClip,
       annotation_end: splitPoint,
@@ -4120,6 +4120,11 @@ export default function AnnotatorClient() {
       annotation_start: splitPoint,
       annotation_end: end,
       annotation_window: end - splitPoint,
+      game_clock: formatMatchClock(half, splitPoint),
+      trajectory_path: generateNpzPath(matchId, seg2Id),
+      reconstruction: {
+        npz_path: generateNpzPath(matchId, seg2Id),
+      },
       annotator_state: "manual" as AnnotatorState,
       is_locked: false,
     };
@@ -4136,7 +4141,7 @@ export default function AnnotatorClient() {
     setStatusMessage(
       `Split at ${formatTime(splitPoint)}. Segment 1: ${formatTime(start)}–${formatTime(splitPoint)}, Segment 2: ${formatTime(splitPoint)}–${formatTime(end)}.`,
     );
-  }, [currentClip, clips, readPlayhead]);
+  }, [currentClip, readPlayhead]);
 
   const handleSplitPromptContinue = useCallback(() => {
     setShowSplitPrompt(false);
