@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Target, ArrowUpRight, Video, Globe } from "lucide-react";
+import { Target, ArrowRight, Video, Sparkles } from "lucide-react";
 import type { Clip } from "@/lib/constants";
 import CoverageMeter, { type CoverageStats } from "./CoverageMeter";
 
@@ -50,7 +50,7 @@ export default function Header({
             </span>
           </div>
         )}
-        {/* Load Video — sleek glass emerald pill */}
+        {/* Load Video — glass emerald pill */}
         <motion.button
           whileHover={{ scale: 1.05, y: -1 }}
           whileTap={{ scale: 0.95 }}
@@ -65,32 +65,36 @@ export default function Header({
             {statusMessage}
           </span>
         )}
-        {/* ─── Dev Portfolio — Ultra-Sleek Modern Pill ─── */}
+
+        {/* ─── Dev Portfolio — Premium Radiant Shimmer Button ─── */}
         <motion.a
-          whileHover={{ scale: 1.04, y: -1 }}
-          whileTap={{ scale: 0.96 }}
+          whileHover={{ scale: 1.06, y: -1 }}
+          whileTap={{ scale: 0.95 }}
           href="https://shafayatsaad.vercel.app/"
           target="_blank"
           rel="noopener noreferrer"
-          className="relative inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-slate-900/90 via-indigo-950/80 to-purple-950/90 border border-indigo-400/35 hover:border-indigo-400/70 shadow-[0_4px_16px_rgba(0,0,0,0.4),0_0_20px_rgba(99,102,241,0.25)] hover:shadow-[0_4px_24px_rgba(99,102,241,0.45)] transition-all duration-300 backdrop-blur-xl group overflow-hidden cursor-pointer no-underline"
+          className="relative inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-[#0d0f17] border border-violet-500/40 hover:border-violet-400/80 shadow-[0_0_20px_rgba(139,92,246,0.35),0_0_40px_rgba(59,130,246,0.15)] hover:shadow-[0_0_30px_rgba(139,92,246,0.65),0_0_50px_rgba(236,72,153,0.3)] transition-all duration-300 backdrop-blur-xl group overflow-hidden cursor-pointer no-underline"
         >
-          {/* Subtle top shine reflection */}
-          <span className="absolute top-0 left-3 right-3 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none" />
+          {/* Continuous Shimmer Light Sweep Beam */}
+          <span className="absolute inset-0 rounded-full overflow-hidden pointer-events-none">
+            <span className="absolute -top-1/2 -bottom-1/2 left-0 shimmer-beam pointer-events-none" />
+          </span>
 
-          {/* Globe Icon Badge */}
-          <div className="w-5 h-5 rounded-full bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-300 group-hover:bg-indigo-500/30 group-hover:text-white transition-colors shrink-0">
-            <Globe className="w-3 h-3" />
+          {/* Inner Glossy Top Rim */}
+          <span className="absolute top-0 left-3 right-3 h-[1px] bg-gradient-to-r from-transparent via-white/40 to-transparent pointer-events-none" />
+
+          {/* Left Sparkles Icon in glowing violet badge */}
+          <div className="relative flex items-center justify-center w-5 h-5 rounded-full bg-gradient-to-tr from-violet-600 to-indigo-500 text-white shadow-[0_0_10px_rgba(139,92,246,0.6)] shrink-0">
+            <Sparkles className="w-3 h-3 text-amber-200 fill-amber-200 animate-pulse" />
           </div>
 
-          {/* Label with clean gradient typography */}
-          <span className="text-[11px] font-bold tracking-wide bg-gradient-to-r from-white via-indigo-100 to-purple-200 bg-clip-text text-transparent">
+          {/* Text Label */}
+          <span className="font-bold text-[11px] tracking-wide bg-gradient-to-r from-white via-violet-100 to-sky-200 bg-clip-text text-transparent">
             Dev Portfolio
           </span>
 
-          {/* External Arrow Badge */}
-          <div className="flex items-center justify-center w-4 h-4 rounded-full bg-white/5 group-hover:bg-white/15 transition-colors shrink-0">
-            <ArrowUpRight className="w-3 h-3 text-indigo-300 group-hover:text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-200" />
-          </div>
+          {/* Right Arrow badge */}
+          <ArrowRight className="w-3.5 h-3.5 text-violet-300 group-hover:text-white group-hover:translate-x-1 transition-transform duration-300 shrink-0" />
         </motion.a>
       </div>
     </header>
