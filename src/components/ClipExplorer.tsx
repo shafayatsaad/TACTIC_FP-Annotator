@@ -51,13 +51,13 @@ export default function ClipExplorer({
   onBrowseVideo,
 }: Props) {
   return (
-    <aside className="w-64 bg-black/40 border-r border-white/10 flex flex-col shrink-0">
+    <aside className="w-64 bg-black/40 border-r border-white/10 flex flex-col shrink-0" style={{ backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
       <div className="flex flex-col flex-1 min-h-0 p-3 border-b border-white/5">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
             Segment List
           </h3>
-          <span className="px-1.5 py-0.5 rounded text-[9px] bg-white/5 text-slate-300 font-mono">
+          <span className="px-1.5 py-0.5 rounded text-[9px] glass-btn text-slate-300 font-mono">
             {filteredClips.length}
           </span>
         </div>
@@ -67,13 +67,18 @@ export default function ClipExplorer({
           onChange={(e) => onClipSearchChange(e.target.value)}
           placeholder="Search segments..."
           className="w-full bg-white/[0.02] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 mb-3 transition-colors"
+          style={{ backdropFilter: "blur(4px)" }}
         />
         <div className="flex gap-1.5 mb-3">
           {(["all", "todo", "done"] as const).map((f) => (
             <button
               key={f}
               onClick={() => onClipFilterChange(f)}
-              className={`px-2 py-1 flex-1 rounded text-[9px] font-bold uppercase tracking-wider transition-colors border ${clipFilter === f ? "bg-indigo-500/30 text-white border-indigo-500/50" : "bg-white/[0.05] text-slate-400 border-white/10 hover:bg-white/10"}`}
+              className={`px-2 py-1 flex-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                clipFilter === f
+                  ? "glass-btn-indigo text-white"
+                  : "glass-btn text-slate-400"
+              }`}
             >
               {f}
             </button>
@@ -94,13 +99,13 @@ export default function ClipExplorer({
               <div className="flex flex-col gap-2">
                 <button
                   onClick={onLoadVideoDirect}
-                  className="w-full px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5"
+                  className="w-full px-3 py-1.5 glass-btn-emerald text-emerald-300 text-[10px] font-bold rounded-lg uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02]"
                 >
                   <Video className="w-3 h-3" /> Load Video
                 </button>
                 <button
                   onClick={onBrowseVideo}
-                  className="w-full px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5"
+                  className="w-full px-3 py-1.5 glass-btn-indigo text-indigo-300 text-[10px] font-bold rounded-lg uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02]"
                 >
                   <FolderOpen className="w-3 h-3" /> Browse File
                 </button>
@@ -119,7 +124,7 @@ export default function ClipExplorer({
                   key={listKey}
                   data-active={isActive ? "true" : "false"}
                   onClick={() => onClipSelect(idx)}
-                  className={`relative p-2 rounded-lg border transition-all cursor-pointer group ${isActive ? "bg-indigo-500/15 border-indigo-500/50 shadow-[inset_2px_0_0_0_#6366f1]" : "bg-white/[0.02] border-white/5 hover:bg-white/10 hover:border-white/20"} ${isNew ? "clip-pulse" : ""}`}
+                  className={`relative p-2 rounded-lg transition-all cursor-pointer group ${isActive ? "glass-btn-indigo shadow-[inset_2px_0_0_0_#6366f1]" : "glass-btn hover:bg-white/10"} ${isNew ? "clip-pulse" : ""}`}
                 >
                   <div className="flex items-center justify-between mb-0.5">
                     <span
@@ -163,7 +168,7 @@ export default function ClipExplorer({
                         onDeleteSegment(clip.clip_id);
                       }
                     }}
-                    className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded bg-red-500/10 hover:bg-red-500/30 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded glass-btn-rose text-red-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                     title="Delete segment"
                   >
                     <Trash2 className="w-3 h-3" />
@@ -191,7 +196,7 @@ export default function ClipExplorer({
           ].map(([l, k]) => (
             <div key={l} className="flex items-center justify-between">
               <span className="text-[10px] text-slate-400">{l}</span>
-              <kbd className="bg-white/10 px-1.5 py-0.5 rounded text-[9px] text-slate-300 font-mono">
+              <kbd className="glass-btn px-1.5 py-0.5 rounded text-[9px] text-slate-300 font-mono">
                 {k}
               </kbd>
             </div>
