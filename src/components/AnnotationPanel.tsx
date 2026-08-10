@@ -485,16 +485,17 @@ export default function AnnotationPanel({
               )}
             </div>
 
-            {/* ④ Submit Button — always prominent */}
-            <div className="glass-card p-2">
-              <div className="flex items-center justify-between mb-1.5">
-                <h3 className="text-[9px] font-semibold uppercase tracking-widest text-slate-300">
+            {/* ④ Submit Button — Prominent Primary Action */}
+            <div className="glass-card p-2.5 space-y-2 border-indigo-500/30 bg-gradient-to-b from-white/[0.04] to-black/30">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-200 flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
                   Submit Annotation
                 </h3>
-                <span className="text-[9px] text-slate-400">
-                  Annotating:{" "}
+                <span className="text-[9.5px] text-slate-400 font-medium">
+                  Team:{" "}
                   <span
-                    className="font-semibold"
+                    className="font-bold px-1.5 py-0.5 rounded bg-black/40 border border-white/10"
                     style={{ color: activeTeam.jersey_color }}
                   >
                     {activeTeam.name}
@@ -506,35 +507,32 @@ export default function AnnotationPanel({
                 whileTap={isSetupComplete ? { scale: 0.98 } : undefined}
                 onClick={isSetupComplete ? onSubmit : undefined}
                 disabled={!isSetupComplete}
-                className={`w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+                className={`w-full flex items-center justify-center gap-2 h-9 rounded-lg text-xs font-extrabold uppercase tracking-wider transition-all duration-200 ${
                   isSetupComplete
-                    ? "text-white cursor-pointer"
-                    : "text-slate-500 cursor-not-allowed opacity-50"
+                    ? "text-white cursor-pointer shadow-lg"
+                    : "text-slate-500 cursor-not-allowed opacity-50 bg-slate-900 border border-white/5"
                 }`}
                 style={
                   isSetupComplete
                     ? {
                         backgroundColor: activeTeam.jersey_color,
-                        boxShadow: `0 4px 20px ${activeTeam.jersey_color}30, 0 0 40px ${activeTeam.jersey_color}10`,
-                        border: `1px solid ${activeTeam.jersey_color}60`,
-                        backdropFilter: "blur(8px)",
+                        boxShadow: `0 0 25px ${activeTeam.jersey_color}50, 0 4px 12px rgba(0,0,0,0.4)`,
+                        border: `1px solid rgba(255,255,255,0.4)`,
                       }
-                    : {
-                        backgroundColor: "#1e293b",
-                        border: "1px solid rgba(255,255,255,0.08)",
-                      }
+                    : undefined
                 }
               >
                 {isSetupComplete ? (
                   <>
-                    <Check className="w-3.5 h-3.5" /> Submit
-                    <kbd className="ml-1 bg-black/30 px-1.5 py-0.5 rounded text-[8px] font-mono">
-                      Enter
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>Submit Annotation</span>
+                    <kbd className="ml-1 bg-black/40 border border-white/20 px-1.5 py-0.5 rounded text-[9px] font-mono text-white/90">
+                      Enter ↵
                     </kbd>
                   </>
                 ) : (
                   <>
-                    <Lock className="w-3 h-3" /> Setup First
+                    <Lock className="w-3.5 h-3.5" /> Setup First
                   </>
                 )}
               </motion.button>
