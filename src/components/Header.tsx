@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Target, ArrowRight, Video } from "lucide-react";
+import { Target, ArrowRight, Video, Sparkles } from "lucide-react";
 import type { Clip } from "@/lib/constants";
 import CoverageMeter, { type CoverageStats } from "./CoverageMeter";
 
@@ -44,37 +44,62 @@ export default function Header({
       <div className="flex items-center gap-3">
         {coverageStats && <CoverageMeter stats={coverageStats} />}
         {currentClip && (
-          <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
+          <div className="flex items-center gap-2 glass-btn px-3 py-1.5 rounded-lg">
             <span className="text-xs font-medium text-slate-200">
               Segment {currentClipIndex + 1} · {totalClips} saved · {annotatedCount} annotated
             </span>
           </div>
         )}
+        {/* Load Video — glass emerald */}
         <motion.button
-          whileHover={{ scale: 1.05 }}
+          whileHover={{ scale: 1.05, y: -1 }}
           whileTap={{ scale: 0.95 }}
           onClick={onLoadVideoDirect}
-          className="flex items-center gap-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 px-3 py-1.5 rounded-lg text-[10px] font-bold text-emerald-300 uppercase tracking-wider transition-colors"
+          className="flex items-center gap-1.5 glass-btn-emerald px-3 py-1.5 rounded-lg text-[10px] font-bold text-emerald-300 uppercase tracking-wider cursor-pointer"
         >
           <Video className="w-3.5 h-3.5" /> Load Video
         </motion.button>
+        {/* Status pill */}
         {statusMessage && (
-          <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg animate-pulse">
+          <span className="text-[10px] text-emerald-400 glass-pill px-2 py-1 rounded-lg animate-pulse">
             {statusMessage}
           </span>
         )}
+        {/* ─── Dev Portfolio — Premium Animated Badge ─── */}
         <motion.a
-          whileHover={{ scale: 1.05 }}
+          whileHover={{ scale: 1.08, y: -2 }}
           whileTap={{ scale: 0.95 }}
           href="https://shafayatsaad.vercel.app/"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1.5 bg-indigo-500/30 hover:bg-indigo-500/50 px-3 py-1.5 rounded-lg border border-indigo-500/50 shadow-[0_4px_16px_rgba(99,102,241,0.3)] transition-all"
+          className="relative group flex items-center gap-2 px-4 py-1.5 rounded-xl overflow-hidden portfolio-glow cursor-pointer"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.2), rgba(217,70,239,0.15))",
+            border: "1px solid rgba(139,92,246,0.4)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+          }}
         >
-          <span className="text-[10px] font-bold text-white uppercase tracking-widest">
+          {/* Shimmer overlay */}
+          <span
+            className="absolute inset-0 portfolio-shimmer rounded-xl pointer-events-none"
+            aria-hidden="true"
+          />
+          {/* Gradient border glow on hover */}
+          <span
+            className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.12), rgba(217,70,239,0.08))",
+            }}
+            aria-hidden="true"
+          />
+          <Sparkles className="w-3.5 h-3.5 text-violet-300 relative z-10" />
+          <span className="text-[10px] font-bold text-white uppercase tracking-widest relative z-10">
             Dev Portfolio
           </span>
-          <ArrowRight className="w-3 h-3 text-indigo-200" />
+          <ArrowRight className="w-3 h-3 text-violet-300 group-hover:translate-x-0.5 transition-transform relative z-10" />
         </motion.a>
       </div>
     </header>
