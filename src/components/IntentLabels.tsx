@@ -182,71 +182,84 @@ export default function IntentLabels({
                   );
                 })}
 
-                {/* Set Piece expander */}
+                {/* Set Piece Mode Upward Popover */}
                 {group.group === "SETPIECE" && (
-                  <div
-                    className={`mt-2 p-2.5 rounded-xl transition-all duration-300 ${
-                      gameState.set_piece
-                        ? "glass-card border-pink-500/40 shadow-[0_0_20px_rgba(244,63,94,0.15)]"
-                        : "glass-btn"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">
-                        Set Piece Mode
+                  <div className="relative mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onGameStateChange({
+                          ...gameState,
+                          set_piece: !gameState.set_piece,
+                          set_piece_type: !gameState.set_piece
+                            ? gameState.set_piece_type || "corner"
+                            : undefined,
+                        })
+                      }
+                      className={`w-full py-1.5 px-2 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-between border cursor-pointer ${
+                        gameState.set_piece
+                          ? "bg-pink-500/20 border-pink-500/50 text-pink-200 shadow-[0_0_12px_rgba(244,63,94,0.25)]"
+                          : "glass-btn text-slate-400 hover:text-slate-200 border-white/10"
+                      }`}
+                    >
+                      <span>Set Piece Mode</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[8px] font-mono font-bold ${gameState.set_piece ? "bg-pink-500 text-white" : "bg-black/40 text-slate-400"}`}>
+                        {gameState.set_piece ? (gameState.set_piece_type?.toUpperCase() || "ACTIVE") : "OFF"}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onGameStateChange({
-                            ...gameState,
-                            set_piece: !gameState.set_piece,
-                            set_piece_type: !gameState.set_piece
-                              ? gameState.set_piece_type || "corner"
-                              : undefined,
-                          })
-                        }
-                        className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                          gameState.set_piece
-                            ? "bg-pink-500 text-white shadow-[0_2px_8px_rgba(244,63,94,0.5)]"
-                            : "glass-btn text-slate-300"
-                        }`}
-                      >
-                        {gameState.set_piece ? "Active" : "Off"}
-                      </button>
-                    </div>
+                    </button>
 
+                    {/* Upward Floating Popover Menu */}
                     {gameState.set_piece && (
-                      <div className="grid grid-cols-2 gap-1 mt-1.5">
-                        {(
-                          [
-                            { value: "corner", label: "Corner" },
-                            { value: "free_kick", label: "Free Kick" },
-                            { value: "throw_in", label: "Throw In" },
-                            { value: "penalty", label: "Penalty" },
-                          ] as const
-                        ).map((opt) => {
-                          const isSel = gameState.set_piece_type === opt.value;
-                          return (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() =>
-                                onGameStateChange({
-                                  ...gameState,
-                                  set_piece_type: opt.value,
-                                })
-                              }
-                              className={`py-1 rounded text-[9px] font-semibold transition-all border cursor-pointer ${
-                                isSel
-                                  ? "glass-btn-rose text-pink-200 border-pink-400"
-                                  : "glass-btn text-slate-400 hover:text-slate-200"
-                              }`}
-                            >
-                              {opt.label}
-                            </button>
-                          );
-                        })}
+                      <div className="absolute bottom-full mb-2 right-0 w-52 p-2 rounded-xl bg-[#0e1117]/95 border border-pink-500/50 shadow-[0_10px_30px_rgba(0,0,0,0.8),0_0_20px_rgba(244,63,94,0.3)] backdrop-blur-md z-40 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-white/10">
+                          <span className="text-[9px] font-extrabold uppercase tracking-widest text-pink-300">
+                            Select Set Piece Type
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onGameStateChange({
+                                ...gameState,
+                                set_piece: false,
+                                set_piece_type: undefined,
+                              })
+                            }
+                            className="text-[8px] text-slate-400 hover:text-rose-300 font-mono px-1 rounded bg-black/40 border border-white/10 cursor-pointer"
+                          >
+                            Disable
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {(
+                            [
+                              { value: "corner", label: "Corner" },
+                              { value: "free_kick", label: "Free Kick" },
+                              { value: "throw_in", label: "Throw In" },
+                              { value: "penalty", label: "Penalty" },
+                            ] as const
+                          ).map((opt) => {
+                            const isSel = gameState.set_piece_type === opt.value;
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() =>
+                                  onGameStateChange({
+                                    ...gameState,
+                                    set_piece_type: opt.value,
+                                  })
+                                }
+                                className={`py-1.5 px-2 rounded-lg text-[9.5px] font-bold tracking-wide transition-all border cursor-pointer flex items-center justify-center ${
+                                  isSel
+                                    ? "bg-gradient-to-r from-pink-600 to-rose-600 text-white border-pink-400 shadow-[0_2px_10px_rgba(244,63,94,0.4)]"
+                                    : "glass-btn text-slate-300 hover:text-white hover:bg-white/10 border-white/10"
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
