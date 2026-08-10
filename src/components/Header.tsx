@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Target, ExternalLink, Video, Code2 } from "lucide-react";
+import { motion } from "framer-motion";
+import { Target, ExternalLink, Video, Sparkles } from "lucide-react";
 import type { Clip } from "@/lib/constants";
 import CoverageMeter, { type CoverageStats } from "./CoverageMeter";
 
@@ -28,8 +27,6 @@ export default function Header({
   statusMessage,
   onLoadVideoDirect,
 }: HeaderProps) {
-  const [isHovered, setIsHovered] = useState(false);
-
   return (
     <header className="h-14 px-4 flex items-center justify-between shrink-0 border-b border-white/10 relative z-10 bg-[#0a0c10]/95 backdrop-blur-md">
       <div className="flex items-center gap-3">
@@ -44,102 +41,62 @@ export default function Header({
           {currentClip ? currentClip.match_id : "No match loaded"}
         </p>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
         {coverageStats && <CoverageMeter stats={coverageStats} />}
         {currentClip && (
-          <div className="flex items-center gap-2 glass-btn px-3 py-1.5 rounded-lg">
+          <div className="flex items-center gap-2 glass-btn px-3 py-1.5 rounded-lg shrink-0">
             <span className="text-xs font-medium text-slate-200">
               Segment {currentClipIndex + 1} · {totalClips} saved · {annotatedCount} annotated
             </span>
           </div>
         )}
-        {/* Load Video */}
+        {/* Load Video — sleek emerald glass pill */}
         <motion.button
-          whileHover={{ scale: 1.05, y: -1 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.04, y: -1 }}
+          whileTap={{ scale: 0.96 }}
           onClick={onLoadVideoDirect}
-          className="flex items-center gap-1.5 glass-btn-emerald px-3.5 py-1.5 rounded-full text-[10px] font-bold text-emerald-300 uppercase tracking-wider cursor-pointer"
+          className="shrink-0 flex items-center gap-1.5 px-3.5 h-8 rounded-full bg-emerald-500/15 border border-emerald-500/35 hover:border-emerald-400/60 text-emerald-300 hover:text-white font-bold text-[10px] uppercase tracking-wider cursor-pointer shadow-[0_0_12px_rgba(16,185,129,0.2)] hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] transition-all"
         >
-          <Video className="w-3.5 h-3.5" /> Load Video
+          <Video className="w-3.5 h-3.5 text-emerald-400" /> Load Video
         </motion.button>
         {/* Status pill */}
         {statusMessage && (
-          <span className="text-[10px] text-emerald-400 glass-pill px-2.5 py-1 rounded-full animate-pulse font-medium">
+          <span className="shrink-0 text-[10px] text-emerald-400 glass-pill px-2.5 py-1 rounded-full animate-pulse font-medium">
             {statusMessage}
           </span>
         )}
 
-        {/* ─── Dev Portfolio — Premium Floating Card Button ─── */}
+        {/* ─── Dev Portfolio — Ultra-Sleek Non-Cut-Off Radiant Shimmer Button ─── */}
         <motion.a
+          whileHover={{ scale: 1.04, y: -1 }}
+          whileTap={{ scale: 0.96 }}
           href="https://shafayatsaad.vercel.app/"
           target="_blank"
           rel="noopener noreferrer"
-          onHoverStart={() => setIsHovered(true)}
-          onHoverEnd={() => setIsHovered(false)}
-          whileHover={{ y: -3 }}
-          whileTap={{ scale: 0.97 }}
-          className="relative flex items-center gap-2 h-8 px-3.5 rounded-lg cursor-pointer no-underline overflow-hidden"
-          style={{
-            background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4c1d95 100%)",
-            border: "1px solid rgba(139, 92, 246, 0.5)",
-            boxShadow: isHovered
-              ? "0 8px 32px rgba(139, 92, 246, 0.5), 0 0 0 1px rgba(139, 92, 246, 0.3), inset 0 1px 0 rgba(255,255,255,0.15)"
-              : "0 4px 16px rgba(139, 92, 246, 0.25), inset 0 1px 0 rgba(255,255,255,0.1)",
-            transition: "box-shadow 0.3s ease, border-color 0.3s ease",
-            borderColor: isHovered ? "rgba(167, 139, 250, 0.7)" : "rgba(139, 92, 246, 0.5)",
-          }}
+          className="shrink-0 relative flex items-center gap-2 h-8 px-3.5 rounded-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 border border-white/30 shadow-[0_0_16px_rgba(168,85,247,0.45),0_0_30px_rgba(236,72,153,0.25)] hover:shadow-[0_0_25px_rgba(168,85,247,0.75),0_0_45px_rgba(236,72,153,0.5)] transition-all duration-300 group cursor-pointer no-underline overflow-hidden"
         >
-          {/* Animated shimmer sweep */}
-          <div className="absolute inset-0 overflow-hidden rounded-lg pointer-events-none">
-            <motion.div
-              className="absolute -top-1/2 -bottom-1/2 w-[60%]"
-              style={{
-                background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), rgba(255,255,255,0.5), rgba(255,255,255,0.2), transparent)",
-                transform: "rotate(25deg)",
-              }}
-              animate={{
-                x: ["-150%", "350%"],
-              }}
-              transition={{
-                duration: 2.5,
-                repeat: Infinity,
-                ease: "easeInOut",
-                repeatDelay: 1,
-              }}
-            />
+          {/* Continuous Shimmer Light Sweep */}
+          <span className="absolute inset-0 rounded-full overflow-hidden pointer-events-none">
+            <span className="absolute -top-1/2 -bottom-1/2 left-0 shimmer-bright pointer-events-none" />
+          </span>
+
+          {/* Top Glass Rim Reflection */}
+          <span className="absolute top-0 left-3 right-3 h-[1px] bg-gradient-to-r from-transparent via-white/60 to-transparent pointer-events-none" />
+
+          {/* Sparkles Icon Badge */}
+          <div className="flex items-center justify-center w-4.5 h-4.5 rounded-full bg-white/20 border border-white/30 text-amber-200 shadow-inner shrink-0 group-hover:rotate-12 transition-transform duration-300">
+            <Sparkles className="w-2.5 h-2.5 fill-amber-200 text-amber-200" />
           </div>
 
-          {/* Top glass highlight */}
-          <span className="absolute top-0 left-2 right-2 h-[1px] bg-gradient-to-r from-transparent via-violet-300/50 to-transparent pointer-events-none" />
-
-          {/* Code icon */}
-          <motion.div
-            animate={isHovered ? { rotate: [0, -10, 10, 0] } : { rotate: 0 }}
-            transition={{ duration: 0.5 }}
-            className="flex items-center justify-center w-5 h-5 rounded-md bg-violet-500/30 border border-violet-400/40 shrink-0"
-          >
-            <Code2 className="w-3 h-3 text-violet-200" />
-          </motion.div>
-
-          {/* Text */}
-          <span className="text-[11px] font-bold tracking-wide text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)] whitespace-nowrap">
+          {/* High Contrast Bold White Text */}
+          <span className="font-extrabold text-[10.5px] uppercase tracking-wider text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] whitespace-nowrap">
             Dev Portfolio
           </span>
 
-          {/* External link icon */}
-          <AnimatePresence>
-            {isHovered && (
-              <motion.div
-                initial={{ opacity: 0, x: -4, width: 0 }}
-                animate={{ opacity: 1, x: 0, width: "auto" }}
-                exit={{ opacity: 0, x: -4, width: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <ExternalLink className="w-3 h-3 text-violet-200" />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Always Visible Crisp External Link Icon */}
+          <div className="flex items-center justify-center w-4.5 h-4.5 rounded-full bg-white text-purple-700 shadow-md group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-200 shrink-0">
+            <ExternalLink className="w-2.5 h-2.5 stroke-[2.5]" />
+          </div>
         </motion.a>
       </div>
     </header>
