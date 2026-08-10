@@ -298,6 +298,8 @@ export default function AnnotatorClient() {
   const [isConverting, setIsConverting] = useState(false);
   const [convertProgress, setConvertProgress] = useState(0);
   const convertPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [serverVideos, setServerVideos] = useState<string[]>([]);
+  const [showVideoPicker, setShowVideoPicker] = useState(false);
 
   // Video state
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -2932,69 +2934,69 @@ export default function AnnotatorClient() {
         // Submitted the last segment -> transition to new draft segment
         setCurrentClipIndex(clips.length);
       }
-
-      const nextStartSec = newClip.annotation_end;
-      if (isDraft || currentClipIndex === clips.length - 1) {
-        // Auto-chain: create new segment draft from end of this segment
-        setCreatingSegment({ start: nextStartSec, end: nextStartSec + 2 });
-        if (videoRef.current) {
-          videoRef.current.currentTime = nextStartSec;
-          videoRef.current.play().catch(() => {});
-          setIsPlaying(true);
+        const nextStartSec = newClip.annotation_end;
+        if (isDraft || currentClipIndex === clips.length - 1) {
+          // Auto-chain: create new segment draft from end of this segment
+          setCreatingSegment({ start: nextStartSec, end: nextStartSec + 2 });
+          if (videoRef.current) {
+            videoRef.current.currentTime = nextStartSec;
+            videoRef.current.play().catch(() => {});
+            setIsPlaying(true);
+          }
+          setStatusMessage(
+            `Segment saved (${labelDur.toFixed(1)}s). Next segment starts at ${formatTime(nextStartSec)}. Press O to mark end.`,
+          );
+        } else {
+          setCreatingSegment(null);
+          setStatusMessage(`Segment updated (${labelDur.toFixed(1)}s).`);
         }
-        setStatusMessage(
-          `Segment saved (${labelDur.toFixed(1)}s). Next segment starts at ${formatTime(nextStartSec)}. Press O to mark end.`,
-        );
-      } else {
-        setCreatingSegment(null);
-        setStatusMessage(`Segment updated (${labelDur.toFixed(1)}s).`);
-      }
 
-      fetch(`${SERVER_URL}/annotations`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          schema_version: "1.0.0",
-          dataset: "TACTIC-Bench",
-          team_config: teamConfig,
-          match_config: matchConfig,
-          annotations: updated,
-        }),
-      }).catch(() => console.warn("Sync failed"));
-    } catch (err) {
-      console.error("[saveAnnotation] Error:", err);
-      setStatusMessage(`Save error: ${(err as Error).message}`);
-    }
-  }, [
-    currentClip,
-    selectedIntentA,
-    selectedIntentB,
-    annotations,
-    hasAnnotated,
-    sessionBreakDue,
-    qualityPass,
-    confidenceA,
-    confidenceB,
-    certaintyA,
-    certaintyB,
-    coverageEstimate,
-    isMixedPhase,
-    isUncertain,
-    currentClipIndex,
-    clips,
-    teamConfig,
-    matchConfig,
-    gameState,
-    currentTeam,
-    manualPossession,
-    createSegmentsFromBoundary,
-    buildSplitAnnotations,
-    saveSegmentToServer,
-    detectedPossessionTeam,
-    trackedPlayers,
-    exclusion,
-    modelSplit,
-  ]);
+        fetch(`${SERVER_URL}/annotations`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            schema_version: "1.0.0",
+            dataset: "TACTIC-Bench",
+            team_config: teamConfig,
+            match_config: matchConfig,
+            annotations: updated,
+          }),
+        }).catch(() => console.warn("Sync failed"));
+      } catch (err) {
+        console.error("[saveAnnotation] Error:", err);
+        setStatusMessage(`Save error: ${(err as Error).message}`);
+      }
+    }, [
+      currentClip,
+      selectedIntentA,
+      selectedIntentB,
+      annotations,
+      hasAnnotated,
+      sessionBreakDue,
+      qualityPass,
+      confidenceA,
+      confidenceB,
+      certaintyA,
+      certaintyB,
+      coverageEstimate,
+      isMixedPhase,
+      isUncertain,
+      currentClipIndex,
+      clips,
+      teamConfig,
+      matchConfig,
+      gameState,
+      currentTeam,
+      manualPossession,
+      createSegmentsFromBoundary,
+      buildSplitAnnotations,
+      saveSegmentToServer,
+      detectedPossessionTeam,
+      trackedPlayers,
+      exclusion,
+      modelSplit,
+      fetchVideoMetadata,
+    ]);
 
   // ─── Load manifest (JSON clips definition) ───
   const handleLoadManifest = useCallback(() => {
@@ -3027,12 +3029,7 @@ export default function AnnotatorClient() {
     input.click();
   }, []);
 
-  // ─── List videos from server ───
-  const [serverVideos, setServerVideos] = useState<string[]>([]);
-  const [showVideoPicker, setShowVideoPicker] = useState(false);
-
   const handleLoadVideoDirect = useCallback(() => {
-    // Fetch list of available videos from the server
     fetch(`${SERVER_URL}/videos/list`)
       .then((res) => res.json())
       .then((data) => {
@@ -3093,13 +3090,11 @@ export default function AnnotatorClient() {
         },
       });
 
-      // Probe real duration immediately via ffprobe so the timeline is correct
       fetchVideoMetadata(videoPath);
     },
     [fetchVideoMetadata],
   );
 
-  // ─── Browse video file from any folder ───
   const handleBrowseVideoFile = useCallback(() => {
     const input = document.createElement("input");
     input.type = "file";
@@ -3138,7 +3133,6 @@ export default function AnnotatorClient() {
         },
       });
 
-      // Auto-create first segment draft at 0s
       setCreatingSegment({ start: 0, end: 2 });
       setStatusMessage(
         `Loaded: ${file.name}. Press O to mark end of first segment.`,
@@ -3147,7 +3141,6 @@ export default function AnnotatorClient() {
     input.click();
   }, []);
 
-  // ─── Handle drag-and-drop file ───
   const handleFileDrop = useCallback((file: File) => {
     if (!file.type.startsWith("video/")) {
       setStatusMessage("Only video files are supported.");
@@ -3179,409 +3172,72 @@ export default function AnnotatorClient() {
       team_b: { id: "B", name: away, jersey_color: "#3b82f6", is_home: false },
     });
 
-    // Auto-create first segment draft at 0s
     setCreatingSegment({ start: 0, end: 2 });
     setStatusMessage(
       `Loaded: ${file.name}. Press O to mark end of first segment.`,
     );
   }, []);
 
-  // ─── Export ───
+  // ─── Export JSON ───
   const exportJSON = useCallback(async () => {
     try {
-      const res = await fetch(`${SERVER_URL}/export/json?mode=train`, {
+      const exportAnnotations = withCurrentTeamIdentity(
+        annotations,
+        teamConfig,
+      );
+
+      // 1. Attempt strict Training mode export
+      let res = await fetch(`${SERVER_URL}/export/json?mode=train`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           match_config: matchConfig,
           team_config: teamConfig,
-          annotations: annotations,
+          annotations: exportAnnotations,
         }),
       });
-      const data = await res.json();
-      if (res.ok) {
+      let data = await res.json();
+
+      let isTrainMode = true;
+      let trainFailures: string[] = [];
+
+      if (!res.ok) {
+        trainFailures = data.gate_failures || (data.error ? [data.error] : []);
+
+        // 2. Fallback to Standard/Full JSON export if training validation fails
+        res = await fetch(`${SERVER_URL}/export/json?mode=full`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            match_config: matchConfig,
+            team_config: teamConfig,
+            annotations: exportAnnotations,
+          }),
+        });
+        data = await res.json();
+        isTrainMode = false;
+      }
+
+      if (res.ok && data.exportedData) {
+        const failureSummary =
+          trainFailures.length > 0
+            ? ` (Training mode skipped: ${trainFailures.join("; ")})`
+            : "";
         setStatusMessage(
-          `Training JSON exported to server exports/ directory.${data.warning ? ` Warning: ${data.warning}` : ""}`,
+          isTrainMode
+            ? `Training JSON exported.${data.warning ? ` Warning: ${data.warning}` : ""}`
+            : `Standard JSON exported.${failureSummary}`,
         );
-        if (data.exportedData) {
-          const blob = new Blob([JSON.stringify(data.exportedData, null, 2)], {
-            type: "application/json",
-          });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download =
-            data.fileName ||
-            `TACTIC_FP_Annotated_${matchConfig.match_id}_TRAIN.json`;
-          document.body.appendChild(a);
-          a.click();
-          setTimeout(() => {
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          }, 1000);
-          return;
-        }
-        setStatusMessage("JSON export failed: server did not return training data.");
-        return;
-        // Reconstruct schema locally to download in browser
-        // Get most frequent non-null intent from a list of segments
-        const getMostFrequentIntent = (segs: any[], team: "home" | "away") => {
-          const counts: Record<string, number> = {};
-          segs.forEach((s) => {
-            const intent =
-              team === "home"
-                ? s.team_home?.label?.intent_class
-                : s.team_away?.label?.intent_class;
-            // Filter out null, "Skipped" (legacy), and empty intent values
-            if (intent && intent !== "Skipped" && intent !== "None") {
-              counts[intent] = (counts[intent] || 0) + 1;
-            }
-          });
-          const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-          return sorted.length > 0 ? sorted[0][0] : "None";
-        };
 
-        // Sort annotations chronologically for temporal linking
-        const sortedAnnotations = [...annotations].sort((a, b) => {
-          const halfCmp = String(a.half).localeCompare(String(b.half));
-          if (halfCmp !== 0) return halfCmp;
-          const aStart =
-            a.segment_metadata?.start_sec ??
-            a.video_source?.label_start_sec ??
-            0;
-          const bStart =
-            b.segment_metadata?.start_sec ??
-            b.video_source?.label_start_sec ??
-            0;
-          return Number(aStart) - Number(bStart);
-        });
-
-        const fallbackAnnotationClipId = (ann: Annotation) => {
-          const startSec = Number(
-            ann.segment_metadata?.start_sec ??
-              ann.video_source?.label_start_sec ??
-              0,
-          );
-          const halfNumber = Number(ann.half) || (ann.half === "2nd" ? 2 : 1);
-          return generateClipId(matchConfig.match_id, halfNumber, startSec);
-        };
-
-        const segmentsList = sortedAnnotations.map((ann, idx, arr) => {
-          const prevAnn = idx > 0 ? arr[idx - 1] : null;
-          const nextAnn = idx < arr.length - 1 ? arr[idx + 1] : null;
-          const prevSegId = prevAnn
-            ? prevAnn.clip_id || fallbackAnnotationClipId(prevAnn)
-            : null;
-          const nextSegId = nextAnn
-            ? nextAnn.clip_id || fallbackAnnotationClipId(nextAnn)
-            : null;
-          const start_sec = Number(
-            ann.segment_metadata?.start_sec ??
-              ann.video_source?.label_start_sec ??
-              0,
-          );
-          const end_sec = Number(
-            ann.segment_metadata?.end_sec ??
-              ann.video_source?.label_end_sec ??
-              0,
-          );
-          const duration_sec = Number(
-            ann.segment_metadata?.duration_sec ?? end_sec - start_sec,
-          );
-          const coverage_estimate = Number(
-            ann.segment_metadata?.coverage_estimate ?? 1,
-          );
-          const tensorFrames =
-            ann.reconstruction?.tensor_shape?.[0] ??
-            Math.max(20, Math.min(150, Math.round(duration_sec * 10)));
-          const tensorFps = ann.reconstruction?.tensor_fps || 10;
-          const padding_mask = Array.from({ length: 150 }, (_, i) =>
-            i < tensorFrames ? 1 : 0,
-          );
-          const aIsHome =
-            teamConfig.team_a.is_home === true || ann.team_a?.is_home === true;
-          const teamAObj = ann.team_a || {};
-          const teamBObj = ann.team_b || {};
-          const team_home = aIsHome ? teamAObj : teamBObj;
-          const team_away = aIsHome ? teamBObj : teamAObj;
-
-          const isExcl = ann.exclusion ? true : false;
-
-          const home_label = isExcl
-            ? {
-                intent_class: null,
-                confidence: null,
-                certainty: null,
-              }
-            : {
-                intent_class: team_home?.label?.intent_class ?? null,
-                confidence: team_home?.label?.confidence ?? 0,
-                certainty: team_home?.label?.certainty ?? "low",
-              };
-          const away_label = isExcl
-            ? {
-                intent_class: null,
-                confidence: null,
-                certainty: null,
-              }
-            : {
-                intent_class: team_away?.label?.intent_class ?? null,
-                confidence: team_away?.label?.confidence ?? 0,
-                certainty: team_away?.label?.certainty ?? "low",
-              };
-          const home_formation =
-            team_home?.formation_estimate || (aIsHome ? "4-2-3-1" : "4-4-2");
-          const away_formation =
-            team_away?.formation_estimate || (aIsHome ? "4-4-2" : "4-2-3-1");
-
-          let decisive_action = null;
-          const preEv = ann.segment_metadata?.preceding_event;
-          if (
-            preEv === "shot" ||
-            preEv === "goal" ||
-            preEv === "pass" ||
-            preEv === "cross"
-          ) {
-            decisive_action = {
-              action_type:
-                preEv === "shot"
-                  ? "Shots on target"
-                  : preEv === "pass"
-                    ? "Pass"
-                    : preEv === "cross"
-                      ? "Cross"
-                      : "Goal",
-              position_ms: Math.round((end_sec - start_sec - 1) * 1000),
-              team: team_home?.possession ? "home" : "away",
-              visibility: "visible",
-              tia_delta_ms: 5000,
-            };
-          }
-
-          const startMs =
-            Math.round(Math.round(start_sec * 1000) / 100) * 100;
-          const durationMs = tensorFrames * 100;
-          const endMs = startMs + durationMs;
-          const segmentId = ann.clip_id || fallbackAnnotationClipId(ann);
-
-          return {
-            segment_id: segmentId,
-            parent_segment_id:
-              ann.segment_metadata?.parent_segment_id ?? null,
-            split_index: ann.segment_metadata?.split_index ?? null,
-            split_count: ann.segment_metadata?.split_count ?? null,
-            split_source_start_ms:
-              ann.segment_metadata?.split_source_start_sec == null
-                ? null
-                : Math.round(ann.segment_metadata.split_source_start_sec * 1000),
-            split_source_end_ms:
-              ann.segment_metadata?.split_source_end_sec == null
-                ? null
-                : Math.round(ann.segment_metadata.split_source_end_sec * 1000),
-            previous_segment: prevSegId,
-            next_segment: nextSegId,
-            half: Number(ann.half) || (ann.half === "2nd" ? 2 : 1),
-            start_ms: startMs,
-            end_ms: endMs,
-            duration_ms: durationMs,
-            time_from_kickoff_ms: startMs,
-            coverage_estimate: Number(coverage_estimate.toFixed(3)),
-            annotator:
-              ann.annotation_meta?.annotator_id ||
-              matchConfig.annotator ||
-              "coach_001",
-            annotator_license: matchConfig.annotator_license || "UEFA_Pro",
-            session_id:
-              ann.annotation_meta?.session_id ||
-              matchConfig.session_id ||
-              "session_042",
-            timestamp:
-              ann.annotation_meta?.annotation_timestamp ||
-              new Date().toISOString(),
-            annotation_duration_sec: Number(
-              ann.annotation_meta?.annotation_duration_sec || 20,
-            ),
-            re_annotation_count: Number(
-              ann.annotation_meta?.re_annotation_count || 0,
-            ),
-            reconstruction: {
-              npz_path:
-                ann.reconstruction?.npz_path ||
-                generateNpzPath(matchConfig.match_id, segmentId),
-              tensor_shape: ann.reconstruction?.tensor_shape || [
-                tensorFrames,
-                23,
-                4,
-              ],
-              tensor_fps: tensorFps,
-              quality_pass: ann.reconstruction?.quality_pass !== false,
-              tracked_players: Number(
-                ann.reconstruction?.tracked_players || 22,
-              ),
-              tracked_ball: true,
-              tracking_confidence_mean: Number(
-                ann.reconstruction?.tracking_confidence_mean || 0.85,
-              ),
-              padding_mask,
-            },
-            team_home: {
-              label: home_label,
-              is_primary: home_label.intent_class
-                ? team_home?.is_primary !== false
-                : false,
-              possession: isExcl ? false : team_home?.possession === true,
-              formation_estimate: home_formation,
-              players_visible: Number(team_home?.players_visible || 11),
-            },
-            team_away: {
-              label: away_label,
-              is_primary: away_label.intent_class
-                ? team_away?.is_primary === true
-                : false,
-              possession: isExcl ? false : team_away?.possession === true,
-              formation_estimate: away_formation,
-              players_visible: Number(team_away?.players_visible || 10),
-            },
-            exclusion: ann.exclusion || null,
-            model_split: isExcl
-              ? "excluded"
-              : ann.model_split?.assigned_split || "train",
-            ...(decisive_action ? { decisive_action } : {}),
-          };
-        });
-
-        const h1Segments = segmentsList.filter((s) => s.half === 1);
-        const h2Segments = segmentsList.filter((s) => s.half === 2);
-        const h1VideoSource = h1Segments[0]?.reconstruction?.npz_path
-          ? h1Segments[0].reconstruction.npz_path
-              .split("/")
-              .pop()
-              ?.replace(/\.[^.]+$/, "") + ".mp4"
-          : `${matchConfig.home_team.toLowerCase()}_${matchConfig.away_team.toLowerCase()}_h1.mp4`;
-        const h2VideoSource = h2Segments[0]?.reconstruction?.npz_path
-          ? h2Segments[0].reconstruction.npz_path
-              .split("/")
-              .pop()
-              ?.replace(/\.[^.]+$/, "") + ".mp4"
-          : `${matchConfig.home_team.toLowerCase()}_${matchConfig.away_team.toLowerCase()}_h2.mp4`;
-
-        const h1HomeIntent = getMostFrequentIntent(h1Segments, "home");
-        const h1AwayIntent = getMostFrequentIntent(h1Segments, "away");
-        const h2HomeIntent = getMostFrequentIntent(h2Segments, "home");
-        const h2AwayIntent = getMostFrequentIntent(h2Segments, "away");
-        const home_tactic_shift =
-          h1HomeIntent !== h2HomeIntent &&
-          h1HomeIntent !== "None" &&
-          h2HomeIntent !== "None"
-            ? `${h1HomeIntent} → ${h2HomeIntent}`
-            : null;
-        const away_tactic_shift =
-          h1AwayIntent !== h2AwayIntent &&
-          h1AwayIntent !== "None" &&
-          h2AwayIntent !== "None"
-            ? `${h1AwayIntent} → ${h2AwayIntent}`
-            : null;
-
-        const setPieceCount = segmentsList.filter(
-          (s) =>
-            s.team_home?.label?.intent_class?.includes("SetPiece") ||
-            s.team_away?.label?.intent_class?.includes("SetPiece"),
-        ).length;
-        const contestedPlayCount = segmentsList.filter(
-          (s) => s.exclusion === "ContestedPlay",
-        ).length;
-
-        const halves = [];
-        if (h1Segments.length > 0 || h2Segments.length === 0) {
-          halves.push({
-            half: 1,
-            video_source: h1VideoSource,
-            duration_ms:
-              h1Segments.length > 0
-                ? Math.max(...h1Segments.map((s) => s.end_ms))
-                : 2700000,
-            score_at_end: matchConfig.halftime_score,
-            segments: h1Segments,
-          });
-        }
-        if (h2Segments.length > 0) {
-          halves.push({
-            half: 2,
-            video_source: h2VideoSource,
-            duration_ms: Math.max(...h2Segments.map((s) => s.end_ms)),
-            score_at_start: matchConfig.halftime_score,
-            score_at_end: matchConfig.final_score,
-            segments: h2Segments,
-          });
-        }
-
-        let halftime_tactical_change = null;
-        if (home_tactic_shift || away_tactic_shift) {
-          halftime_tactical_change = {
-            detected: true,
-            home_shift: home_tactic_shift || "None",
-            away_shift: away_tactic_shift || "None",
-          };
-        }
-        if (
-          halftime_tactical_change &&
-          halves.length > 1 &&
-          halves[1].segments.length > 0
-        ) {
-          (halves[1].segments[0] as any).halftime_tactical_change =
-            halftime_tactical_change;
-        }
-
-        const exportedData = {
-          match_id: matchConfig.match_id,
-          competition: matchConfig.competition,
-          season: matchConfig.season,
-          match_date: matchConfig.match_date,
-          home_team: matchConfig.home_team,
-          away_team: matchConfig.away_team,
-          final_score: matchConfig.final_score,
-          halftime_score: matchConfig.halftime_score,
-          halves,
-          match_metadata: {
-            total_segments: segmentsList.length,
-            half1_segments: h1Segments.length,
-            half2_segments: h2Segments.length,
-            annotators: [matchConfig.annotator],
-            annotation_sessions: [matchConfig.session_id],
-            total_annotation_time_sec: annotations.reduce(
-              (acc, ann) =>
-                acc + Number(ann.annotation_meta?.annotation_duration_sec || 0),
-              0,
-            ),
-            fleiss_kappa: null,
-            inter_annotator_agreement: {
-              completed: false,
-              pending_reviewers: ["coach_002", "coach_003"],
-            },
-            halftime_tactical_change_detected:
-              halftime_tactical_change !== null,
-            home_team_tactic_shift: home_tactic_shift,
-            away_team_tactic_shift: away_tactic_shift,
-            tracking_quality_mean: Number(
-              (
-                segmentsList.reduce(
-                  (acc, s) => acc + s.reconstruction.tracking_confidence_mean,
-                  0,
-                ) / (segmentsList.length || 1)
-              ).toFixed(2),
-            ),
-            set_piece_count: setPieceCount,
-            contested_play_count: contestedPlayCount,
-          },
-        };
-
-        const blob = new Blob([JSON.stringify(exportedData, null, 2)], {
+        const blob = new Blob([JSON.stringify(data.exportedData, null, 2)], {
           type: "application/json",
         });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `TACTIC_FP_Annotated_${matchConfig.match_id}.json`;
+        a.download =
+          data.fileName ||
+          `TACTIC_FP_Annotated_${matchConfig.match_id}${isTrainMode ? "_TRAIN" : ""}.json`;
         document.body.appendChild(a);
         a.click();
         setTimeout(() => {
@@ -3589,47 +3245,50 @@ export default function AnnotatorClient() {
           URL.revokeObjectURL(url);
         }, 1000);
       } else {
-        setStatusMessage(
-          `JSON export failed: ${data.error || "Server error"}${data.detail ? ` — ${data.detail}` : ""}`,
-        );
+        const failures =
+          data.gate_failures?.join("; ") || data.error || "Server error";
+        const detail = data.detail ? ` — ${data.detail}` : "";
+        setStatusMessage(`JSON export failed: ${failures}${detail}`);
       }
     } catch (err: any) {
       setStatusMessage(`JSON export failed: ${err.message}`);
     }
   }, [annotations, matchConfig, teamConfig]);
 
-  const exportCSV = useCallback(() => {
-    if (!annotations.length) return;
-    const matchId =
-      clips[0]?.match_id ||
-      (activeVideoPath
-        ? activeVideoPath
-            .split("/")
-            .pop()
-            ?.replace(/\.[^.]+$/, "")
-        : "unknown");
-    const exportAnnotations = withCurrentTeamIdentity(annotations, teamConfig);
-    fetch(`${SERVER_URL}/export/csv`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        annotations: exportAnnotations,
-        team_config: teamConfig,
-      }),
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          console.error(
-            "CSV export failed:",
-            errData.error || errData.detail || res.statusText,
-          );
-        } else {
-          setStatusMessage("CSV exported to server exports/ directory.");
-        }
+  // ─── Export CSV ───
+  const exportCSV = useCallback(async () => {
+      const exportAnnotations = withCurrentTeamIdentity(
+        annotations,
+        teamConfig,
+      );
+      if (exportAnnotations.length === 0) {
+        setStatusMessage("No annotations to export.");
+        return;
+      }
+      const matchId = matchConfig.match_id || "unknown";
+      fetch(`${SERVER_URL}/export/csv?match_id=${matchId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(exportAnnotations),
+      })
+      .then((res) => {
+        if (!res.ok) throw new Error("Export failed");
+        return res.blob();
+      })
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `TACTIC_FP_Annotated_${matchId}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setStatusMessage("CSV exported successfully.");
       })
       .catch((err) => {
         console.error("CSV export network error:", err);
+        setStatusMessage("CSV export failed.");
       });
     const headers = [
       "clip_id",
