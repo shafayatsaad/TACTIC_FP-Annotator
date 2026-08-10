@@ -389,7 +389,7 @@ export default function VideoPlayer(props: Props) {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className="flex-1 flex flex-col bg-black/80 rounded-2xl border border-white/[0.08] shadow-2xl relative overflow-hidden min-h-[380px] mb-2 group/player"
+      className="flex-1 flex flex-col bg-black/80 rounded-2xl border border-white/[0.08] shadow-2xl relative overflow-hidden min-h-[300px] mb-1.5 group/player"
     >
       {isDragOver && (
         <div className="absolute inset-0 z-30 bg-indigo-950/80 border-2 border-dashed border-indigo-500 rounded-2xl flex flex-col items-center justify-center backdrop-blur-sm pointer-events-none transition-all">
