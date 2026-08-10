@@ -154,8 +154,8 @@
     box-shadow: 0 1px 8px rgba(16, 185, 129, 0.1);
   }
 
-  /* ─── Modern Shimmer Beam Sweep ─── */
-  @keyframes shimmer-slide {
+  /* ─── Ultra High-Contrast Shimmer Beam ─── */
+  @keyframes shimmer-bright-slide {
     0% {
       transform: translateX(-150%) rotate(25deg);
     }
@@ -163,18 +163,18 @@
       transform: translateX(250%) rotate(25deg);
     }
   }
-  .shimmer-beam {
+  .shimmer-bright {
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(255, 255, 255, 0.08) 35%,
-      rgba(255, 255, 255, 0.45) 50%,
-      rgba(255, 255, 255, 0.08) 65%,
+      rgba(255, 255, 255, 0.15) 30%,
+      rgba(255, 255, 255, 0.65) 50%,
+      rgba(255, 255, 255, 0.15) 70%,
       transparent 100%
     );
     width: 60%;
     height: 300%;
-    animation: shimmer-slide 2.6s ease-in-out infinite;
+    animation: shimmer-bright-slide 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
   /* One-shot glow for newly created segments */
