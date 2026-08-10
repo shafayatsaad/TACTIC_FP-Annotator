@@ -3,6 +3,7 @@ import path from "node:path";
 import test from "node:test";
 import { validateAnnotationSession } from "../src/lib/annotation-validation";
 import { resolveInsideDir, sanitizeFileStem } from "../src/lib/server-utils";
+import { splitSegmentBounds } from "../src/lib/splitSegmentBounds";
 import { generateClipId } from "../src/lib/tensor-utils";
 
 function sampleAnnotation(overrides: Record<string, any> = {}) {
@@ -237,4 +238,19 @@ test("clip ids are sanitized and based on 100ms timeline position", () => {
     "bad_match_mp4_h2_00190",
   );
   assert.equal(generateClipId("match_001", 1, 19.06), "match_001_h1_00191");
+});
+
+test("long segments split forward with valid final remainder", () => {
+  assert.deepEqual(splitSegmentBounds(19_000, 35_000), [
+    { start: 19_000, end: 33_000 },
+    { start: 33_000, end: 35_000 },
+  ]);
+  assert.deepEqual(splitSegmentBounds(19_000, 36_000), [
+    { start: 19_000, end: 34_000 },
+    { start: 34_000, end: 36_000 },
+  ]);
+  assert.deepEqual(splitSegmentBounds(19_000, 40_000), [
+    { start: 19_000, end: 34_000 },
+    { start: 34_000, end: 40_000 },
+  ]);
 });
