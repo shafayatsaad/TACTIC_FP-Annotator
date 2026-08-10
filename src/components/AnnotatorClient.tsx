@@ -676,9 +676,48 @@ export default function AnnotatorClient() {
 
   const buildSplitAnnotations = useCallback(
     (splitClips: Clip[], templateAnn: Annotation): Annotation[] => {
-      return splitClips.map((clip) =>
-        copyAnnotationWithNewTimes(templateAnn, clip),
-      );
+      const parentSegmentId = templateAnn.clip_id;
+      const sourceStartSec =
+        templateAnn.segment_metadata?.start_sec ??
+        templateAnn.video_source?.label_start_sec;
+      const sourceEndSec =
+        templateAnn.segment_metadata?.end_sec ??
+        templateAnn.video_source?.label_end_sec;
+
+      return splitClips.map((clip, index) => {
+        const ann = copyAnnotationWithNewTimes(templateAnn, clip);
+        const segmentMetadata = ann.segment_metadata;
+        return {
+          ...ann,
+          segment_metadata: {
+            start_sec: segmentMetadata?.start_sec ?? clip.annotation_start,
+            end_sec: segmentMetadata?.end_sec ?? clip.annotation_end,
+            duration_sec:
+              segmentMetadata?.duration_sec ??
+              Number((clip.annotation_end - clip.annotation_start).toFixed(3)),
+            tensor_frames:
+              segmentMetadata?.tensor_frames ??
+              Math.max(
+                20,
+                Math.min(
+                  150,
+                  Math.round(
+                    (clip.annotation_end - clip.annotation_start) * 10,
+                  ),
+                ),
+              ),
+            preceding_event: segmentMetadata?.preceding_event,
+            following_event: segmentMetadata?.following_event,
+            coverage_estimate: segmentMetadata?.coverage_estimate ?? 1,
+            is_mixed_phase: segmentMetadata?.is_mixed_phase ?? false,
+            parent_segment_id: parentSegmentId,
+            split_index: index + 1,
+            split_count: splitClips.length,
+            split_source_start_sec: sourceStartSec,
+            split_source_end_sec: sourceEndSec,
+          },
+        };
+      });
     },
     [copyAnnotationWithNewTimes],
   );
@@ -712,55 +751,6 @@ export default function AnnotatorClient() {
     const matchId = matchConfig.match_id || currentClip?.match_id || "manual";
     const path = currentClip?.path ?? activeVideoPath ?? "";
 
-    if (duration > MAX_SEGMENT_DURATION) {
-      const templateClip: Clip = currentClip || {
-        clip_id: "Draft Segment",
-        match_id: matchId,
-        path,
-        start,
-        end,
-        annotation_start: start,
-        annotation_end: end,
-        annotation_window: duration,
-        half,
-        annotator_state: "manual",
-        is_locked: false,
-      };
-      const splitClips = createSegmentsFromBoundary(
-        matchId,
-        half,
-        start,
-        end,
-        templateClip,
-      );
-
-      setClips((prev) => {
-        const next = [...prev, ...splitClips].sort(
-          (a, b) => a.annotation_start - b.annotation_start,
-        );
-        const remainderId = splitClips[splitClips.length - 1].clip_id;
-        const idx = next.findIndex((c) => c.clip_id === remainderId);
-        if (idx >= 0) setCurrentClipIndex(idx);
-
-        // Sync segments to server
-        fetch(`${SERVER_URL}/segments`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ segments: next }),
-        }).catch(() => console.warn("Failed to sync segments"));
-
-        return next;
-      });
-
-      splitClips.forEach((c) => saveSegmentToServer(c));
-      setCreatingSegment(null);
-      setStatusMessage(
-        `Segment created and auto-split into ${splitClips.length} segments.`,
-      );
-      return;
-    }
-
-    // Duration <= 15
     const id = generateClipId(matchId, half, start);
     const newClip: Clip = {
       clip_id: id,
@@ -797,20 +787,25 @@ export default function AnnotatorClient() {
       const idx = next.findIndex((c) => c.clip_id === id);
       if (idx >= 0) setCurrentClipIndex(idx);
 
-      // Sync segments to server
-      fetch(`${SERVER_URL}/segments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ segments: next }),
-      }).catch(() => console.warn("Failed to sync segments"));
+      if (duration <= MAX_SEGMENT_DURATION) {
+        fetch(`${SERVER_URL}/segments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ segments: next }),
+        }).catch(() => console.warn("Failed to sync segments"));
+      }
 
       return next;
     });
 
-    saveSegmentToServer(newClip);
+    if (duration <= MAX_SEGMENT_DURATION) {
+      saveSegmentToServer(newClip);
+    }
     setCreatingSegment(null);
     setStatusMessage(
-      `Segment created (${duration.toFixed(1)}s). Pick intents and press Enter.`,
+      duration > MAX_SEGMENT_DURATION
+        ? `Segment created (${duration.toFixed(1)}s). It will split into valid chunks after you pick intents and press Enter.`
+        : `Segment created (${duration.toFixed(1)}s). Pick intents and press Enter.`,
     );
   }, [
     creatingSegment,
@@ -820,7 +815,6 @@ export default function AnnotatorClient() {
     clips,
     matchConfig,
     activeVideoPath,
-    createSegmentsFromBoundary,
   ]);
 
   // Wrappers used by VideoPlayer (no-arg) so the player stays simple.
@@ -908,17 +902,20 @@ export default function AnnotatorClient() {
         const idx = next.findIndex((c) => c.clip_id === id);
         if (idx >= 0) setCurrentClipIndex(idx);
 
-        // Save segments to server
-        fetch(`${SERVER_URL}/segments`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ segments: next }),
-        }).catch(() => console.warn("Failed to sync segments"));
+        if (duration <= MAX_SEGMENT_DURATION) {
+          fetch(`${SERVER_URL}/segments`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ segments: next }),
+          }).catch(() => console.warn("Failed to sync segments"));
+        }
 
         return next;
       });
 
-      saveSegmentToServer(newClip);
+      if (duration <= MAX_SEGMENT_DURATION) {
+        saveSegmentToServer(newClip);
+      }
       setCreatingSegment(null);
       if (duration > MAX_SEGMENT_DURATION) {
         setStatusMessage(
@@ -2067,79 +2064,34 @@ export default function AnnotatorClient() {
       }
 
       if (duration > MAX_SEGMENT_DURATION) {
-        const matchId = currentClip.match_id || "manual";
-        const splitClips = createSegmentsFromBoundary(
-          matchId,
-          currentClip.half ?? 1,
-          boundedStart,
-          boundedEnd,
-          currentClip,
-        );
-        const remainderId = splitClips[splitClips.length - 1].clip_id;
-
-        // Update annotations state and sync to server
-        setAnnotations((prevAnn) => {
-          const origAnn = prevAnn.find(
-            (a) => a.clip_id === currentClip.clip_id,
-          );
-          const filtered = prevAnn.filter(
-            (a) => a.clip_id !== currentClip.clip_id,
-          );
-          const newAnns: Annotation[] = [];
-
-          if (origAnn) {
-            newAnns.push(...buildSplitAnnotations(splitClips, origAnn));
-          }
-
-          const updatedAnn = [...filtered, ...newAnns].sort(
-            (a, b) =>
-              String(a.half).localeCompare(String(b.half)) ||
-              (a.window_idx ?? 0) - (b.window_idx ?? 0),
-          );
-
-          // Sync annotations to server
-          fetch(`${SERVER_URL}/annotations`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              schema_version: "1.0.0",
-              dataset: "TACTIC-Bench",
-              team_config: teamConfig,
-              match_config: matchConfig,
-              annotations: updatedAnn,
-            }),
-          }).catch(() => console.warn("Sync failed"));
-
-          return updatedAnn;
-        });
-
-        // Update clips state and sync to server
         setClips((prev) => {
-          const next = prev.flatMap((c, idx) => {
-            if (idx === currentClipIndex) return splitClips;
-            return [c];
+          const next = prev.map((c, idx) => {
+            if (idx !== currentClipIndex) return c;
+            let newState: AnnotatorState = c.annotator_state || "unseen";
+            if (c.algorithm_proposal) {
+              const startChanged =
+                Math.abs(boundedStart - c.algorithm_proposal.start) > 0.5;
+              const endChanged =
+                Math.abs(boundedEnd - c.algorithm_proposal.end) > 0.5;
+              if (startChanged || endChanged) newState = "modified";
+            }
+            return {
+              ...c,
+              start: Math.max(0, boundedStart - 4),
+              end: Math.min(videoDurationSec, boundedEnd + 4),
+              annotation_start: boundedStart,
+              annotation_end: boundedEnd,
+              annotation_window: duration,
+              annotator_state: newState,
+              game_clock: formatMatchClock(c.half ?? 1, boundedStart),
+            };
           });
-          const sorted = next.sort(
+          return [...next].sort(
             (a, b) => a.annotation_start - b.annotation_start,
           );
-
-          // Select the remainder clip as the active clip
-          const idxB = sorted.findIndex((c) => c.clip_id === remainderId);
-          if (idxB >= 0) setCurrentClipIndex(idxB);
-
-          // Sync segments to server
-          fetch(`${SERVER_URL}/segments`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ segments: sorted }),
-          }).catch(() => console.warn("Failed to sync segments"));
-
-          return sorted;
         });
-
-        splitClips.forEach((c) => saveSegmentToServer(c));
         setStatusMessage(
-          `Segment timing updated and auto-split into ${splitClips.length} segments.`,
+          `Segment timing updated (${duration.toFixed(1)}s). It will split into valid chunks when you press Enter.`,
         );
         return;
       }
@@ -2206,12 +2158,9 @@ export default function AnnotatorClient() {
       currentClip,
       currentClipIndex,
       videoDurationSec,
-      saveSegmentToServer,
       teamConfig,
       matchConfig,
       syncAnnotationsWithClips,
-      createSegmentsFromBoundary,
-      buildSplitAnnotations,
       clips,
     ],
   );
@@ -3417,6 +3366,18 @@ export default function AnnotatorClient() {
 
           return {
             segment_id: segmentId,
+            parent_segment_id:
+              ann.segment_metadata?.parent_segment_id ?? null,
+            split_index: ann.segment_metadata?.split_index ?? null,
+            split_count: ann.segment_metadata?.split_count ?? null,
+            split_source_start_ms:
+              ann.segment_metadata?.split_source_start_sec == null
+                ? null
+                : Math.round(ann.segment_metadata.split_source_start_sec * 1000),
+            split_source_end_ms:
+              ann.segment_metadata?.split_source_end_sec == null
+                ? null
+                : Math.round(ann.segment_metadata.split_source_end_sec * 1000),
             previous_segment: prevSegId,
             next_segment: nextSegId,
             half: Number(ann.half) || (ann.half === "2nd" ? 2 : 1),
@@ -3676,6 +3637,11 @@ export default function AnnotatorClient() {
       "match_name",
       "half",
       "window_idx",
+      "parent_segment_id",
+      "split_index",
+      "split_count",
+      "split_source_start_sec",
+      "split_source_end_sec",
       "video_path",
       "seek_start_sec",
       "label_start_sec",
@@ -3712,6 +3678,11 @@ export default function AnnotatorClient() {
       match_name: ann.match_name,
       half: ann.half,
       window_idx: ann.window_idx,
+      parent_segment_id: ann.segment_metadata?.parent_segment_id,
+      split_index: ann.segment_metadata?.split_index,
+      split_count: ann.segment_metadata?.split_count,
+      split_source_start_sec: ann.segment_metadata?.split_source_start_sec,
+      split_source_end_sec: ann.segment_metadata?.split_source_end_sec,
       video_path: ann.video_source?.video_path,
       seek_start_sec: ann.video_source?.seek_start_sec,
       label_start_sec: ann.video_source?.label_start_sec,
