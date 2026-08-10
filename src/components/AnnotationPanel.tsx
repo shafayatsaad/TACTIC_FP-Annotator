@@ -506,7 +506,7 @@ export default function AnnotationPanel({
                 whileTap={isSetupComplete ? { scale: 0.98 } : undefined}
                 onClick={isSetupComplete ? onSubmit : undefined}
                 disabled={!isSetupComplete}
-                className={`w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+                className={`w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
                   isSetupComplete
                     ? "text-white cursor-pointer"
                     : "text-slate-500 cursor-not-allowed opacity-50"
