@@ -45,19 +45,19 @@
   .glass-btn {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow:
       0 2px 8px rgba(0, 0, 0, 0.25),
       inset 0 1px 0 rgba(255, 255, 255, 0.08);
-    transition: all 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .glass-btn:hover {
     background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.22);
     box-shadow:
       0 4px 16px rgba(0, 0, 0, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
   }
 
   /* Color-tinted glass variants */
@@ -65,83 +65,83 @@
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     background: rgba(16, 185, 129, 0.1);
-    border: 1px solid rgba(16, 185, 129, 0.25);
+    border: 1px solid rgba(16, 185, 129, 0.28);
     box-shadow:
-      0 2px 12px rgba(16, 185, 129, 0.12),
-      inset 0 1px 0 rgba(16, 185, 129, 0.1);
-    transition: all 0.25s ease;
+      0 2px 12px rgba(16, 185, 129, 0.15),
+      inset 0 1px 0 rgba(16, 185, 129, 0.15);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .glass-btn-emerald:hover {
-    background: rgba(16, 185, 129, 0.18);
-    border-color: rgba(16, 185, 129, 0.4);
+    background: rgba(16, 185, 129, 0.2);
+    border-color: rgba(16, 185, 129, 0.45);
     box-shadow:
-      0 4px 20px rgba(16, 185, 129, 0.2),
-      inset 0 1px 0 rgba(16, 185, 129, 0.15);
+      0 4px 24px rgba(16, 185, 129, 0.3),
+      inset 0 1px 0 rgba(16, 185, 129, 0.25);
   }
 
   .glass-btn-indigo {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    background: rgba(99, 102, 241, 0.1);
-    border: 1px solid rgba(99, 102, 241, 0.25);
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.28);
     box-shadow:
-      0 2px 12px rgba(99, 102, 241, 0.12),
-      inset 0 1px 0 rgba(99, 102, 241, 0.1);
-    transition: all 0.25s ease;
+      0 2px 12px rgba(99, 102, 241, 0.15),
+      inset 0 1px 0 rgba(99, 102, 241, 0.15);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .glass-btn-indigo:hover {
-    background: rgba(99, 102, 241, 0.18);
-    border-color: rgba(99, 102, 241, 0.4);
+    background: rgba(99, 102, 241, 0.22);
+    border-color: rgba(99, 102, 241, 0.45);
     box-shadow:
-      0 4px 20px rgba(99, 102, 241, 0.2),
-      inset 0 1px 0 rgba(99, 102, 241, 0.15);
+      0 4px 24px rgba(99, 102, 241, 0.3),
+      inset 0 1px 0 rgba(99, 102, 241, 0.25);
   }
 
   .glass-btn-rose {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     background: rgba(244, 63, 94, 0.08);
-    border: 1px solid rgba(244, 63, 94, 0.2);
+    border: 1px solid rgba(244, 63, 94, 0.22);
     box-shadow:
-      0 2px 12px rgba(244, 63, 94, 0.1),
-      inset 0 1px 0 rgba(244, 63, 94, 0.08);
-    transition: all 0.25s ease;
+      0 2px 12px rgba(244, 63, 94, 0.12),
+      inset 0 1px 0 rgba(244, 63, 94, 0.1);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .glass-btn-rose:hover {
-    background: rgba(244, 63, 94, 0.15);
-    border-color: rgba(244, 63, 94, 0.35);
+    background: rgba(244, 63, 94, 0.18);
+    border-color: rgba(244, 63, 94, 0.4);
     box-shadow:
-      0 4px 20px rgba(244, 63, 94, 0.18),
-      inset 0 1px 0 rgba(244, 63, 94, 0.12);
+      0 4px 24px rgba(244, 63, 94, 0.25),
+      inset 0 1px 0 rgba(244, 63, 94, 0.18);
   }
 
   .glass-btn-amber {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     background: rgba(245, 158, 11, 0.08);
-    border: 1px solid rgba(245, 158, 11, 0.2);
+    border: 1px solid rgba(245, 158, 11, 0.22);
     box-shadow:
-      0 2px 12px rgba(245, 158, 11, 0.1),
-      inset 0 1px 0 rgba(245, 158, 11, 0.08);
-    transition: all 0.25s ease;
+      0 2px 12px rgba(245, 158, 11, 0.12),
+      inset 0 1px 0 rgba(245, 158, 11, 0.1);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .glass-btn-amber:hover {
-    background: rgba(245, 158, 11, 0.15);
-    border-color: rgba(245, 158, 11, 0.35);
+    background: rgba(245, 158, 11, 0.18);
+    border-color: rgba(245, 158, 11, 0.4);
     box-shadow:
-      0 4px 20px rgba(245, 158, 11, 0.18),
-      inset 0 1px 0 rgba(245, 158, 11, 0.12);
+      0 4px 24px rgba(245, 158, 11, 0.25),
+      inset 0 1px 0 rgba(245, 158, 11, 0.18);
   }
 
   /* Glass card for sidebar sections */
   .glass-card {
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.09);
     box-shadow:
-      0 2px 16px rgba(0, 0, 0, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      0 4px 20px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
     border-radius: 0.75rem;
   }
 
@@ -154,45 +154,82 @@
     box-shadow: 0 1px 8px rgba(16, 185, 129, 0.1);
   }
 
-  /* ─── Dev Portfolio shimmer ─── */
-  @keyframes shimmer {
-    0% {
-      background-position: -200% center;
-    }
-    100% {
-      background-position: 200% center;
-    }
-  }
-  .portfolio-shimmer {
-    background: linear-gradient(
-      110deg,
-      transparent 20%,
-      rgba(255, 255, 255, 0.12) 40%,
-      rgba(255, 255, 255, 0.2) 50%,
-      rgba(255, 255, 255, 0.12) 60%,
-      transparent 80%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 3s ease-in-out infinite;
+  /* ─── Keyboard Keycap styling for intent buttons ─── */
+  .keycap {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.04) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    border-radius: 0.375rem;
+    transition: all 0.15s ease;
   }
 
-  @keyframes portfolio-glow {
-    0%,
-    100% {
-      box-shadow:
-        0 0 12px rgba(139, 92, 246, 0.3),
-        0 0 30px rgba(139, 92, 246, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  /* ─── Ultra-Luxurious Dev Portfolio Button Animations ─── */
+  @keyframes gradient-spin {
+    0% {
+      transform: rotate(0deg);
     }
-    50% {
-      box-shadow:
-        0 0 20px rgba(139, 92, 246, 0.5),
-        0 0 50px rgba(139, 92, 246, 0.15),
-        inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    100% {
+      transform: rotate(360deg);
     }
   }
-  .portfolio-glow {
-    animation: portfolio-glow 2.5s ease-in-out infinite;
+
+  .portfolio-border-glow {
+    position: relative;
+    border-radius: 0.75rem;
+    background: rgba(15, 18, 25, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow:
+      0 0 20px rgba(139, 92, 246, 0.3),
+      0 0 40px rgba(236, 72, 153, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .portfolio-border-glow::before {
+    content: '';
+    position: absolute;
+    inset: -1.5px;
+    border-radius: 0.85rem;
+    background: linear-gradient(
+      90deg,
+      #6366f1,
+      #a855f7,
+      #ec4899,
+      #3b82f6,
+      #6366f1
+    );
+    background-size: 300% 300%;
+    animation: rainbow-flow 4s ease infinite;
+    z-index: -1;
+    opacity: 0.85;
+    transition: opacity 0.3s ease;
+  }
+
+  .portfolio-border-glow:hover {
+    transform: translateY(-2px) scale(1.04);
+    box-shadow:
+      0 0 30px rgba(139, 92, 246, 0.5),
+      0 0 60px rgba(236, 72, 153, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  }
+
+  .portfolio-border-glow:hover::before {
+    opacity: 1;
+  }
+
+  @keyframes rainbow-flow {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
   }
 
   /* ─── One-shot glow for newly created segments ─── */
@@ -227,19 +264,6 @@
   }
   .modal-in {
     animation: modal-in 180ms ease-out;
-  }
-
-  /* Subtle fade-in for the timeline band on mark */
-  @keyframes band-in {
-    0% {
-      opacity: 0;
-    }
-    100% {
-      opacity: 1;
-    }
-  }
-  .band-in {
-    animation: band-in 200ms ease-out;
   }
 
   /* Tabular numbers for time readouts */
