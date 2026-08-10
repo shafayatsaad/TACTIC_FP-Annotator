@@ -422,12 +422,13 @@ export default function VideoPlayer(props: Props) {
           <>
             <video
               ref={videoRef}
-              className="w-full h-full object-contain"
+              className="w-full h-full object-contain cursor-pointer"
               controls={false}
               preload="metadata"
               playsInline
               controlsList="nodownload noremoteplayback"
               disablePictureInPicture
+              onClick={onTogglePlayback}
               onPlay={onVideoPlay}
               onPause={onVideoPause}
               onWaiting={onVideoWaiting}
