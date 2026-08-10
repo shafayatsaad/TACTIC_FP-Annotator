@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Check,
   Star,
@@ -17,6 +17,8 @@ import {
   Lock,
   Unlock,
   ArrowRight,
+  ChevronDown,
+  Sliders,
 } from "lucide-react";
 import {
   getIntentLabel,
@@ -157,6 +159,7 @@ export default function AnnotationPanel({
   const [showMatchDetails, setShowMatchDetails] = useState(false);
   const [localStart, setLocalStart] = useState("");
   const [localEnd, setLocalEnd] = useState("");
+  const [showQualityMeta, setShowQualityMeta] = useState(true);
 
   useEffect(() => {
     if (currentClip) {
@@ -229,12 +232,14 @@ export default function AnnotationPanel({
       <button
         type="button"
         onClick={() => onTeamChange(teamLetter)}
-        className="w-full p-2 rounded-lg border mb-1 transition-all text-left bg-white/[0.02] hover:bg-white/[0.05]"
+        className="w-full p-2 rounded-lg transition-all text-left glass-btn"
         style={{
           borderColor: isActive
             ? `${team.jersey_color}99`
             : "rgba(255,255,255,0.08)",
-          boxShadow: isActive ? `inset 2px 0 0 0 ${team.jersey_color}` : "none",
+          boxShadow: isActive
+            ? `inset 2px 0 0 0 ${team.jersey_color}, 0 2px 12px ${team.jersey_color}15`
+            : undefined,
           backgroundColor: isActive ? `${team.jersey_color}14` : undefined,
         }}
       >
@@ -278,84 +283,53 @@ export default function AnnotationPanel({
     );
   };
 
+  /* ─── Tab button helper ─── */
+  const renderTabBtn = (
+    tab: "annotate" | "setup" | "session",
+    icon: React.ReactNode,
+    label: string,
+  ) => (
+    <button
+      type="button"
+      onClick={() => setActiveTab(tab)}
+      className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 text-[9px] font-bold uppercase tracking-wider transition-all border-b-2 ${
+        activeTab === tab
+          ? "text-white"
+          : "text-slate-400 hover:text-slate-200 border-transparent bg-transparent"
+      }`}
+      style={{
+        borderBottomColor:
+          activeTab === tab ? activeTeam.jersey_color : "transparent",
+        backgroundColor:
+          activeTab === tab
+            ? `${activeTeam.jersey_color}08`
+            : "transparent",
+      }}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+
   return (
-    <aside className="w-72 bg-[#0e1117]/80 border-l border-white/10 flex flex-col shrink-0 overflow-hidden">
+    <aside className="w-72 bg-[#0e1117]/80 border-l border-white/10 flex flex-col shrink-0 overflow-hidden" style={{ backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
       {/* Sidebar Tabs */}
       <div className="flex border-b border-white/10 bg-black/20 shrink-0">
-        <button
-          type="button"
-          onClick={() => setActiveTab("annotate")}
-          className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 text-[9px] font-bold uppercase tracking-wider transition-all border-b-2 ${
-            activeTab === "annotate"
-              ? "text-white"
-              : "text-slate-400 hover:text-slate-200 border-transparent bg-transparent"
-          }`}
-          style={{
-            borderBottomColor:
-              activeTab === "annotate"
-                ? activeTeam.jersey_color
-                : "transparent",
-            backgroundColor:
-              activeTab === "annotate"
-                ? `${activeTeam.jersey_color}08`
-                : "transparent",
-          }}
-        >
-          <Tag className="w-3 h-3" />
-          <span>Annotate</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("setup")}
-          className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 text-[9px] font-bold uppercase tracking-wider transition-all border-b-2 ${
-            activeTab === "setup"
-              ? "text-white"
-              : "text-slate-400 hover:text-slate-200 border-transparent bg-transparent"
-          }`}
-          style={{
-            borderBottomColor:
-              activeTab === "setup" ? activeTeam.jersey_color : "transparent",
-            backgroundColor:
-              activeTab === "setup"
-                ? `${activeTeam.jersey_color}08`
-                : "transparent",
-          }}
-        >
-          <Settings className="w-3 h-3" />
-          <span>Setup</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("session")}
-          className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 text-[9px] font-bold uppercase tracking-wider transition-all border-b-2 ${
-            activeTab === "session"
-              ? "text-white"
-              : "text-slate-400 hover:text-slate-200 border-transparent bg-transparent"
-          }`}
-          style={{
-            borderBottomColor:
-              activeTab === "session" ? activeTeam.jersey_color : "transparent",
-            backgroundColor:
-              activeTab === "session"
-                ? `${activeTeam.jersey_color}08`
-                : "transparent",
-          }}
-        >
-          <BarChart2 className="w-3 h-3" />
-          <span>Session</span>
-        </button>
+        {renderTabBtn("annotate", <Tag className="w-3 h-3" />, "Annotate")}
+        {renderTabBtn("setup", <Settings className="w-3 h-3" />, "Setup")}
+        {renderTabBtn("session", <BarChart2 className="w-3 h-3" />, "Session")}
       </div>
 
       {/* Tab Content Area */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2">
         {activeTab === "annotate" && (
           <>
-            {/* Setup status banner */}
+            {/* ① Setup status banner */}
             {!isSetupComplete && (
               <button
                 type="button"
                 onClick={() => setActiveTab("setup")}
-                className="w-full flex items-center justify-between gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/8 px-2.5 py-1.5 text-[9px] font-semibold text-amber-300 hover:bg-amber-500/15 transition-all"
+                className="w-full flex items-center justify-between gap-1.5 rounded-lg glass-btn-amber px-2.5 py-1.5 text-[9px] font-semibold text-amber-300 hover:text-amber-200 cursor-pointer"
               >
                 <div className="flex items-center gap-1.5">
                   <Lock className="w-3 h-3" />
@@ -365,8 +339,19 @@ export default function AnnotationPanel({
               </button>
             )}
 
-            {/* Active Segment Timing */}
-            <div className="rounded-lg border border-white/5 bg-white/[0.01] p-2 space-y-2">
+            {/* ② Team Selection — quick-switch */}
+            <div className="glass-card p-2 space-y-1.5">
+              <h3 className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">
+                Annotating Team
+              </h3>
+              <div className="grid grid-cols-2 gap-1.5">
+                {renderTeamCard("team_a", "A", selectedIntentA)}
+                {renderTeamCard("team_b", "B", selectedIntentB)}
+              </div>
+            </div>
+
+            {/* ③ Segment Timing */}
+            <div className="glass-card p-2 space-y-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">
                   Segment Timing
@@ -404,7 +389,7 @@ export default function AnnotationPanel({
                       <button
                         type="button"
                         onClick={() => handleNudgeStart(-0.5)}
-                        className="px-1.5 py-0.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[9px] font-mono text-slate-300 transition-colors"
+                        className="px-1.5 py-0.5 glass-btn rounded text-[9px] font-mono text-slate-300"
                       >
                         -0.5
                       </button>
@@ -421,7 +406,7 @@ export default function AnnotationPanel({
                       <button
                         type="button"
                         onClick={() => handleNudgeStart(0.5)}
-                        className="px-1.5 py-0.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[9px] font-mono text-slate-300 transition-colors"
+                        className="px-1.5 py-0.5 glass-btn rounded text-[9px] font-mono text-slate-300"
                       >
                         +0.5
                       </button>
@@ -437,7 +422,7 @@ export default function AnnotationPanel({
                       <button
                         type="button"
                         onClick={() => handleNudgeEnd(-0.5)}
-                        className="px-1.5 py-0.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[9px] font-mono text-slate-300 transition-colors"
+                        className="px-1.5 py-0.5 glass-btn rounded text-[9px] font-mono text-slate-300"
                       >
                         -0.5
                       </button>
@@ -452,13 +437,14 @@ export default function AnnotationPanel({
                       <button
                         type="button"
                         onClick={() => handleNudgeEnd(0.5)}
-                        className="px-1.5 py-0.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[9px] font-mono text-slate-300 transition-colors"
+                        className="px-1.5 py-0.5 glass-btn rounded text-[9px] font-mono text-slate-300"
                       >
                         +0.5
                       </button>
                     </div>
                   </div>
 
+                  {/* Duration / Frames info */}
                   {(() => {
                     const durationSec =
                       (currentClip.annotation_end ?? currentClip.end) -
@@ -466,7 +452,7 @@ export default function AnnotationPanel({
                     const computedFrames = computeTensorFrames(durationSec);
                     const isOverMax = computedFrames > MAX_MODEL_FRAMES;
                     return (
-                      <div className="flex flex-col gap-0.5 text-[9px] text-slate-400 bg-white/[0.02] border border-white/5 rounded-md p-1.5 font-mono">
+                      <div className="flex flex-col gap-0.5 text-[9px] text-slate-400 glass-card p-1.5 font-mono">
                         <div className="flex items-center justify-between">
                           <span>Duration:</span>
                           <span className="text-white font-bold">
@@ -491,7 +477,7 @@ export default function AnnotationPanel({
                   })()}
                 </div>
               ) : (
-                <div className="text-center py-3 bg-white/[0.01] border border-dashed border-white/10 rounded-lg">
+                <div className="text-center py-3 glass-card">
                   <span className="text-[9px] text-slate-500">
                     No active segment
                   </span>
@@ -499,146 +485,184 @@ export default function AnnotationPanel({
               )}
             </div>
 
-            {/* Submit Annotation Section */}
-            <div className="rounded-lg border border-white/5 bg-white/[0.01] p-2 space-y-2">
-              <h3 className="text-[9px] font-semibold uppercase tracking-widest text-slate-300">
-                Submit Annotation
-              </h3>
-              <div className="text-[9px] text-slate-400">
-                Annotating:{" "}
-                <span
-                  className="font-semibold"
-                  style={{ color: activeTeam.jersey_color }}
-                >
-                  {activeTeam.name}
+            {/* ④ Submit Button — always prominent */}
+            <div className="glass-card p-2">
+              <div className="flex items-center justify-between mb-1.5">
+                <h3 className="text-[9px] font-semibold uppercase tracking-widest text-slate-300">
+                  Submit Annotation
+                </h3>
+                <span className="text-[9px] text-slate-400">
+                  Annotating:{" "}
+                  <span
+                    className="font-semibold"
+                    style={{ color: activeTeam.jersey_color }}
+                  >
+                    {activeTeam.name}
+                  </span>
                 </span>
               </div>
-              <div>
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="text-[8px] text-slate-400 uppercase tracking-wider">
-                    Confidence
-                  </span>
-                  <span className="text-[8px] text-slate-300 font-mono">
-                    {CONFIDENCE_LABELS[confidence - 1]}
-                  </span>
+              <motion.button
+                whileHover={isSetupComplete ? { scale: 1.02, y: -1 } : undefined}
+                whileTap={isSetupComplete ? { scale: 0.98 } : undefined}
+                onClick={isSetupComplete ? onSubmit : undefined}
+                disabled={!isSetupComplete}
+                className={`w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+                  isSetupComplete
+                    ? "text-white cursor-pointer"
+                    : "text-slate-500 cursor-not-allowed opacity-50"
+                }`}
+                style={
+                  isSetupComplete
+                    ? {
+                        backgroundColor: activeTeam.jersey_color,
+                        boxShadow: `0 4px 20px ${activeTeam.jersey_color}30, 0 0 40px ${activeTeam.jersey_color}10`,
+                        border: `1px solid ${activeTeam.jersey_color}60`,
+                        backdropFilter: "blur(8px)",
+                      }
+                    : {
+                        backgroundColor: "#1e293b",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                      }
+                }
+              >
+                {isSetupComplete ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" /> Submit
+                    <kbd className="ml-1 bg-black/30 px-1.5 py-0.5 rounded text-[8px] font-mono">
+                      Enter
+                    </kbd>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-3 h-3" /> Setup First
+                  </>
+                )}
+              </motion.button>
+            </div>
+
+            {/* ⑤ Quality Metadata — collapsible accordion */}
+            <div className="glass-card overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowQualityMeta(!showQualityMeta)}
+                className="w-full flex items-center justify-between px-2 py-1.5 text-left outline-none hover:bg-white/[0.03] transition-colors"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Sliders className="w-3 h-3 text-slate-400" />
+                  <h3 className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">
+                    Quality Metadata
+                  </h3>
                 </div>
-                <div className="flex items-center gap-0.5">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => onConfidenceChange(star)}
-                      className="p-0.5 transition-transform hover:scale-110"
-                    >
-                      <Star
-                        className={`w-3.5 h-3.5 ${star <= confidence ? "text-yellow-400 fill-yellow-400" : "text-slate-600"}`}
-                      />
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                <label className="block">
-                  <span className="mb-0.5 block text-[8px] text-slate-500 uppercase tracking-wider">
-                    Certainty
-                  </span>
-                  <select
-                    value={certainty}
-                    onChange={(e) =>
-                      onCertaintyChange(e.target.value as Certainty)
-                    }
-                    className="w-full rounded-md border border-white/10 bg-[#0c0e12] px-1.5 py-0.5 text-[10px] text-slate-100 outline-none focus:border-indigo-500/50"
-                  >
-                    <option value="low" className="bg-[#0c0e12] text-slate-100">
-                      Low
-                    </option>
-                    <option
-                      value="medium"
-                      className="bg-[#0c0e12] text-slate-100"
-                    >
-                      Medium
-                    </option>
-                    <option
-                      value="high"
-                      className="bg-[#0c0e12] text-slate-100"
-                    >
-                      High
-                    </option>
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="mb-0.5 block text-[8px] text-slate-500 uppercase tracking-wider">
-                    Coverage %
-                  </span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={coverageEstimate}
-                    onChange={(e) =>
-                      onCoverageEstimateChange(
-                        Math.max(0, Math.min(100, Number(e.target.value) || 0)),
-                      )
-                    }
-                    className="w-full rounded-md border border-white/10 bg-black/40 px-1.5 py-0.5 text-[10px] text-slate-100 outline-none focus:border-indigo-500/50 font-mono"
-                  />
-                </label>
-              </div>
-              <div className="flex items-center gap-3 pt-0.5">
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={isUncertain}
-                    onChange={(e) => onUncertainChange(e.target.checked)}
-                    className="w-3 h-3 rounded border-white/20 bg-white/5 text-indigo-500 focus:ring-indigo-500/30 accent-indigo-500"
-                  />
-                  <Flag className="w-2.5 h-2.5 text-slate-400" />
-                  <span className="text-[9px] text-slate-400">Flag</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={autoNext}
-                    onChange={(e) => onAutoNextChange(e.target.checked)}
-                    className="w-3 h-3 rounded border-white/20 bg-white/5 text-indigo-500 focus:ring-indigo-500/30 accent-indigo-500"
-                  />
-                  <span className="text-[9px] text-slate-400">Auto</span>
-                </label>
-              </div>
-              <div className="pt-1">
-                <motion.button
-                  whileHover={isSetupComplete ? { scale: 1.02 } : undefined}
-                  whileTap={isSetupComplete ? { scale: 0.98 } : undefined}
-                  onClick={isSetupComplete ? onSubmit : undefined}
-                  disabled={!isSetupComplete}
-                  className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all shadow-lg ${
-                    isSetupComplete
-                      ? "text-white cursor-pointer"
-                      : "text-slate-500 cursor-not-allowed opacity-50"
-                  }`}
-                  style={
-                    isSetupComplete
-                      ? {
-                          backgroundColor: activeTeam.jersey_color,
-                          boxShadow: `0 8px 24px ${activeTeam.jersey_color}22`,
-                        }
-                      : {
-                          backgroundColor: "#1e293b",
-                          borderColor: "rgba(255,255,255,0.08)",
-                        }
-                  }
+                <motion.div
+                  animate={{ rotate: showQualityMeta ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
                 >
-                  {isSetupComplete ? (
-                    <>
-                      <Check className="w-3 h-3" /> Submit (Enter)
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="w-3 h-3" /> Setup First
-                    </>
-                  )}
-                </motion.button>
-              </div>
+                  <ChevronDown className="w-3 h-3 text-slate-500" />
+                </motion.div>
+              </button>
+              <AnimatePresence initial={false}>
+                {showQualityMeta && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-2 pb-2 space-y-2 border-t border-white/5 pt-2">
+                      {/* Confidence stars */}
+                      <div>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-[8px] text-slate-400 uppercase tracking-wider">
+                            Confidence
+                          </span>
+                          <span className="text-[8px] text-slate-300 font-mono">
+                            {CONFIDENCE_LABELS[confidence - 1]}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => onConfidenceChange(star)}
+                              className="p-0.5 transition-all hover:scale-125 rounded-md hover:bg-white/[0.06]"
+                            >
+                              <Star
+                                className={`w-3.5 h-3.5 ${star <= confidence ? "text-yellow-400 fill-yellow-400 drop-shadow-[0_0_4px_rgba(250,204,21,0.4)]" : "text-slate-600"}`}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Certainty + Coverage */}
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <label className="block">
+                          <span className="mb-0.5 block text-[8px] text-slate-500 uppercase tracking-wider">
+                            Certainty
+                          </span>
+                          <select
+                            value={certainty}
+                            onChange={(e) =>
+                              onCertaintyChange(e.target.value as Certainty)
+                            }
+                            className="w-full rounded-md border border-white/10 bg-[#0c0e12] px-1.5 py-0.5 text-[10px] text-slate-100 outline-none focus:border-indigo-500/50"
+                          >
+                            <option value="low" className="bg-[#0c0e12] text-slate-100">
+                              Low
+                            </option>
+                            <option value="medium" className="bg-[#0c0e12] text-slate-100">
+                              Medium
+                            </option>
+                            <option value="high" className="bg-[#0c0e12] text-slate-100">
+                              High
+                            </option>
+                          </select>
+                        </label>
+                        <label className="block">
+                          <span className="mb-0.5 block text-[8px] text-slate-500 uppercase tracking-wider">
+                            Coverage %
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={coverageEstimate}
+                            onChange={(e) =>
+                              onCoverageEstimateChange(
+                                Math.max(0, Math.min(100, Number(e.target.value) || 0)),
+                              )
+                            }
+                            className="w-full rounded-md border border-white/10 bg-black/40 px-1.5 py-0.5 text-[10px] text-slate-100 outline-none focus:border-indigo-500/50 font-mono"
+                          />
+                        </label>
+                      </div>
+                      {/* Flag + Auto toggles */}
+                      <div className="flex items-center gap-3 pt-0.5">
+                        <label className="flex items-center gap-1.5 cursor-pointer select-none glass-btn rounded-md px-2 py-1">
+                          <input
+                            type="checkbox"
+                            checked={isUncertain}
+                            onChange={(e) => onUncertainChange(e.target.checked)}
+                            className="w-3 h-3 rounded border-white/20 bg-white/5 text-indigo-500 focus:ring-indigo-500/30 accent-indigo-500"
+                          />
+                          <Flag className="w-2.5 h-2.5 text-slate-400" />
+                          <span className="text-[9px] text-slate-400">Flag</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer select-none glass-btn rounded-md px-2 py-1">
+                          <input
+                            type="checkbox"
+                            checked={autoNext}
+                            onChange={(e) => onAutoNextChange(e.target.checked)}
+                            className="w-3 h-3 rounded border-white/20 bg-white/5 text-indigo-500 focus:ring-indigo-500/30 accent-indigo-500"
+                          />
+                          <span className="text-[9px] text-slate-400">Auto</span>
+                        </label>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </>
         )}
@@ -646,7 +670,7 @@ export default function AnnotationPanel({
         {activeTab === "setup" && (
           <>
             {/* Ball Possession */}
-            <div className="rounded-lg border border-white/5 bg-white/[0.01] p-2 space-y-2">
+            <div className="glass-card p-2 space-y-2">
               <h3 className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">
                 Ball Possession
               </h3>
@@ -657,19 +681,16 @@ export default function AnnotationPanel({
                 <button
                   type="button"
                   onClick={() => onManualPossessionChange("A")}
-                  className="flex items-center justify-center gap-1 py-1 rounded-md border text-[9px] font-semibold uppercase tracking-wider transition-all"
+                  className="flex items-center justify-center gap-1 py-1 rounded-md text-[9px] font-semibold uppercase tracking-wider transition-all glass-btn"
                   style={
                     manualPossession === "A"
                       ? {
                           color: teamConfig.team_a.jersey_color,
                           borderColor: `${teamConfig.team_a.jersey_color}99`,
                           backgroundColor: `${teamConfig.team_a.jersey_color}14`,
+                          boxShadow: `0 2px 12px ${teamConfig.team_a.jersey_color}20`,
                         }
-                      : {
-                          borderColor: "rgba(255,255,255,0.08)",
-                          backgroundColor: "rgba(255,255,255,0.02)",
-                          color: "#94a3b8",
-                        }
+                      : {}
                   }
                 >
                   <span
@@ -681,19 +702,16 @@ export default function AnnotationPanel({
                 <button
                   type="button"
                   onClick={() => onManualPossessionChange("B")}
-                  className="flex items-center justify-center gap-1 py-1 rounded-md border text-[9px] font-semibold uppercase tracking-wider transition-all"
+                  className="flex items-center justify-center gap-1 py-1 rounded-md text-[9px] font-semibold uppercase tracking-wider transition-all glass-btn"
                   style={
                     manualPossession === "B"
                       ? {
                           color: teamConfig.team_b.jersey_color,
                           borderColor: `${teamConfig.team_b.jersey_color}99`,
                           backgroundColor: `${teamConfig.team_b.jersey_color}14`,
+                          boxShadow: `0 2px 12px ${teamConfig.team_b.jersey_color}20`,
                         }
-                      : {
-                          borderColor: "rgba(255,255,255,0.08)",
-                          backgroundColor: "rgba(255,255,255,0.02)",
-                          color: "#94a3b8",
-                        }
+                      : {}
                   }
                 >
                   <span
@@ -707,10 +725,10 @@ export default function AnnotationPanel({
                 <button
                   type="button"
                   onClick={() => onManualPossessionChange("contested")}
-                  className={`flex items-center justify-center gap-1 py-1 rounded-md border text-[9px] font-semibold uppercase tracking-wider transition-all ${
+                  className={`flex items-center justify-center gap-1 py-1 rounded-md text-[9px] font-semibold uppercase tracking-wider transition-all ${
                     manualPossession === "contested"
-                      ? "bg-amber-500/15 border-amber-500/40 text-amber-200"
-                      : "bg-white/[0.02] border-white/10 text-slate-400 hover:bg-white/10"
+                      ? "glass-btn-amber text-amber-200"
+                      : "glass-btn text-slate-400"
                   }`}
                 >
                   Contested
@@ -718,10 +736,10 @@ export default function AnnotationPanel({
                 <button
                   type="button"
                   onClick={() => onManualPossessionChange(null)}
-                  className={`flex items-center justify-center gap-1 py-1 rounded-md border text-[9px] font-semibold uppercase tracking-wider transition-all ${
+                  className={`flex items-center justify-center gap-1 py-1 rounded-md text-[9px] font-semibold uppercase tracking-wider transition-all ${
                     manualPossession === null
-                      ? "bg-indigo-500/15 border-indigo-500/40 text-indigo-200"
-                      : "bg-white/[0.02] border-white/10 text-slate-400 hover:bg-white/10"
+                      ? "glass-btn-indigo text-indigo-200"
+                      : "glass-btn text-slate-400"
                   }`}
                 >
                   <Hand className="w-2.5 h-2.5" /> Auto
@@ -748,7 +766,7 @@ export default function AnnotationPanel({
             </div>
 
             {/* Game State Scores */}
-            <div className="rounded-lg border border-white/5 bg-white/[0.01] p-2 space-y-1.5">
+            <div className="glass-card p-2 space-y-1.5">
               <h3 className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">
                 Scoreline
               </h3>
@@ -789,14 +807,14 @@ export default function AnnotationPanel({
             </div>
 
             {/* Teams Settings */}
-            <div className="rounded-lg border border-white/5 bg-white/[0.01] p-2 space-y-2">
+            <div className="glass-card p-2 space-y-2">
               <h3 className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">
                 Teams Config
               </h3>
               {renderTeamCard("team_a", "A", selectedIntentA)}
               {renderTeamCard("team_b", "B", selectedIntentB)}
 
-              <div className="space-y-1.5 rounded-lg border border-white/5 bg-white/[0.02] p-1.5">
+              <div className="space-y-1.5 glass-card p-1.5">
                 <div className="text-[8px] font-semibold uppercase tracking-widest text-slate-500">
                   Edit Identity ({currentTeam})
                 </div>
@@ -815,7 +833,7 @@ export default function AnnotationPanel({
             </div>
 
             {/* Match Details Accordion */}
-            <div className="rounded-lg border border-white/5 bg-white/[0.01] p-2">
+            <div className="glass-card p-2">
               <button
                 type="button"
                 onClick={() => setShowMatchDetails(!showMatchDetails)}
@@ -824,9 +842,12 @@ export default function AnnotationPanel({
                 <h3 className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">
                   Match Details
                 </h3>
-                <span className="text-slate-500 text-[10px] font-bold leading-none select-none">
-                  {showMatchDetails ? "▼" : "▶"}
-                </span>
+                <motion.div
+                  animate={{ rotate: showMatchDetails ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ChevronDown className="w-3 h-3 text-slate-500" />
+                </motion.div>
               </button>
               {showMatchDetails && (
                 <div className="space-y-1.5 mt-2 pt-1.5 border-t border-white/5">
@@ -964,13 +985,15 @@ export default function AnnotationPanel({
 
             {/* Apply Setup Button */}
             <motion.button
-              whileHover={{ scale: 1.02 }}
+              whileHover={{ scale: 1.02, y: -1 }}
               whileTap={{ scale: 0.98 }}
               onClick={handleApplySetup}
-              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all shadow-lg text-white"
+              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all text-white cursor-pointer"
               style={{
                 backgroundColor: activeTeam.jersey_color,
-                boxShadow: `0 8px 24px ${activeTeam.jersey_color}22`,
+                boxShadow: `0 4px 20px ${activeTeam.jersey_color}30, 0 0 40px ${activeTeam.jersey_color}10`,
+                border: `1px solid ${activeTeam.jersey_color}60`,
+                backdropFilter: "blur(8px)",
               }}
             >
               <Unlock className="w-3 h-3" /> Apply Setup & Annotate
@@ -981,18 +1004,20 @@ export default function AnnotationPanel({
         {activeTab === "session" && (
           <>
             {/* Session Stats */}
-            <div className="rounded-lg border border-white/5 bg-white/[0.01] p-2 space-y-2">
+            <div className="glass-card p-2 space-y-2">
               <h3 className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">
                 Session Progress
               </h3>
               {sessionBreakDue && (
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   type="button"
                   onClick={onAcknowledgeBreak}
-                  className="w-full rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-1.5 text-[9px] font-bold uppercase tracking-wider text-amber-200 hover:bg-amber-500/20 transition-all"
+                  className="w-full rounded-lg glass-btn-amber px-2 py-1.5 text-[9px] font-bold uppercase tracking-wider text-amber-200 cursor-pointer"
                 >
                   Resume After Break
-                </button>
+                </motion.button>
               )}
               <h4 className="text-[8px] font-semibold uppercase tracking-wider text-slate-500">
                 Class Distribution
@@ -1024,24 +1049,24 @@ export default function AnnotationPanel({
             </div>
 
             {/* Export */}
-            <div className="rounded-lg border border-white/5 bg-white/[0.01] p-2 space-y-2">
+            <div className="glass-card p-2 space-y-2">
               <h3 className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">
                 Export Session
               </h3>
               <div className="flex gap-1.5">
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
+                  whileHover={{ scale: 1.03, y: -1 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={onExportJSON}
-                  className="flex-1 flex items-center justify-center gap-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 py-1.5 rounded-lg text-[9px] font-bold text-emerald-400 uppercase tracking-wider transition-colors"
+                  className="flex-1 flex items-center justify-center gap-1 glass-btn-emerald py-1.5 rounded-lg text-[9px] font-bold text-emerald-400 uppercase tracking-wider cursor-pointer"
                 >
                   <FileJson className="w-3 h-3" /> JSON
                 </motion.button>
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
+                  whileHover={{ scale: 1.03, y: -1 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={onExportCSV}
-                  className="flex-1 flex items-center justify-center gap-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 py-1.5 rounded-lg text-[9px] font-bold text-emerald-400 uppercase tracking-wider transition-colors"
+                  className="flex-1 flex items-center justify-center gap-1 glass-btn-emerald py-1.5 rounded-lg text-[9px] font-bold text-emerald-400 uppercase tracking-wider cursor-pointer"
                 >
                   <FileSpreadsheet className="w-3 h-3" /> CSV
                 </motion.button>
@@ -1052,7 +1077,7 @@ export default function AnnotationPanel({
             </div>
 
             {/* Danger Zone */}
-            <div className="rounded-lg border border-rose-500/10 bg-rose-500/[0.01] p-2 space-y-1.5">
+            <div className="glass-card p-2 space-y-1.5" style={{ borderColor: "rgba(244,63,94,0.15)" }}>
               <h3 className="text-[9px] font-semibold uppercase tracking-widest text-rose-400">
                 Danger Zone
               </h3>
@@ -1060,7 +1085,7 @@ export default function AnnotationPanel({
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={onReset}
-                className="w-full flex items-center justify-center gap-1 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 py-1.5 rounded-lg text-[9px] font-bold text-rose-400 uppercase tracking-wider transition-colors"
+                className="w-full flex items-center justify-center gap-1 glass-btn-rose py-1.5 rounded-lg text-[9px] font-bold text-rose-400 uppercase tracking-wider cursor-pointer"
               >
                 <Trash2 className="w-2.5 h-2.5" /> Reset Session
               </motion.button>
