@@ -145,10 +145,16 @@ export default function VideoPlayer(props: Props) {
   const macroBarRef = useRef<HTMLDivElement>(null);
   const zoomProgressBarRef = useRef<HTMLDivElement>(null);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
-  const [draggingEdge, setDraggingEdge] = useState<{
-    clipId: string;
-    edge: "start" | "end";
+  const [clickFlash, setClickFlash] = useState<{
+    type: "play" | "pause";
+    id: number;
   } | null>(null);
+
+  const handleScreenClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setClickFlash({ type: isPlaying ? "pause" : "play", id: Date.now() });
+    onTogglePlayback();
+  };
   const [controlsVisible, setControlsVisible] = useState(true);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -367,7 +373,7 @@ export default function VideoPlayer(props: Props) {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className="flex-1 flex flex-col bg-black/70 rounded-2xl border border-white/[0.07] shadow-2xl relative overflow-hidden min-h-[320px] mb-4 group/player"
+      className="flex-1 flex flex-col bg-black/80 rounded-2xl border border-white/[0.08] shadow-2xl relative overflow-hidden min-h-[380px] mb-2 group/player"
     >
       {isDragOver && (
         <div className="absolute inset-0 z-30 bg-indigo-950/80 border-2 border-dashed border-indigo-500 rounded-2xl flex flex-col items-center justify-center backdrop-blur-sm pointer-events-none transition-all">
@@ -396,15 +402,15 @@ export default function VideoPlayer(props: Props) {
       <button
         type="button"
         onClick={onHelp}
-        className="absolute top-3 right-3 z-20 w-7 h-7 flex items-center justify-center rounded-md bg-black/60 border border-white/10 text-slate-300 hover:text-white hover:bg-black/80 transition-colors"
+        className="absolute top-3 right-3 z-20 w-7 h-7 flex items-center justify-center rounded-md bg-black/60 border border-white/10 text-slate-300 hover:text-white hover:bg-black/80 transition-colors cursor-pointer"
         title="Keyboard shortcuts (?)"
       >
         <HelpCircle className="w-3.5 h-3.5" />
       </button>
 
       <div
-        className="absolute inset-0 flex items-center justify-center bg-[#06080c]"
-        onClick={onTogglePlayback}
+        className="absolute inset-0 flex items-center justify-center bg-[#06080c] select-none"
+        onClick={handleScreenClick}
       >
         {isLoading ? (
           <div className="text-center pointer-events-none">
@@ -428,7 +434,7 @@ export default function VideoPlayer(props: Props) {
               playsInline
               controlsList="nodownload noremoteplayback"
               disablePictureInPicture
-              onClick={onTogglePlayback}
+              onClick={handleScreenClick}
               onPlay={onVideoPlay}
               onPause={onVideoPause}
               onWaiting={onVideoWaiting}
@@ -436,7 +442,29 @@ export default function VideoPlayer(props: Props) {
               onError={onVideoError}
               onTimeUpdate={onTimeUpdate}
             />
-            {!isPlaying && !isBuffering && (
+            {/* Smooth Ripple Flash when screen is clicked to Play/Pause */}
+            <AnimatePresence>
+              {clickFlash && (
+                <motion.div
+                  key={clickFlash.id}
+                  initial={{ scale: 0.7, opacity: 0.95 }}
+                  animate={{ scale: 1.3, opacity: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.45, ease: "easeOut" }}
+                  className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
+                >
+                  <div className="w-20 h-20 rounded-full bg-black/60 border border-white/30 backdrop-blur-md flex items-center justify-center text-white shadow-[0_0_40px_rgba(0,0,0,0.6)]">
+                    {clickFlash.type === "play" ? (
+                      <Play className="w-10 h-10 fill-white text-white ml-1" />
+                    ) : (
+                      <Pause className="w-10 h-10 fill-white text-white" />
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {!isPlaying && !isBuffering && !clickFlash && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="w-20 h-20 rounded-full bg-black/40 border border-white/20 backdrop-blur-md flex items-center justify-center transition-transform group-hover/player:scale-110">
                   <Play className="w-9 h-9 text-white ml-1" fill="white" />
