@@ -3757,7 +3757,12 @@ export default function AnnotatorClient() {
       },
       annotator_state: "manual" as AnnotatorState,
       is_locked: false,
-b, b) => a.annotation_start - b.annotation_start,
+    };
+    // Remove current clip, add both sorted
+    setClips((prev) => {
+      const filtered = prev.filter((c) => c.clip_id !== currentClip.clip_id);
+      const next = [...filtered, seg1, seg2].sort(
+        (a, b) => a.annotation_start - b.annotation_start,
       );
       const idx1 = next.findIndex((c) => c.clip_id === seg1Id);
       if (idx1 >= 0) setCurrentClipIndex(idx1);
@@ -3767,11 +3772,6 @@ b, b) => a.annotation_start - b.annotation_start,
       `Split at ${formatTime(splitPoint)}. Segment 1: ${formatTime(start)}–${formatTime(splitPoint)}, Segment 2: ${formatTime(splitPoint)}–${formatTime(end)}.`,
     );
   }, [currentClip, readPlayhead]);
-    setIsPlaying(false);
-  }, []);
-            annotations={annotations}
-            onAddNextSegment={handleAddNextSegment}
-            onTimeUpdate={handleTimeUpdate}
           />
           <IntentLabels
             currentTeam={currentTeam}
