@@ -112,30 +112,36 @@ export default function IntentLabels({
                         isDisabled
                           ? "cursor-not-allowed opacity-30 bg-white/[0.01] border border-white/5"
                           : isSelected
-                            ? "bg-slate-900/90 border shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
-                            : "bg-[#11141c]/80 hover:bg-[#181c28]/90 border border-white/8 hover:border-white/20 shadow-sm"
+                            ? "bg-slate-900/95 border shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
+                            : "bg-[#131722]/90 hover:bg-[#1c2232]/90 border border-white/10 hover:border-white/25 shadow-sm"
                       }`}
                       style={
                         isSelected
                           ? {
                               borderColor: activeTeam.jersey_color,
-                              background: `linear-gradient(135deg, ${activeTeam.jersey_color}25 0%, rgba(15,23,42,0.95) 100%)`,
-                              boxShadow: `0 0 20px ${activeTeam.jersey_color}30, 0 4px 12px rgba(0,0,0,0.4), inset 3px 0 0 0 ${activeTeam.jersey_color}`,
+                              background: `linear-gradient(135deg, ${activeTeam.jersey_color}30 0%, rgba(15,23,42,0.95) 100%)`,
+                              boxShadow: `0 0 20px ${activeTeam.jersey_color}35, 0 4px 12px rgba(0,0,0,0.4), inset 3px 0 0 0 ${activeTeam.jersey_color}`,
                             }
                           : {}
                       }
                       title={`${item.label} (${item.hotkey})`}
                     >
+                      {/* Category Color Dot/Bar Indicator */}
+                      <span
+                        className="w-1 h-3 rounded-full shrink-0 shadow-[0_0_6px_currentColor]"
+                        style={{ backgroundColor: group.hex }}
+                      />
+
                       {/* Hotkey Badge Pill */}
                       <span
                         className={`text-[10px] font-extrabold font-mono px-1.5 py-0.5 rounded-md flex items-center justify-center shrink-0 transition-colors ${
                           isSelected
                             ? "bg-white/20 text-white shadow-sm"
-                            : "bg-white/5 group-hover:bg-white/10 text-slate-300 border border-white/10"
+                            : "bg-white/10 group-hover:bg-white/20 text-slate-200 border border-white/15"
                         }`}
                         style={
                           isSelected
-                            ? { backgroundColor: `${activeTeam.jersey_color}50`, color: "#fff" }
+                            ? { backgroundColor: `${activeTeam.jersey_color}60`, color: "#fff" }
                             : {}
                         }
                       >
@@ -147,7 +153,7 @@ export default function IntentLabels({
                         className={`text-[11px] truncate tracking-tight ${
                           isSelected
                             ? "text-white font-bold"
-                            : "text-slate-300 group-hover:text-white font-medium"
+                            : "text-slate-200 group-hover:text-white font-medium"
                         }`}
                       >
                         {item.label}
