@@ -3,6 +3,7 @@ import path from "node:path";
 import test from "node:test";
 import { validateAnnotationSession } from "../src/lib/annotation-validation";
 import { resolveInsideDir, sanitizeFileStem } from "../src/lib/server-utils";
+import { generateClipId } from "../src/lib/tensor-utils";
 
 function sampleAnnotation(overrides: Record<string, any> = {}) {
   const base = {
@@ -224,4 +225,16 @@ test("video path resolution stays inside the configured directory", () => {
 test("file stem sanitization strips unsafe filename characters", () => {
   assert.equal(sanitizeFileStem("../bad match?.json"), "bad_match_json");
   assert.equal(sanitizeFileStem(""), "unknown");
+});
+
+test("clip ids are sanitized and based on 100ms timeline position", () => {
+  assert.equal(
+    generateClipId("match_001_720p", 1, 5.6),
+    "match_001_720p_h1_00056",
+  );
+  assert.equal(
+    generateClipId("bad match?.mp4", 2, 19.04),
+    "bad_match_mp4_h2_00190",
+  );
+  assert.equal(generateClipId("match_001", 1, 19.06), "match_001_h1_00191");
 });
