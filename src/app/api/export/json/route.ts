@@ -380,9 +380,27 @@ function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
     const assignedSplit = isExclusion
       ? "excluded"
       : ann.model_split?.assigned_split || "train";
+    const parentSegmentId = ann.segment_metadata?.parent_segment_id ?? null;
+    const splitIndex = ann.segment_metadata?.split_index ?? null;
+    const splitCount = ann.segment_metadata?.split_count ?? null;
+    const splitSourceStartSec =
+      ann.segment_metadata?.split_source_start_sec ?? null;
+    const splitSourceEndSec =
+      ann.segment_metadata?.split_source_end_sec ?? null;
 
     return {
       segment_id: segmentId,
+      parent_segment_id: parentSegmentId,
+      split_index: splitIndex,
+      split_count: splitCount,
+      split_source_start_ms:
+        splitSourceStartSec === null
+          ? null
+          : quantizeMs(Math.round(splitSourceStartSec * 1000)),
+      split_source_end_ms:
+        splitSourceEndSec === null
+          ? null
+          : quantizeMs(Math.round(splitSourceEndSec * 1000)),
       half: halfNumber,
       start_ms: quantizeMs(Math.round(start_sec * 1000)),
       end_ms: quantizeMs(Math.round(end_sec * 1000)),
@@ -517,6 +535,11 @@ function convertToTrainSchema(fullData: any): any {
       // Build the training segment — only paper-essential fields
       const trainSeg: any = {
         segment_id: seg.segment_id,
+        parent_segment_id: seg.parent_segment_id ?? null,
+        split_index: seg.split_index ?? null,
+        split_count: seg.split_count ?? null,
+        split_source_start_ms: seg.split_source_start_ms ?? null,
+        split_source_end_ms: seg.split_source_end_ms ?? null,
         start_ms: startMs,
         end_ms: alignedEndMs,
         duration_ms: durationMs,
