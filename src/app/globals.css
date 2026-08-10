@@ -154,85 +154,30 @@
     box-shadow: 0 1px 8px rgba(16, 185, 129, 0.1);
   }
 
-  /* ─── Keyboard Keycap styling for intent buttons ─── */
-  .keycap {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.04) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    box-shadow:
-      0 2px 4px rgba(0, 0, 0, 0.4),
-      inset 0 1px 0 rgba(255, 255, 255, 0.25);
-    border-radius: 0.375rem;
-    transition: all 0.15s ease;
-  }
-
-  /* ─── Ultra-Luxurious Dev Portfolio Button Animations ─── */
-  @keyframes gradient-spin {
+  /* ─── Modern Shimmer Beam Sweep ─── */
+  @keyframes shimmer-slide {
     0% {
-      transform: rotate(0deg);
+      transform: translateX(-150%) rotate(25deg);
     }
     100% {
-      transform: rotate(360deg);
+      transform: translateX(250%) rotate(25deg);
     }
   }
-
-  .portfolio-border-glow {
-    position: relative;
-    border-radius: 0.75rem;
-    background: rgba(15, 18, 25, 0.75);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    box-shadow:
-      0 0 20px rgba(139, 92, 246, 0.3),
-      0 0 40px rgba(236, 72, 153, 0.15),
-      inset 0 1px 0 rgba(255, 255, 255, 0.2);
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  
-  .portfolio-border-glow::before {
-    content: '';
-    position: absolute;
-    inset: -1.5px;
-    border-radius: 0.85rem;
+  .shimmer-beam {
     background: linear-gradient(
       90deg,
-      #6366f1,
-      #a855f7,
-      #ec4899,
-      #3b82f6,
-      #6366f1
+      transparent 0%,
+      rgba(255, 255, 255, 0.08) 35%,
+      rgba(255, 255, 255, 0.45) 50%,
+      rgba(255, 255, 255, 0.08) 65%,
+      transparent 100%
     );
-    background-size: 300% 300%;
-    animation: rainbow-flow 4s ease infinite;
-    z-index: -1;
-    opacity: 0.85;
-    transition: opacity 0.3s ease;
+    width: 60%;
+    height: 300%;
+    animation: shimmer-slide 2.6s ease-in-out infinite;
   }
 
-  .portfolio-border-glow:hover {
-    transform: translateY(-2px) scale(1.04);
-    box-shadow:
-      0 0 30px rgba(139, 92, 246, 0.5),
-      0 0 60px rgba(236, 72, 153, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  }
-
-  .portfolio-border-glow:hover::before {
-    opacity: 1;
-  }
-
-  @keyframes rainbow-flow {
-    0% {
-      background-position: 0% 50%;
-    }
-    50% {
-      background-position: 100% 50%;
-    }
-    100% {
-      background-position: 0% 50%;
-    }
-  }
-
-  /* ─── One-shot glow for newly created segments ─── */
+  /* One-shot glow for newly created segments */
   @keyframes clip-pulse {
     0% {
       box-shadow:
