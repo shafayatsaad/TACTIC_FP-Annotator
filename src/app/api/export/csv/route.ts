@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import path from "path";
 import { atomicWriteText, getExportsDir, sanitizeFileStem } from "@/lib/server-utils";
 import { validateAnnotationSession } from "@/lib/annotation-validation";
+import { sanitizeMatchId } from "@/lib/tensor-utils";
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const matchId = sanitizeFileStem(anns[0].match_id || "unknown");
+    const matchId = sanitizeFileStem(sanitizeMatchId(anns[0].match_id));
     const fileName = `TACTIC_FP_Annotated_${matchId}.csv`;
     const filePath = path.join(getExportsDir(), fileName);
 
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     const flatten = (ann: any) => ({
       clip_id: ann.clip_id,
-      match_id: ann.match_id,
+      match_id: sanitizeMatchId(ann.match_id),
       match_name: ann.match_name,
       half: ann.half,
       window_idx: ann.window_idx,
