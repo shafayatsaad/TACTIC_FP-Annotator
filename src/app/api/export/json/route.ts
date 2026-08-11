@@ -6,6 +6,7 @@ import { execFileSync } from "child_process";
 import { atomicWriteJson, getExportsDir, sanitizeFileStem } from "@/lib/server-utils";
 import { validateAnnotationSession } from "@/lib/annotation-validation";
 import {
+  sanitizeMatchId,
   generateClipId,
   generateNpzPath,
   MODEL_FPS,
@@ -243,7 +244,7 @@ function fillGaps(segments: any[], half: number): any[] {
  * Convert annotations to the full annotator export schema.
  */
 function convertToMatchSchema(anns: any[], matchConfig: any, teamConfig: any) {
-  const match_id = matchConfig?.match_id || "manual_match";
+  const match_id = sanitizeMatchId(matchConfig?.match_id || anns[0]?.match_id || "match_001");
   const competition = matchConfig?.competition || "england_epl";
   const season = matchConfig?.season || "2024-2015";
   const match_date =
