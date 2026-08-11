@@ -3,6 +3,8 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+import { sanitizeMatchId } from "./tensor-utils";
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -47,7 +49,7 @@ export function normalizeClip(raw: any) {
   const preCtx = (clipDur - annWin) / 2;
   return {
     clip_id: raw.clip_id || raw.id || `clip_${raw.start}_${raw.end}`,
-    match_id: raw.match_id || "unknown",
+    match_id: sanitizeMatchId(raw.match_id || raw.match_name || "match_001"),
     path: raw.path || "",
     start,
     end,
