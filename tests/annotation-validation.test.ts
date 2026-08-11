@@ -4,7 +4,7 @@ import test from "node:test";
 import { validateAnnotationSession } from "../src/lib/annotation-validation";
 import { resolveInsideDir, sanitizeFileStem } from "../src/lib/server-utils";
 import { splitSegmentBounds } from "../src/lib/splitSegmentBounds";
-import { generateClipId } from "../src/lib/tensor-utils";
+import { generateClipId, sanitizeMatchId } from "../src/lib/tensor-utils";
 
 function sampleAnnotation(overrides: Record<string, any> = {}) {
   const base = {
@@ -228,14 +228,24 @@ test("file stem sanitization strips unsafe filename characters", () => {
   assert.equal(sanitizeFileStem(""), "unknown");
 });
 
+test("match ID sanitization strips video resolution tags, extensions, half tags, and manual fallbacks", () => {
+  assert.equal(sanitizeMatchId("match_001_720p.mp4"), "match_001");
+  assert.equal(sanitizeMatchId("match_001_720p_converted.mp4"), "match_001");
+  assert.equal(sanitizeMatchId("match_001_h1.mp4"), "match_001");
+  assert.equal(sanitizeMatchId("match_001_h2.mp4"), "match_001");
+  assert.equal(sanitizeMatchId("raw_videos/match_002_1080p.mkv"), "match_002");
+  assert.equal(sanitizeMatchId("manual"), "match_001");
+  assert.equal(sanitizeMatchId("chelsea_burnley.mp4"), "match_chelsea_burnley");
+});
+
 test("clip ids are sanitized and based on 100ms timeline position", () => {
   assert.equal(
     generateClipId("match_001_720p", 1, 5.6),
-    "match_001_720p_h1_00056",
+    "match_001_h1_00056",
   );
   assert.equal(
     generateClipId("bad match?.mp4", 2, 19.04),
-    "bad_match_mp4_h2_00190",
+    "match_bad_match_h2_00190",
   );
   assert.equal(generateClipId("match_001", 1, 19.06), "match_001_h1_00191");
 });
