@@ -22,8 +22,22 @@ Examples:
     python tools/convert_to_train_schema.py -i ./exports/ -o ./train_exports/
 """
 
-import os, sys, json, argparse
+import os, sys, json, argparse, re
 from pathlib import Path
+
+def sanitize_match_id(name: str) -> str:
+    if not name:
+        return "match_001"
+    stem = Path(name).stem if '.' in name else name
+    tag_pattern = r'_(720p|1080p|480p|4k|fhd|hd|sd|converted|raw|h264|h265|avc|fp10|h1|h2|1st|2nd)$'
+    while re.search(tag_pattern, stem, flags=re.IGNORECASE):
+        stem = re.sub(tag_pattern, '', stem, flags=re.IGNORECASE)
+    clean = re.sub(r'[^a-zA-Z0-9_-]+', '_', stem).strip('_')
+    if not clean or clean.lower() in ('manual', 'unknown'):
+        return "match_001"
+    if not re.match(r'^match[_-]', clean, flags=re.IGNORECASE):
+        return f"match_{clean}"
+    return clean
 
 MODEL_FPS = 10
 MAX_MODEL_FRAMES = 150
@@ -298,7 +312,7 @@ def convert_to_train_schema(input_data: dict) -> dict:
     match_split = all_splits.pop() if len(all_splits) == 1 else (all_splits.pop() if all_splits else "train")
 
     output = {
-        "match_id": input_data.get("match_id", "unknown"),
+        "match_id": sanitize_match_id(input_data.get("match_id", "unknown")),
         "model_split": match_split,
         "halves": train_halves,
     }
