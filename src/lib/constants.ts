@@ -1,5 +1,7 @@
 "use client";
 
+import { sanitizeMatchId } from "./tensor-utils";
+
 export const TACTIC_INTENTS = [
   {
     group: "BUILDUP",
@@ -276,11 +278,13 @@ export function normalizeClip(raw: Partial<Clip> & Record<string, any>): Clip {
     raw.annotation_end ?? raw.label_end_sec ?? annotationStart + 10,
   );
 
+  const matchId = sanitizeMatchId(raw.match_id || raw.match_name);
+
   return {
     clip_id: String(
-      raw.clip_id ?? raw.id ?? `${raw.match_id ?? "match"}_${start}`,
+      raw.clip_id ?? raw.id ?? `${matchId}_${start}`,
     ),
-    match_id: String(raw.match_id ?? "unknown_match"),
+    match_id: matchId,
     path: String(
       raw.path ?? raw.video_path ?? raw.video_source?.video_path ?? "",
     ),
@@ -355,6 +359,7 @@ export function makeUniqueClipIds(clips: Clip[]): Clip[] {
 // Re-export shared computation utilities (no "use client" in the source file)
 // to avoid tree-shaking issues on the server side.
 export {
+  sanitizeMatchId,
   generateNpzPath,
   generateClipId,
   MODEL_FPS,
