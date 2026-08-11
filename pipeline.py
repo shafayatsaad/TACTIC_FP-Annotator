@@ -17,7 +17,7 @@ import os, sys, json, argparse
 from pathlib import Path
 
 try:
-    from generate_manifest import add_video_metadata, determine_half
+    from generate_manifest import add_video_metadata, determine_half, sanitize_match_id
 except ImportError:
     print("Error: generate_manifest.py not found.")
     sys.exit(1)
@@ -63,7 +63,7 @@ def process_pipeline():
     ]
 
     for video_path in videos:
-        match_id = video_path.stem
+        match_id = sanitize_match_id(video_path.name)
         print(f"\nProcessing Match: {match_id}")
 
         video_meta = add_video_metadata(str(video_path))
