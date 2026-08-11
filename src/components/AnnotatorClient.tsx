@@ -39,6 +39,7 @@ import { formatTime, formatMatchClock } from "@/lib/utils";
 import {
   MAX_SEGMENT_DURATION,
   MIN_SEGMENT_DURATION,
+  sanitizeMatchId,
   generateClipId,
   generateNpzPath,
   MODEL_FPS,
@@ -96,20 +97,29 @@ function titleCaseToken(token: string): string {
 }
 
 function deriveMatchDefaults(fileName: string) {
-  const cleanName = fileName.replace(/\.[^.]+$/, "");
-  const safeMatchId = cleanName
-    .replace(/[^a-zA-Z0-9_-]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-  const match_id = /^match[_-]/i.test(safeMatchId)
-    ? safeMatchId
-    : `match_${safeMatchId || "manual"}`;
-  const parts = safeMatchId.split(/[_-]/).filter(Boolean);
+  const match_id = sanitizeMatchId(fileName);
+  const rawStem = fileName.replace(/\.[^.]+$/, "");
+
+  let half = 1;
+  if (
+    /_(h2|2nd|half2|part2)(_|#|\.|$)/i.test(rawStem) ||
+    /_h2_/i.test(fileName)
+  ) {
+    half = 2;
+  } else if (
+    /_(h1|1st|half1|part1)(_|#|\.|$)/i.test(rawStem) ||
+    /_h1_/i.test(fileName)
+  ) {
+    half = 1;
+  }
+
+  const parts = rawStem.split(/[_-]/).filter(Boolean);
   const hasTeamLikeName =
     parts.length >= 2 && !/^match$/i.test(parts[0]) && !/^\d+$/.test(parts[1]);
   const home_team = hasTeamLikeName ? titleCaseToken(parts[0]) : "Team A";
   const away_team = hasTeamLikeName ? titleCaseToken(parts[1]) : "Team B";
 
-  return { match_id, home_team, away_team };
+  return { match_id, home_team, away_team, half };
 }
 
 function mp4Candidates(videoPath: string): string[] {
@@ -305,6 +315,7 @@ export default function AnnotatorClient() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const loadedVideoPathRef = useRef("");
+  const loadedVideoHalfRef = useRef<number>(1);
   const lastSeekClipIdRef = useRef("");
   const videoAbortRef = useRef<AbortController | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -361,14 +372,14 @@ export default function AnnotatorClient() {
         : videoCurrentTime;
     return {
       clip_id: "Draft Segment",
-      match_id: lastClip?.match_id ?? "manual",
+      match_id: sanitizeMatchId(lastClip?.match_id),
       path: lastClip?.path ?? activeVideoPath ?? "",
       start: Math.max(0, draftSegmentStart - 4),
       end: Math.min(videoDurationSec, endVal + 4),
       annotation_start: draftSegmentStart,
       annotation_end: endVal,
       annotation_window: Math.max(0, endVal - draftSegmentStart),
-      half: lastClip?.half ?? 1,
+      half: lastClip?.half ?? loadedVideoHalfRef.current ?? 1,
       annotator_state: "manual" as AnnotatorState,
       is_locked: false,
     };
@@ -749,8 +760,8 @@ export default function AnnotatorClient() {
       setCreatingSegment(null);
       return;
     }
-    const half = currentClip?.half ?? 1;
-    const matchId = matchConfig.match_id || currentClip?.match_id || "manual";
+    const half = currentClip?.half ?? lastClip?.half ?? loadedVideoHalfRef.current ?? 1;
+    const matchId = sanitizeMatchId(matchConfig.match_id || currentClip?.match_id);
     const path = currentClip?.path ?? activeVideoPath ?? "";
 
     const id = generateClipId(matchId, half, start);
@@ -877,8 +888,8 @@ export default function AnnotatorClient() {
       }
 
       const path = lastClip?.path ?? activeVideoPath ?? "";
-      const matchId = lastClip?.match_id ?? "manual";
-      const half = lastClip?.half ?? 1;
+      const matchId = sanitizeMatchId(matchConfig.match_id || lastClip?.match_id);
+      const half = lastClip?.half ?? loadedVideoHalfRef.current ?? 1;
 
       // Always create single segment — auto-split happens at submit time (Enter)
       const id = generateClipId(matchId, half, start);
@@ -980,8 +991,8 @@ export default function AnnotatorClient() {
 
   const handleAddNextSegment = useCallback(
     (start: number, end: number) => {
-      const half = currentClip?.half ?? 1;
-      const matchId = matchConfig.match_id || currentClip?.match_id || "manual";
+      const half = currentClip?.half ?? lastClip?.half ?? loadedVideoHalfRef.current ?? 1;
+      const matchId = sanitizeMatchId(matchConfig.match_id || currentClip?.match_id);
       const path = currentClip?.path ?? activeVideoPath ?? "";
       const id = generateClipId(matchId, half, start);
       const duration = end - start;
@@ -2414,7 +2425,7 @@ export default function AnnotatorClient() {
     const intentLabelA = getIntentLabel(selectedIntentA);
     const intentLabelB = getIntentLabel(selectedIntentB);
     const isDraft = currentClip.clip_id === "Draft Segment";
-    const matchId = matchConfig.match_id || currentClip.match_id || "manual";
+    const matchId = sanitizeMatchId(matchConfig.match_id || currentClip.match_id);
     const realClipId = isDraft
       ? generateClipId(
           matchId,
@@ -2475,7 +2486,7 @@ export default function AnnotatorClient() {
       };
 
       const isDraft = currentClip.clip_id === "Draft Segment";
-      const matchId = matchConfig.match_id || currentClip.match_id || "manual";
+      const matchId = sanitizeMatchId(matchConfig.match_id || currentClip.match_id);
       const realClipId = isDraft
         ? generateClipId(
             matchId,
@@ -3073,7 +3084,13 @@ export default function AnnotatorClient() {
         match_id: derivedMatchId,
         home_team: home,
         away_team: away,
+        half: derivedHalf,
       } = deriveMatchDefaults(filename);
+      loadedVideoHalfRef.current = derivedHalf;
+      setGameState((prev) => ({
+        ...prev,
+        half: derivedHalf === 2 ? "2nd" : "1st",
+      }));
       setMatchConfig((prev) => ({
         ...prev,
         match_id: derivedMatchId,
@@ -3116,7 +3133,13 @@ export default function AnnotatorClient() {
         match_id: derivedMatchId,
         home_team: home,
         away_team: away,
+        half: derivedHalf,
       } = deriveMatchDefaults(file.name);
+      loadedVideoHalfRef.current = derivedHalf;
+      setGameState((prev) => ({
+        ...prev,
+        half: derivedHalf === 2 ? "2nd" : "1st",
+      }));
       setMatchConfig((prev) => ({
         ...prev,
         match_id: derivedMatchId,
@@ -3160,7 +3183,13 @@ export default function AnnotatorClient() {
       match_id: derivedMatchId,
       home_team: home,
       away_team: away,
+      half: derivedHalf,
     } = deriveMatchDefaults(file.name);
+    loadedVideoHalfRef.current = derivedHalf;
+    setGameState((prev) => ({
+      ...prev,
+      half: derivedHalf === 2 ? "2nd" : "1st",
+    }));
     setMatchConfig((prev) => ({
       ...prev,
       match_id: derivedMatchId,
