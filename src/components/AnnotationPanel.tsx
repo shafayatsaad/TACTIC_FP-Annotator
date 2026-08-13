@@ -78,8 +78,6 @@ interface Props {
   detectedPossessionTeam: "A" | "B" | null;
   manualPossession: ManualPossession;
   onManualPossessionChange: (p: ManualPossession) => void;
-  sessionBreakDue: boolean;
-  onAcknowledgeBreak: () => void;
   isUncertain: boolean;
   onUncertainChange: (v: boolean) => void;
   autoNext: boolean;
@@ -136,8 +134,6 @@ export default function AnnotationPanel({
   detectedPossessionTeam,
   manualPossession,
   onManualPossessionChange,
-  sessionBreakDue,
-  onAcknowledgeBreak,
   isUncertain,
   onUncertainChange,
   autoNext,
@@ -1006,17 +1002,6 @@ export default function AnnotationPanel({
               <h3 className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">
                 Session Progress
               </h3>
-              {sessionBreakDue && (
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  type="button"
-                  onClick={onAcknowledgeBreak}
-                  className="w-full rounded-lg glass-btn-amber px-2 py-1.5 text-[9px] font-bold uppercase tracking-wider text-amber-200 cursor-pointer"
-                >
-                  Resume After Break
-                </motion.button>
-              )}
               <h4 className="text-[8px] font-semibold uppercase tracking-wider text-slate-500">
                 Class Distribution
               </h4>
