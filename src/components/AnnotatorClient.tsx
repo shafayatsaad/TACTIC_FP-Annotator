@@ -276,7 +276,6 @@ export default function AnnotatorClient() {
   const [coverageEstimate, setCoverageEstimate] = useState(95);
   const [isMixedPhase, setIsMixedPhase] = useState(false);
   const [segmentAdjustTenths, setSegmentAdjustTenths] = useState(0);
-  const [breakAcknowledgedAt, setBreakAcknowledgedAt] = useState(0);
   const [selectedIntentA, setSelectedIntentA] = useState("");
   const [selectedIntentB, setSelectedIntentB] = useState("");
   const [isUncertain, setIsUncertain] = useState(false);
@@ -433,10 +432,6 @@ export default function AnnotatorClient() {
     trackedPlayers >= 18 &&
     redTrackerCount <= 3 &&
     (currentClip?.quality_score ?? 1) >= 0.8;
-  const sessionBreakDue =
-    annotations.length > 0 &&
-    annotations.length % 20 === 0 &&
-    breakAcknowledgedAt !== annotations.length;
   const isContestedPossessionSuggested = useMemo(() => {
     if (!currentClip?.possession_state) return false;
     return (
@@ -2485,12 +2480,6 @@ export default function AnnotatorClient() {
       );
       return;
     }
-    if (sessionBreakDue) {
-      setStatusMessage(
-        "Forced session break due. Click Resume After Break before continuing.",
-      );
-      return;
-    }
     const intentLabelA = getIntentLabel(selectedIntentA);
     const intentLabelB = getIntentLabel(selectedIntentB);
     const isDraft = currentClip.clip_id === "Draft Segment";
@@ -3052,7 +3041,6 @@ export default function AnnotatorClient() {
       selectedIntentB,
       annotations,
       hasAnnotated,
-      sessionBreakDue,
       qualityPass,
       confidenceA,
       confidenceB,
@@ -3665,7 +3653,6 @@ export default function AnnotatorClient() {
     setCoverageEstimate(95);
     setIsMixedPhase(false);
     setSegmentAdjustTenths(0);
-    setBreakAcknowledgedAt(0);
     setIsUncertain(false);
     setTeamConfig(DEFAULT_TEAM_CONFIG);
     setMatchConfig(DEFAULT_MATCH_CONFIG);
@@ -4208,11 +4195,6 @@ export default function AnnotatorClient() {
           detectedPossessionTeam={detectedPossessionTeam}
           manualPossession={manualPossession}
           onManualPossessionChange={setManualPossession}
-          sessionBreakDue={sessionBreakDue}
-          onAcknowledgeBreak={() => {
-            setBreakAcknowledgedAt(annotations.length);
-            setStatusMessage("Break acknowledged. Continue when ready.");
-          }}
           isUncertain={isUncertain}
           onUncertainChange={setIsUncertain}
           autoNext={autoNext}
