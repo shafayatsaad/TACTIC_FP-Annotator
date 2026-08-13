@@ -1046,13 +1046,13 @@ export default function AnnotatorClient() {
   useEffect(() => {
     (async () => {
       try {
-        // Load saved segments from server first
+        // Load saved segments from server
         const segRes = await fetch(`${SERVER_URL}/segments`);
         let userSegments: Clip[] = [];
         if (segRes.ok) {
           const segData = await segRes.json();
           if (segData.segments && segData.segments.length > 0) {
-            userSegments = segData.segments;
+            userSegments = segData.segments.map(normalizeClip);
           }
         }
 
@@ -1064,26 +1064,100 @@ export default function AnnotatorClient() {
           if (Array.isArray(data) && data.length > 0 && data[0].clips) {
             data.forEach((m: any) => raw.push(...m.clips));
           } else if (Array.isArray(data)) raw = data;
-          const normalized = await resolveBrowserVideoPaths(
-            makeUniqueClipIds(raw.map(normalizeClip)),
-          );
-          manifestClips = normalized;
+          manifestClips = raw.map(normalizeClip);
         }
 
-        // Merge user-created segments with manifest clips
-        const allClips = [...manifestClips, ...userSegments].sort(
+        let loadedAnnotations: any[] = [];
+        let annTeamConfig: any = null;
+        let annMatchConfig: any = null;
+        const annRes = await fetch(`${SERVER_URL}/annotations`);
+        if (annRes.ok) {
+          const annData = await annRes.json();
+          loadedAnnotations = (annData.annotations || []).filter(
+            (a: any) => a && a.clip_id && a.video_source,
+          );
+          annTeamConfig = annData.team_config;
+          annMatchConfig = annData.match_config;
+        }
+
+        // Reconstruct clips from saved annotations (ensures annotated segments are never lost)
+        const annotationClips: Clip[] = loadedAnnotations.map((ann: any) =>
+          normalizeClip({
+            clip_id: ann.clip_id,
+            match_id: ann.match_id || "unknown",
+            path: ann.video_source?.video_path || "",
+            start:
+              ann.video_source?.seek_start_sec ??
+              ann.segment_metadata?.start_sec ??
+              0,
+            end:
+              ann.video_source?.seek_end_sec ??
+              ann.segment_metadata?.end_sec ??
+              18,
+            annotation_start:
+              ann.segment_metadata?.start_sec ??
+              ann.video_source?.label_start_sec ??
+              0,
+            annotation_end:
+              ann.segment_metadata?.end_sec ??
+              ann.video_source?.label_end_sec ??
+              10,
+            annotation_window:
+              (ann.segment_metadata?.end_sec ?? 10) -
+              (ann.segment_metadata?.start_sec ?? 0),
+            half: ann.half === "2nd" || ann.half === "2" ? 2 : 1,
+            annotator_state: "accepted",
+            is_locked: true,
+          }),
+        );
+
+        // Merge manifestClips, userSegments, and annotationClips (annotationClips > userSegments > manifest)
+        const clipMap = new Map<string, Clip>();
+        manifestClips.forEach((c) => clipMap.set(c.clip_id, c));
+        userSegments.forEach((c) => clipMap.set(c.clip_id, c));
+        annotationClips.forEach((c) => clipMap.set(c.clip_id, c));
+
+        const rawMerged = Array.from(clipMap.values()).sort(
           (a, b) => a.annotation_start - b.annotation_start,
         );
+
+        // Resolve browser video paths (.mkv -> .mp4 if converted MP4 exists)
+        const allClips = await resolveBrowserVideoPaths(
+          makeUniqueClipIds(rawMerged),
+        );
+
         if (allClips.length > 0) {
           setClips(allClips);
-          const lastIdx = allClips.length - 1;
-          setActiveVideoPath(allClips[lastIdx].path);
-          setCurrentClipIndex(lastIdx);
-          setStatusMessage(`${allClips.length} clips loaded`);
+
+          // Find the first unannotated clip to resume from.
+          const annotatedIds = new Set(
+            loadedAnnotations.map((a: any) => a.clip_id),
+          );
+          const firstUnannotatedIdx = allClips.findIndex(
+            (c) => !annotatedIds.has(c.clip_id),
+          );
+          const resumeIdx =
+            firstUnannotatedIdx >= 0
+              ? firstUnannotatedIdx
+              : allClips.length - 1;
+
+          setActiveVideoPath(allClips[resumeIdx].path);
+          setCurrentClipIndex(resumeIdx);
+          setCreatingSegment(null);
+
+          // Build a descriptive resume / fresh-load status message.
+          if (loadedAnnotations.length > 0) {
+            setStatusMessage(
+              `Session restored: ${loadedAnnotations.length}/${allClips.length} annotated — resuming at segment ${resumeIdx + 1}`,
+            );
+          } else {
+            setStatusMessage(`${allClips.length} clips loaded`);
+          }
+
           // Probe real duration so the timeline is correct from the start
-          if (!allClips[lastIdx].path.startsWith("blob:")) {
+          if (!allClips[resumeIdx].path.startsWith("blob:")) {
             fetch(
-              `${SERVER_URL}/videos/metadata?path=${encodeURIComponent(allClips[lastIdx].path)}`,
+              `${SERVER_URL}/videos/metadata?path=${encodeURIComponent(allClips[resumeIdx].path)}`,
             )
               .then((r) => r.json())
               .then((d) => {
@@ -1093,18 +1167,13 @@ export default function AnnotatorClient() {
           }
         }
 
-        const annRes = await fetch(`${SERVER_URL}/annotations`);
-        if (annRes.ok) {
-          const annData = await annRes.json();
-          setAnnotations(
-            (annData.annotations || []).filter(
-              (a: any) => a && a.clip_id && a.video_source,
-            ),
-          );
-          if (annData.team_config?.team_a && annData.team_config?.team_b)
-            setTeamConfig(annData.team_config);
-          if (annData.match_config) setMatchConfig(annData.match_config);
+        // Apply loaded annotations and config to state.
+        if (loadedAnnotations.length > 0) {
+          setAnnotations(loadedAnnotations);
         }
+        if (annTeamConfig?.team_a && annTeamConfig?.team_b)
+          setTeamConfig(annTeamConfig);
+        if (annMatchConfig) setMatchConfig(annMatchConfig);
       } catch {
         // Server might be starting — not an error, user can load video directly
       } finally {
@@ -3067,18 +3136,12 @@ export default function AnnotatorClient() {
       const videoPath = `raw_videos/${filename}`;
       loadedVideoPathRef.current = videoPath;
       setActiveVideoPath(videoPath);
-      setClips([]);
-      setCurrentClipIndex(0);
-      setCreatingSegment({ start: 0, end: 2 });
       setVideoError("");
       setVideoDurationSec(MATCH_DURATION_SEC);
       setIsPlaying(true);
       setSelectedIntentA("");
       setSelectedIntentB("");
       setManualPossession(null);
-      setStatusMessage(
-        `Loading: ${filename}. Press O to mark end of first segment.`,
-      );
 
       const {
         match_id: derivedMatchId,
@@ -3097,19 +3160,76 @@ export default function AnnotatorClient() {
         home_team: home,
         away_team: away,
       }));
-      setTeamConfig({
-        team_a: { id: "A", name: home, jersey_color: "#ef233c", is_home: true },
-        team_b: {
-          id: "B",
-          name: away,
-          jersey_color: "#3b82f6",
-          is_home: false,
-        },
+      setTeamConfig((prev) => {
+        if (
+          prev.team_a.name !== DEFAULT_TEAM_CONFIG.team_a.name &&
+          prev.team_a.name
+        ) {
+          return prev;
+        }
+        return {
+          team_a: {
+            id: "A",
+            name: home,
+            jersey_color: "#ef233c",
+            is_home: true,
+          },
+          team_b: {
+            id: "B",
+            name: away,
+            jersey_color: "#3b82f6",
+            is_home: false,
+          },
+        };
+      });
+
+      // Preserve & restore existing clips if available
+      setClips((prevClips) => {
+        const fileStem = filename
+          .replace(/\.[^.]+$/, "")
+          .replace(/_720p$/, "");
+        const matchingClips = prevClips
+          .filter(
+            (c) =>
+              c.match_id === derivedMatchId ||
+              c.path.includes(filename) ||
+              c.path.includes(fileStem),
+          )
+          .map((c) => ({ ...c, path: videoPath }));
+
+        if (matchingClips.length > 0) {
+          const annotatedIds = new Set(annotations.map((a) => a.clip_id));
+          const firstUnannotatedIdx = matchingClips.findIndex(
+            (c) => !annotatedIds.has(c.clip_id),
+          );
+          const resumeIdx =
+            firstUnannotatedIdx >= 0
+              ? firstUnannotatedIdx
+              : matchingClips.length - 1;
+
+          setCurrentClipIndex(resumeIdx);
+          setCreatingSegment(null);
+          setStatusMessage(
+            `Loaded ${filename}: Restored ${matchingClips.length} clips — resuming at segment ${resumeIdx + 1}`,
+          );
+          return prevClips.map((c) =>
+            matchingClips.some((m) => m.clip_id === c.clip_id)
+              ? { ...c, path: videoPath }
+              : c,
+          );
+        } else {
+          setCurrentClipIndex(0);
+          setCreatingSegment({ start: 0, end: 2 });
+          setStatusMessage(
+            `Loaded ${filename}. Press O to mark end of first segment.`,
+          );
+          return prevClips;
+        }
       });
 
       fetchVideoMetadata(videoPath);
     },
-    [fetchVideoMetadata],
+    [fetchVideoMetadata, annotations],
   );
 
   const handleBrowseVideoFile = useCallback(() => {
@@ -3123,8 +3243,6 @@ export default function AnnotatorClient() {
       isBlobVideoRef.current = true;
       loadedVideoPathRef.current = blobUrl;
       setActiveVideoPath(blobUrl);
-      setClips([]);
-      setCurrentClipIndex(0);
       setVideoError("");
       setVideoDurationSec(MATCH_DURATION_SEC);
       setIsPlaying(true);
@@ -3146,66 +3264,174 @@ export default function AnnotatorClient() {
         home_team: home,
         away_team: away,
       }));
-      setTeamConfig({
-        team_a: { id: "A", name: home, jersey_color: "#ef233c", is_home: true },
-        team_b: {
-          id: "B",
-          name: away,
-          jersey_color: "#3b82f6",
-          is_home: false,
-        },
+      setTeamConfig((prev) => {
+        if (
+          prev.team_a.name !== DEFAULT_TEAM_CONFIG.team_a.name &&
+          prev.team_a.name
+        ) {
+          return prev;
+        }
+        return {
+          team_a: {
+            id: "A",
+            name: home,
+            jersey_color: "#ef233c",
+            is_home: true,
+          },
+          team_b: {
+            id: "B",
+            name: away,
+            jersey_color: "#3b82f6",
+            is_home: false,
+          },
+        };
       });
 
-      setCreatingSegment({ start: 0, end: 2 });
-      setStatusMessage(
-        `Loaded: ${file.name}. Press O to mark end of first segment.`,
-      );
+      setClips((prevClips) => {
+        const fileStem = file.name
+          .replace(/\.[^.]+$/, "")
+          .replace(/_720p$/, "");
+        const matchingClips = prevClips
+          .filter(
+            (c) =>
+              c.match_id === derivedMatchId ||
+              c.path.includes(file.name) ||
+              c.path.includes(fileStem),
+          )
+          .map((c) => ({ ...c, path: blobUrl }));
+
+        if (matchingClips.length > 0) {
+          const annotatedIds = new Set(annotations.map((a) => a.clip_id));
+          const firstUnannotatedIdx = matchingClips.findIndex(
+            (c) => !annotatedIds.has(c.clip_id),
+          );
+          const resumeIdx =
+            firstUnannotatedIdx >= 0
+              ? firstUnannotatedIdx
+              : matchingClips.length - 1;
+
+          setCurrentClipIndex(resumeIdx);
+          setCreatingSegment(null);
+          setStatusMessage(
+            `Loaded ${file.name}: Restored ${matchingClips.length} clips — resuming at segment ${resumeIdx + 1}`,
+          );
+          return prevClips.map((c) =>
+            matchingClips.some((m) => m.clip_id === c.clip_id)
+              ? { ...c, path: blobUrl }
+              : c,
+          );
+        } else {
+          setCurrentClipIndex(0);
+          setCreatingSegment({ start: 0, end: 2 });
+          setStatusMessage(
+            `Loaded: ${file.name}. Press O to mark end of first segment.`,
+          );
+          return prevClips;
+        }
+      });
     };
     input.click();
-  }, []);
+  }, [annotations]);
 
-  const handleFileDrop = useCallback((file: File) => {
-    if (!file.type.startsWith("video/")) {
-      setStatusMessage("Only video files are supported.");
-      return;
-    }
-    const blobUrl = URL.createObjectURL(file);
-    isBlobVideoRef.current = true;
-    loadedVideoPathRef.current = blobUrl;
-    setActiveVideoPath(blobUrl);
-    setClips([]);
-    setCurrentClipIndex(0);
-    setVideoError("");
-    setVideoDurationSec(MATCH_DURATION_SEC);
-    setIsPlaying(true);
+  const handleFileDrop = useCallback(
+    (file: File) => {
+      if (!file.type.startsWith("video/")) {
+        setStatusMessage("Only video files are supported.");
+        return;
+      }
+      const blobUrl = URL.createObjectURL(file);
+      isBlobVideoRef.current = true;
+      loadedVideoPathRef.current = blobUrl;
+      setActiveVideoPath(blobUrl);
+      setVideoError("");
+      setVideoDurationSec(MATCH_DURATION_SEC);
+      setIsPlaying(true);
 
-    const {
-      match_id: derivedMatchId,
-      home_team: home,
-      away_team: away,
-      half: derivedHalf,
-    } = deriveMatchDefaults(file.name);
-    loadedVideoHalfRef.current = derivedHalf;
-    setGameState((prev) => ({
-      ...prev,
-      half: derivedHalf === 2 ? "2nd" : "1st",
-    }));
-    setMatchConfig((prev) => ({
-      ...prev,
-      match_id: derivedMatchId,
-      home_team: home,
-      away_team: away,
-    }));
-    setTeamConfig({
-      team_a: { id: "A", name: home, jersey_color: "#ef233c", is_home: true },
-      team_b: { id: "B", name: away, jersey_color: "#3b82f6", is_home: false },
-    });
+      const {
+        match_id: derivedMatchId,
+        home_team: home,
+        away_team: away,
+        half: derivedHalf,
+      } = deriveMatchDefaults(file.name);
+      loadedVideoHalfRef.current = derivedHalf;
+      setGameState((prev) => ({
+        ...prev,
+        half: derivedHalf === 2 ? "2nd" : "1st",
+      }));
+      setMatchConfig((prev) => ({
+        ...prev,
+        match_id: derivedMatchId,
+        home_team: home,
+        away_team: away,
+      }));
+      setTeamConfig((prev) => {
+        if (
+          prev.team_a.name !== DEFAULT_TEAM_CONFIG.team_a.name &&
+          prev.team_a.name
+        ) {
+          return prev;
+        }
+        return {
+          team_a: {
+            id: "A",
+            name: home,
+            jersey_color: "#ef233c",
+            is_home: true,
+          },
+          team_b: {
+            id: "B",
+            name: away,
+            jersey_color: "#3b82f6",
+            is_home: false,
+          },
+        };
+      });
 
-    setCreatingSegment({ start: 0, end: 2 });
-    setStatusMessage(
-      `Loaded: ${file.name}. Press O to mark end of first segment.`,
-    );
-  }, []);
+      setClips((prevClips) => {
+        const fileStem = file.name
+          .replace(/\.[^.]+$/, "")
+          .replace(/_720p$/, "");
+        const matchingClips = prevClips
+          .filter(
+            (c) =>
+              c.match_id === derivedMatchId ||
+              c.path.includes(file.name) ||
+              c.path.includes(fileStem),
+          )
+          .map((c) => ({ ...c, path: blobUrl }));
+
+        if (matchingClips.length > 0) {
+          const annotatedIds = new Set(annotations.map((a) => a.clip_id));
+          const firstUnannotatedIdx = matchingClips.findIndex(
+            (c) => !annotatedIds.has(c.clip_id),
+          );
+          const resumeIdx =
+            firstUnannotatedIdx >= 0
+              ? firstUnannotatedIdx
+              : matchingClips.length - 1;
+
+          setCurrentClipIndex(resumeIdx);
+          setCreatingSegment(null);
+          setStatusMessage(
+            `Loaded ${file.name}: Restored ${matchingClips.length} clips — resuming at segment ${resumeIdx + 1}`,
+          );
+          return prevClips.map((c) =>
+            matchingClips.some((m) => m.clip_id === c.clip_id)
+              ? { ...c, path: blobUrl }
+              : c,
+          );
+        } else {
+          setCurrentClipIndex(0);
+          setCreatingSegment({ start: 0, end: 2 });
+          setStatusMessage(
+            `Loaded: ${file.name}. Press O to mark end of first segment.`,
+          );
+          return prevClips;
+        }
+      });
+    },
+    [annotations],
+  );
 
   // ─── Export JSON ───
   const exportJSON = useCallback(async () => {
