@@ -2474,12 +2474,7 @@ export default function AnnotatorClient() {
       setStatusMessage("Select at least one label or use ContestedPlay.");
       return;
     }
-    if (annotations.length >= 50 && !hasAnnotated(currentClip.clip_id)) {
-      setStatusMessage(
-        "Session hard cap reached at 50 clips. Export or reset before continuing.",
-      );
-      return;
-    }
+
     const intentLabelA = getIntentLabel(selectedIntentA);
     const intentLabelB = getIntentLabel(selectedIntentB);
     const isDraft = currentClip.clip_id === "Draft Segment";
