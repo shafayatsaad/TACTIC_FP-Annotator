@@ -179,28 +179,56 @@ export default function ClipExplorer({
           )}
         </div>
       </div>
-      <div className="p-3 bg-black/20 shrink-0 border-t border-white/5">
-        <h3 className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-2">
-          Keyboard Shortcuts
-        </h3>
-        <div className="grid grid-cols-2 gap-x-2 gap-y-1">
-          {[
-            ["Intents", "1-9, 0, Q-T"],
-            ["Select Team", "A / B"],
-            ["Play / Pause", "Space / K"],
-            ["Set End", "O"],
-            ["Submit / Save", "Enter"],
-            ["Prev / Next", "[ / ]"],
-            ["Seek 5s", "← / →"],
-            ["Mute", "U"],
-          ].map(([l, k]) => (
-            <div key={l} className="flex items-center justify-between">
-              <span className="text-[10px] text-slate-400">{l}</span>
-              <kbd className="glass-btn px-1.5 py-0.5 rounded text-[9px] text-slate-300 font-mono">
-                {k}
-              </kbd>
-            </div>
-          ))}
+      <div className="p-2.5 bg-black/30 shrink-0 border-t border-white/5 space-y-1.5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
+            Keyboard Shortcuts
+          </h3>
+          <span className="text-[7.5px] text-slate-500 font-mono">
+            [<kbd className="text-indigo-300">?</kbd>] All
+          </span>
+        </div>
+
+        {/* 4 Timing Functions Guide */}
+        <div className="bg-black/40 border border-white/5 rounded-md p-1.5 space-y-1 text-[8.5px] font-mono">
+          <div className="flex items-center justify-between text-indigo-300">
+            <span>Start -/+ 0.5s</span>
+            <span className="font-bold bg-indigo-500/20 px-1 py-0.2 rounded border border-indigo-500/30">
+              ,  /  .
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-cyan-300">
+            <span>End -/+ 0.5s</span>
+            <span className="font-bold bg-cyan-500/20 px-1 py-0.2 rounded border border-cyan-500/30">
+              ⇧,  /  ⇧.
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-slate-300 pt-0.5 border-t border-white/5">
+            <span className="text-slate-400">Mark Start / End</span>
+            <span className="font-bold bg-white/10 px-1 py-0.2 rounded text-slate-200">
+              I  /  O
+            </span>
+          </div>
+        </div>
+
+        {/* Primary Action Shortcuts */}
+        <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[8.5px]">
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400">Team</span>
+            <kbd className="glass-btn px-1 py-0.2 rounded text-[7.5px] text-slate-300 font-mono">A / B</kbd>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400">Play</span>
+            <kbd className="glass-btn px-1 py-0.2 rounded text-[7.5px] text-slate-300 font-mono">Space</kbd>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400">Submit</span>
+            <kbd className="glass-btn px-1 py-0.2 rounded text-[7.5px] text-slate-300 font-mono">Enter</kbd>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400">Clip</span>
+            <kbd className="glass-btn px-1 py-0.2 rounded text-[7.5px] text-slate-300 font-mono">[ / ]</kbd>
+          </div>
         </div>
       </div>
     </aside>
