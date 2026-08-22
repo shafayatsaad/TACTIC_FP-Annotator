@@ -377,84 +377,107 @@ export default function AnnotationPanel({
                   </div>
 
                   {/* Start Time Control */}
-                  <div>
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className="block text-[8px] uppercase tracking-wider text-slate-500">
-                        Start Time (sec)
+                  <div className="space-y-1 bg-black/20 p-2 rounded-lg border border-white/5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[8.5px] uppercase tracking-wider font-semibold text-indigo-300 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                        Start Time
                       </span>
-                      <span className="text-[8px] text-slate-500 font-mono">
-                        Keys: <kbd className="text-indigo-300 font-bold">,</kbd> / <kbd className="text-indigo-300 font-bold">.</kbd>
+                      <span className="text-[8px] font-mono text-slate-400">
+                        Mark: <kbd className="px-1 py-0.5 rounded bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 font-bold font-mono">I</kbd>
                       </span>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={() => handleNudgeStart(-0.5)}
-                        title="Nudge start -0.5s (Shortcut: ,)"
-                        className="px-1.5 py-0.5 glass-btn rounded text-[9px] font-mono text-slate-300 hover:text-white flex items-center gap-1"
+                        title="Nudge start backward -0.5s (Shortcut: ,)"
+                        className="flex-1 py-1 px-1 rounded glass-btn text-[9px] font-mono text-slate-300 hover:text-white flex items-center justify-center gap-1 hover:border-indigo-500/40"
                       >
-                        <span>-0.5</span>
-                        <span className="text-[7.5px] text-slate-500">[,]</span>
+                        <kbd className="px-1 py-0.5 rounded bg-indigo-500/25 border border-indigo-500/40 text-indigo-200 font-bold text-[8.5px]">,</kbd>
+                        <span>-0.5s</span>
                       </button>
-                      <input
-                        type="text"
-                        value={localStart}
-                        onChange={(e) => setLocalStart(e.target.value)}
-                        onBlur={handleStartBlur}
-                        onKeyDown={(e) =>
-                          e.key === "Enter" && handleStartBlur()
-                        }
-                        className="w-full text-center rounded-md border border-white/10 bg-black/40 px-1.5 py-0.5 text-[10px] text-slate-100 font-mono outline-none focus:border-indigo-500/50"
-                      />
+                      <div className="relative w-20 shrink-0">
+                        <input
+                          type="text"
+                          value={localStart}
+                          onChange={(e) => setLocalStart(e.target.value)}
+                          onBlur={handleStartBlur}
+                          onKeyDown={(e) =>
+                            e.key === "Enter" && handleStartBlur()
+                          }
+                          className="w-full text-center rounded-md border border-white/10 bg-black/60 px-1 py-1 text-[11px] text-white font-mono font-bold outline-none focus:border-indigo-500/60"
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleNudgeStart(0.5)}
-                        title="Nudge start +0.5s (Shortcut: .)"
-                        className="px-1.5 py-0.5 glass-btn rounded text-[9px] font-mono text-slate-300 hover:text-white flex items-center gap-1"
+                        title="Nudge start forward +0.5s (Shortcut: .)"
+                        className="flex-1 py-1 px-1 rounded glass-btn text-[9px] font-mono text-slate-300 hover:text-white flex items-center justify-center gap-1 hover:border-indigo-500/40"
                       >
-                        <span>+0.5</span>
-                        <span className="text-[7.5px] text-slate-500">[.]</span>
+                        <span>+0.5s</span>
+                        <kbd className="px-1 py-0.5 rounded bg-indigo-500/25 border border-indigo-500/40 text-indigo-200 font-bold text-[8.5px]">.</kbd>
                       </button>
                     </div>
                   </div>
 
                   {/* End Time Control */}
-                  <div>
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className="block text-[8px] uppercase tracking-wider text-slate-500">
-                        End Time (sec)
+                  <div className="space-y-1 bg-black/20 p-2 rounded-lg border border-white/5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[8.5px] uppercase tracking-wider font-semibold text-cyan-300 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                        End Time
                       </span>
-                      <span className="text-[8px] text-slate-500 font-mono">
-                        Keys: <kbd className="text-indigo-300 font-bold">&lt;</kbd> / <kbd className="text-indigo-300 font-bold">&gt;</kbd>
+                      <span className="text-[8px] font-mono text-slate-400">
+                        Mark: <kbd className="px-1 py-0.5 rounded bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-bold font-mono">O</kbd>
                       </span>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={() => handleNudgeEnd(-0.5)}
-                        title="Nudge end -0.5s (Shortcut: < or Shift+,)"
-                        className="px-1.5 py-0.5 glass-btn rounded text-[9px] font-mono text-slate-300 hover:text-white flex items-center gap-1"
+                        title="Nudge end backward -0.5s (Shortcut: < or Shift+,)"
+                        className="flex-1 py-1 px-1 rounded glass-btn text-[9px] font-mono text-slate-300 hover:text-white flex items-center justify-center gap-1 hover:border-cyan-500/40"
                       >
-                        <span>-0.5</span>
-                        <span className="text-[7.5px] text-slate-500">[&lt;]</span>
+                        <kbd className="px-1 py-0.5 rounded bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 font-bold text-[8.5px]">&lt;</kbd>
+                        <span>-0.5s</span>
                       </button>
-                      <input
-                        type="text"
-                        value={localEnd}
-                        onChange={(e) => setLocalEnd(e.target.value)}
-                        onBlur={handleEndBlur}
-                        onKeyDown={(e) => e.key === "Enter" && handleEndBlur()}
-                        className="w-full text-center rounded-md border border-white/10 bg-black/40 px-1.5 py-0.5 text-[10px] text-slate-100 font-mono outline-none focus:border-indigo-500/50"
-                      />
+                      <div className="relative w-20 shrink-0">
+                        <input
+                          type="text"
+                          value={localEnd}
+                          onChange={(e) => setLocalEnd(e.target.value)}
+                          onBlur={handleEndBlur}
+                          onKeyDown={(e) => e.key === "Enter" && handleEndBlur()}
+                          className="w-full text-center rounded-md border border-white/10 bg-black/60 px-1 py-1 text-[11px] text-white font-mono font-bold outline-none focus:border-cyan-500/60"
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleNudgeEnd(0.5)}
-                        title="Nudge end +0.5s (Shortcut: > or Shift+.)"
-                        className="px-1.5 py-0.5 glass-btn rounded text-[9px] font-mono text-slate-300 hover:text-white flex items-center gap-1"
+                        title="Nudge end forward +0.5s (Shortcut: > or Shift+.)"
+                        className="flex-1 py-1 px-1 rounded glass-btn text-[9px] font-mono text-slate-300 hover:text-white flex items-center justify-center gap-1 hover:border-cyan-500/40"
                       >
-                        <span>+0.5</span>
-                        <span className="text-[7.5px] text-slate-500">[&gt;]</span>
+                        <span>+0.5s</span>
+                        <kbd className="px-1 py-0.5 rounded bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 font-bold text-[8.5px]">&gt;</kbd>
                       </button>
+                    </div>
+                  </div>
+
+                  {/* Timing Shortcuts Cheat-Sheet */}
+                  <div className="p-1.5 rounded-lg bg-gradient-to-r from-indigo-500/10 via-slate-900/40 to-cyan-500/10 border border-white/5 space-y-1">
+                    <span className="block text-[7.5px] uppercase tracking-wider font-bold text-slate-400">
+                      ⚡ Timing Keyboard Shortcuts
+                    </span>
+                    <div className="grid grid-cols-2 gap-1 text-[8px] font-mono">
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-black/30 border border-white/5">
+                        <span className="text-slate-400">Start -/+</span>
+                        <span className="text-indigo-300 font-bold"><kbd className="bg-indigo-500/20 px-1 rounded">,</kbd> <kbd className="bg-indigo-500/20 px-1 rounded">.</kbd></span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-black/30 border border-white/5">
+                        <span className="text-slate-400">End -/+</span>
+                        <span className="text-cyan-300 font-bold"><kbd className="bg-cyan-500/20 px-1 rounded">&lt;</kbd> <kbd className="bg-cyan-500/20 px-1 rounded">&gt;</kbd></span>
+                      </div>
                     </div>
                   </div>
 
