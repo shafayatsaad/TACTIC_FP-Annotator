@@ -900,7 +900,7 @@ export default function VideoPlayer(props: Props) {
               <span className="ml-1 text-slate-500">· {liveMatchClock}</span>
 
               {/* Segment Timing Shortcuts quick-guide strip */}
-              <div className="hidden xl:flex items-center gap-1.5 ml-3 px-2 py-1 rounded-md bg-black/40 border border-white/5 text-[9px] font-mono text-slate-400">
+              <div className="hidden xl:flex items-center gap-1.5 ml-3 px-2 py-0.5 rounded-md bg-black/40 border border-white/5 text-[9px] font-mono text-slate-400">
                 <span className="text-[7.5px] uppercase tracking-wider text-slate-500 font-bold">Nudge:</span>
                 <span className="flex items-center gap-1">
                   <span className="text-slate-500 text-[8px]">Start</span>
@@ -910,8 +910,8 @@ export default function VideoPlayer(props: Props) {
                 <span className="text-slate-700">|</span>
                 <span className="flex items-center gap-1">
                   <span className="text-slate-500 text-[8px]">End</span>
-                  <kbd className="px-1 py-0.2 rounded bg-cyan-500/25 text-cyan-300 font-bold border border-cyan-500/40 text-[8px]">&lt;</kbd>
-                  <kbd className="px-1 py-0.2 rounded bg-cyan-500/25 text-cyan-300 font-bold border border-cyan-500/40 text-[8px]">&gt;</kbd>
+                  <kbd className="px-1 py-0.2 rounded bg-cyan-500/25 text-cyan-300 font-bold border border-cyan-500/40 text-[8px]">⇧,</kbd>
+                  <kbd className="px-1 py-0.2 rounded bg-cyan-500/25 text-cyan-300 font-bold border border-cyan-500/40 text-[8px]">⇧.</kbd>
                 </span>
               </div>
             </div>
