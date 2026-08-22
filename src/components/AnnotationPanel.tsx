@@ -378,16 +378,23 @@ export default function AnnotationPanel({
 
                   {/* Start Time Control */}
                   <div>
-                    <span className="block text-[8px] uppercase tracking-wider text-slate-500 mb-0.5">
-                      Start Time (sec)
-                    </span>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="block text-[8px] uppercase tracking-wider text-slate-500">
+                        Start Time (sec)
+                      </span>
+                      <span className="text-[8px] text-slate-500 font-mono">
+                        Keys: <kbd className="text-indigo-300 font-bold">,</kbd> / <kbd className="text-indigo-300 font-bold">.</kbd>
+                      </span>
+                    </div>
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={() => handleNudgeStart(-0.5)}
-                        className="px-1.5 py-0.5 glass-btn rounded text-[9px] font-mono text-slate-300"
+                        title="Nudge start -0.5s (Shortcut: ,)"
+                        className="px-1.5 py-0.5 glass-btn rounded text-[9px] font-mono text-slate-300 hover:text-white flex items-center gap-1"
                       >
-                        -0.5
+                        <span>-0.5</span>
+                        <span className="text-[7.5px] text-slate-500">[,]</span>
                       </button>
                       <input
                         type="text"
@@ -402,25 +409,34 @@ export default function AnnotationPanel({
                       <button
                         type="button"
                         onClick={() => handleNudgeStart(0.5)}
-                        className="px-1.5 py-0.5 glass-btn rounded text-[9px] font-mono text-slate-300"
+                        title="Nudge start +0.5s (Shortcut: .)"
+                        className="px-1.5 py-0.5 glass-btn rounded text-[9px] font-mono text-slate-300 hover:text-white flex items-center gap-1"
                       >
-                        +0.5
+                        <span>+0.5</span>
+                        <span className="text-[7.5px] text-slate-500">[.]</span>
                       </button>
                     </div>
                   </div>
 
                   {/* End Time Control */}
                   <div>
-                    <span className="block text-[8px] uppercase tracking-wider text-slate-500 mb-0.5">
-                      End Time (sec)
-                    </span>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="block text-[8px] uppercase tracking-wider text-slate-500">
+                        End Time (sec)
+                      </span>
+                      <span className="text-[8px] text-slate-500 font-mono">
+                        Keys: <kbd className="text-indigo-300 font-bold">&lt;</kbd> / <kbd className="text-indigo-300 font-bold">&gt;</kbd>
+                      </span>
+                    </div>
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={() => handleNudgeEnd(-0.5)}
-                        className="px-1.5 py-0.5 glass-btn rounded text-[9px] font-mono text-slate-300"
+                        title="Nudge end -0.5s (Shortcut: < or Shift+,)"
+                        className="px-1.5 py-0.5 glass-btn rounded text-[9px] font-mono text-slate-300 hover:text-white flex items-center gap-1"
                       >
-                        -0.5
+                        <span>-0.5</span>
+                        <span className="text-[7.5px] text-slate-500">[&lt;]</span>
                       </button>
                       <input
                         type="text"
@@ -433,9 +449,11 @@ export default function AnnotationPanel({
                       <button
                         type="button"
                         onClick={() => handleNudgeEnd(0.5)}
-                        className="px-1.5 py-0.5 glass-btn rounded text-[9px] font-mono text-slate-300"
+                        title="Nudge end +0.5s (Shortcut: > or Shift+.)"
+                        className="px-1.5 py-0.5 glass-btn rounded text-[9px] font-mono text-slate-300 hover:text-white flex items-center gap-1"
                       >
-                        +0.5
+                        <span>+0.5</span>
+                        <span className="text-[7.5px] text-slate-500">[&gt;]</span>
                       </button>
                     </div>
                   </div>
