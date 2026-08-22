@@ -51,6 +51,8 @@ import {
 import { splitSegmentBounds } from "@/lib/splitSegmentBounds";
 
 const SERVER_URL = "/api";
+const DRAFT_STORAGE_KEY = "tactic_fp_annotator_draft_v1";
+
 interface MatchConfig {
   match_id: string;
   competition: string;
@@ -1169,6 +1171,52 @@ export default function AnnotatorClient() {
         if (annTeamConfig?.team_a && annTeamConfig?.team_b)
           setTeamConfig(annTeamConfig);
         if (annMatchConfig) setMatchConfig(annMatchConfig);
+
+        // Check for saved draft session in localStorage and restore
+        try {
+          const savedDraftRaw = localStorage.getItem(DRAFT_STORAGE_KEY);
+          if (savedDraftRaw) {
+            const draft = JSON.parse(savedDraftRaw);
+            if (draft && typeof draft === "object") {
+              if (draft.currentTeam === "A" || draft.currentTeam === "B")
+                setCurrentTeam(draft.currentTeam);
+              if (typeof draft.selectedIntentA === "string")
+                setSelectedIntentA(draft.selectedIntentA);
+              if (typeof draft.selectedIntentB === "string")
+                setSelectedIntentB(draft.selectedIntentB);
+              if (typeof draft.confidenceA === "number")
+                setConfidenceA(draft.confidenceA);
+              if (typeof draft.confidenceB === "number")
+                setConfidenceB(draft.confidenceB);
+              if (draft.certaintyA) setCertaintyA(draft.certaintyA);
+              if (draft.certaintyB) setCertaintyB(draft.certaintyB);
+              if (typeof draft.coverageEstimate === "number")
+                setCoverageEstimate(draft.coverageEstimate);
+              if (typeof draft.isMixedPhase === "boolean")
+                setIsMixedPhase(draft.isMixedPhase);
+              if (typeof draft.isUncertain === "boolean")
+                setIsUncertain(draft.isUncertain);
+              if (draft.manualPossession)
+                setManualPossession(draft.manualPossession);
+              if (draft.exclusion) setExclusion(draft.exclusion);
+              if (draft.modelSplit) setModelSplit(draft.modelSplit);
+              if (draft.gameState && typeof draft.gameState === "object")
+                setGameState((prev) => ({ ...prev, ...draft.gameState }));
+              if (
+                typeof draft.currentClipIndex === "number" &&
+                allClips.length > 0
+              ) {
+                const validIdx = Math.max(
+                  0,
+                  Math.min(allClips.length - 1, draft.currentClipIndex),
+                );
+                setCurrentClipIndex(validIdx);
+              }
+            }
+          }
+        } catch {
+          // Ignore localStorage errors
+        }
       } catch {
         // Server might be starting — not an error, user can load video directly
       } finally {
@@ -2395,6 +2443,24 @@ export default function AnnotatorClient() {
   const handleUpdateSegmentTimesRef = useRef(handleUpdateSegmentTimes);
   handleUpdateSegmentTimesRef.current = handleUpdateSegmentTimes;
 
+  const handleNudgeStart = useCallback(
+    (delta: number) => {
+      if (!currentClip) return;
+      const newStart = Math.max(0, currentClip.annotation_start + delta);
+      handleUpdateSegmentTimes(newStart, currentClip.annotation_end, "start");
+    },
+    [currentClip, handleUpdateSegmentTimes],
+  );
+
+  const handleNudgeEnd = useCallback(
+    (delta: number) => {
+      if (!currentClip) return;
+      const newEnd = currentClip.annotation_end + delta;
+      handleUpdateSegmentTimes(currentClip.annotation_start, newEnd, "end");
+    },
+    [currentClip, handleUpdateSegmentTimes],
+  );
+
   // ─── Delete segment ───
   const handleDeleteSegment = useCallback(
     (clipId: string) => {
@@ -3014,6 +3080,10 @@ export default function AnnotatorClient() {
           setCreatingSegment(null);
           setStatusMessage(`Segment updated (${labelDur.toFixed(1)}s).`);
         }
+
+        try {
+          localStorage.removeItem(DRAFT_STORAGE_KEY);
+        } catch {}
 
         fetch(`${SERVER_URL}/annotations`, {
           method: "POST",
@@ -3660,6 +3730,9 @@ export default function AnnotatorClient() {
     loadedVideoPathRef.current = "";
     isBlobVideoRef.current = false;
     setStatusMessage("Resetting generated session files...");
+    try {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+    } catch {}
     fetch(`${SERVER_URL}/annotations/reset`, { method: "POST" })
       .then(async (res) => {
         if (!res.ok) {
@@ -3699,6 +3772,72 @@ export default function AnnotatorClient() {
   handleToggleExclusionRef.current = handleToggleExclusion;
   const exclusionRef = useRef(exclusion);
   exclusionRef.current = exclusion;
+  const handleNudgeStartRef = useRef(handleNudgeStart);
+  handleNudgeStartRef.current = handleNudgeStart;
+  const handleNudgeEndRef = useRef(handleNudgeEnd);
+  handleNudgeEndRef.current = handleNudgeEnd;
+
+  // ─── Draft auto-save to localStorage ───
+  useEffect(() => {
+    if (isLoading) return;
+    const timer = setTimeout(() => {
+      try {
+        const draftPayload = {
+          timestamp: Date.now(),
+          currentClipIndex,
+          currentTeam,
+          selectedIntentA,
+          selectedIntentB,
+          confidenceA,
+          confidenceB,
+          certaintyA,
+          certaintyB,
+          coverageEstimate,
+          isMixedPhase,
+          isUncertain,
+          manualPossession,
+          exclusion,
+          modelSplit,
+          gameState,
+        };
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftPayload));
+      } catch {}
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [
+    isLoading,
+    currentClipIndex,
+    currentTeam,
+    selectedIntentA,
+    selectedIntentB,
+    confidenceA,
+    confidenceB,
+    certaintyA,
+    certaintyB,
+    coverageEstimate,
+    isMixedPhase,
+    isUncertain,
+    manualPossession,
+    exclusion,
+    modelSplit,
+    gameState,
+  ]);
+
+  // ─── Warn on close/reload if unsaved annotation choices exist ───
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const hasUnsavedWork = Boolean(
+        selectedIntentA || selectedIntentB || exclusion,
+      );
+      if (hasUnsavedWork) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [selectedIntentA, selectedIntentB, exclusion]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -3813,6 +3952,28 @@ export default function AnnotatorClient() {
       if (key === "o") {
         e.preventDefault();
         handleSetSegmentEndRef.current();
+        return;
+      }
+
+      // ─── Segment timing tweak shortcuts (single key / Shift + key) ───
+      if (e.key === "," && !e.shiftKey) {
+        e.preventDefault();
+        handleNudgeStartRef.current(-0.5);
+        return;
+      }
+      if (e.key === "." && !e.shiftKey) {
+        e.preventDefault();
+        handleNudgeStartRef.current(0.5);
+        return;
+      }
+      if (e.key === "<" || (e.key === "," && e.shiftKey)) {
+        e.preventDefault();
+        handleNudgeEndRef.current(-0.5);
+        return;
+      }
+      if (e.key === ">" || (e.key === "." && e.shiftKey)) {
+        e.preventDefault();
+        handleNudgeEndRef.current(0.5);
         return;
       }
 
@@ -4238,6 +4399,8 @@ export default function AnnotatorClient() {
                   ["A / B", "Switch team A / B"],
                   ["I", "Set segment start at playhead"],
                   ["O", "Set segment end at playhead"],
+                  [", / .", "Nudge start time -0.5s / +0.5s"],
+                  ["< / > (⇧ , / .)", "Nudge end time -0.5s / +0.5s"],
                   ["U", "Mute / unmute"],
                   ["F", "Toggle fullscreen"],
                   ["1–9, 0, Q, W, R, T", "Pick intent for active team"],
