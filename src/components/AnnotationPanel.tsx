@@ -347,14 +347,14 @@ export default function AnnotationPanel({
             </div>
 
             {/* ③ Segment Timing */}
-            <div className="glass-card p-2 space-y-2">
+            <div className="glass-card p-2 space-y-1.5">
               <div className="flex items-center justify-between">
                 <h3 className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">
                   Segment Timing
                 </h3>
                 {currentClip && (
                   <span
-                    className={`px-1 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider ${
+                    className={`px-1.5 py-0.2 rounded text-[8px] font-bold uppercase tracking-wider ${
                       currentClip.annotator_state === "accepted"
                         ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                         : currentClip.annotator_state === "modified"
@@ -368,120 +368,80 @@ export default function AnnotationPanel({
               </div>
 
               {currentClip ? (
-                <div className="space-y-2">
-                  <div className="text-[10px] text-slate-400 font-mono">
-                    ID:{" "}
-                    <span className="text-white font-bold text-[9px] truncate block">
-                      {currentClip.clip_id}
+                <div className="space-y-1.5">
+                  <div className="text-[9px] text-slate-400 font-mono truncate">
+                    ID: <span className="text-white font-bold">{currentClip.clip_id}</span>
+                  </div>
+
+                  {/* Start Time Row */}
+                  <div className="flex items-center gap-1 bg-black/30 p-1 rounded-md border border-white/5">
+                    <span className="text-[8.5px] font-bold text-indigo-300 w-10 shrink-0 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                      START
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => handleNudgeStart(-0.5)}
+                      title="Start -0.5s (Key: ,)"
+                      className="px-1.5 py-0.5 rounded glass-btn text-[8.5px] font-mono text-slate-300 hover:text-white flex items-center gap-0.5 shrink-0 hover:border-indigo-500/40"
+                    >
+                      <kbd className="px-1 rounded bg-indigo-500/30 text-indigo-200 font-bold">,</kbd>
+                      <span>-0.5</span>
+                    </button>
+                    <input
+                      type="text"
+                      value={localStart}
+                      onChange={(e) => setLocalStart(e.target.value)}
+                      onBlur={handleStartBlur}
+                      onKeyDown={(e) => e.key === "Enter" && handleStartBlur()}
+                      className="w-full text-center rounded border border-white/10 bg-black/60 px-1 py-0.5 text-[10.5px] text-white font-mono font-bold outline-none focus:border-indigo-500/60"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleNudgeStart(0.5)}
+                      title="Start +0.5s (Key: .)"
+                      className="px-1.5 py-0.5 rounded glass-btn text-[8.5px] font-mono text-slate-300 hover:text-white flex items-center gap-0.5 shrink-0 hover:border-indigo-500/40"
+                    >
+                      <span>+0.5</span>
+                      <kbd className="px-1 rounded bg-indigo-500/30 text-indigo-200 font-bold">.</kbd>
+                    </button>
                   </div>
 
-                  {/* Start Time Control */}
-                  <div className="space-y-1 bg-black/20 p-2 rounded-lg border border-white/5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[8.5px] uppercase tracking-wider font-semibold text-indigo-300 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
-                        Start Time
-                      </span>
-                      <span className="text-[8px] font-mono text-slate-400">
-                        Mark: <kbd className="px-1 py-0.5 rounded bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 font-bold font-mono">I</kbd>
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleNudgeStart(-0.5)}
-                        title="Nudge start backward -0.5s (Shortcut: ,)"
-                        className="flex-1 py-1 px-1 rounded glass-btn text-[9px] font-mono text-slate-300 hover:text-white flex items-center justify-center gap-1 hover:border-indigo-500/40"
-                      >
-                        <kbd className="px-1 py-0.5 rounded bg-indigo-500/25 border border-indigo-500/40 text-indigo-200 font-bold text-[8.5px]">,</kbd>
-                        <span>-0.5s</span>
-                      </button>
-                      <div className="relative w-20 shrink-0">
-                        <input
-                          type="text"
-                          value={localStart}
-                          onChange={(e) => setLocalStart(e.target.value)}
-                          onBlur={handleStartBlur}
-                          onKeyDown={(e) =>
-                            e.key === "Enter" && handleStartBlur()
-                          }
-                          className="w-full text-center rounded-md border border-white/10 bg-black/60 px-1 py-1 text-[11px] text-white font-mono font-bold outline-none focus:border-indigo-500/60"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleNudgeStart(0.5)}
-                        title="Nudge start forward +0.5s (Shortcut: .)"
-                        className="flex-1 py-1 px-1 rounded glass-btn text-[9px] font-mono text-slate-300 hover:text-white flex items-center justify-center gap-1 hover:border-indigo-500/40"
-                      >
-                        <span>+0.5s</span>
-                        <kbd className="px-1 py-0.5 rounded bg-indigo-500/25 border border-indigo-500/40 text-indigo-200 font-bold text-[8.5px]">.</kbd>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* End Time Control */}
-                  <div className="space-y-1 bg-black/20 p-2 rounded-lg border border-white/5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[8.5px] uppercase tracking-wider font-semibold text-cyan-300 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-                        End Time
-                      </span>
-                      <span className="text-[8px] font-mono text-slate-400">
-                        Mark: <kbd className="px-1 py-0.5 rounded bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-bold font-mono">O</kbd>
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleNudgeEnd(-0.5)}
-                        title="Nudge end backward -0.5s (Shortcut: < or Shift+,)"
-                        className="flex-1 py-1 px-1 rounded glass-btn text-[9px] font-mono text-slate-300 hover:text-white flex items-center justify-center gap-1 hover:border-cyan-500/40"
-                      >
-                        <kbd className="px-1 py-0.5 rounded bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 font-bold text-[8.5px]">&lt;</kbd>
-                        <span>-0.5s</span>
-                      </button>
-                      <div className="relative w-20 shrink-0">
-                        <input
-                          type="text"
-                          value={localEnd}
-                          onChange={(e) => setLocalEnd(e.target.value)}
-                          onBlur={handleEndBlur}
-                          onKeyDown={(e) => e.key === "Enter" && handleEndBlur()}
-                          className="w-full text-center rounded-md border border-white/10 bg-black/60 px-1 py-1 text-[11px] text-white font-mono font-bold outline-none focus:border-cyan-500/60"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleNudgeEnd(0.5)}
-                        title="Nudge end forward +0.5s (Shortcut: > or Shift+.)"
-                        className="flex-1 py-1 px-1 rounded glass-btn text-[9px] font-mono text-slate-300 hover:text-white flex items-center justify-center gap-1 hover:border-cyan-500/40"
-                      >
-                        <span>+0.5s</span>
-                        <kbd className="px-1 py-0.5 rounded bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 font-bold text-[8.5px]">&gt;</kbd>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Timing Shortcuts Cheat-Sheet */}
-                  <div className="p-1.5 rounded-lg bg-gradient-to-r from-indigo-500/10 via-slate-900/40 to-cyan-500/10 border border-white/5 space-y-1">
-                    <span className="block text-[7.5px] uppercase tracking-wider font-bold text-slate-400">
-                      ⚡ Timing Keyboard Shortcuts
+                  {/* End Time Row */}
+                  <div className="flex items-center gap-1 bg-black/30 p-1 rounded-md border border-white/5">
+                    <span className="text-[8.5px] font-bold text-cyan-300 w-10 shrink-0 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                      END
                     </span>
-                    <div className="grid grid-cols-2 gap-1 text-[8px] font-mono">
-                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-black/30 border border-white/5">
-                        <span className="text-slate-400">Start -/+</span>
-                        <span className="text-indigo-300 font-bold"><kbd className="bg-indigo-500/20 px-1 rounded">,</kbd> <kbd className="bg-indigo-500/20 px-1 rounded">.</kbd></span>
-                      </div>
-                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-black/30 border border-white/5">
-                        <span className="text-slate-400">End -/+</span>
-                        <span className="text-cyan-300 font-bold"><kbd className="bg-cyan-500/20 px-1 rounded">&lt;</kbd> <kbd className="bg-cyan-500/20 px-1 rounded">&gt;</kbd></span>
-                      </div>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleNudgeEnd(-0.5)}
+                      title="End -0.5s (Key: Shift + ,)"
+                      className="px-1.5 py-0.5 rounded glass-btn text-[8.5px] font-mono text-slate-300 hover:text-white flex items-center gap-0.5 shrink-0 hover:border-cyan-500/40"
+                    >
+                      <kbd className="px-1 rounded bg-cyan-500/30 text-cyan-200 font-bold text-[7.5px]">⇧,</kbd>
+                      <span>-0.5</span>
+                    </button>
+                    <input
+                      type="text"
+                      value={localEnd}
+                      onChange={(e) => setLocalEnd(e.target.value)}
+                      onBlur={handleEndBlur}
+                      onKeyDown={(e) => e.key === "Enter" && handleEndBlur()}
+                      className="w-full text-center rounded border border-white/10 bg-black/60 px-1 py-0.5 text-[10.5px] text-white font-mono font-bold outline-none focus:border-cyan-500/60"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleNudgeEnd(0.5)}
+                      title="End +0.5s (Key: Shift + .)"
+                      className="px-1.5 py-0.5 rounded glass-btn text-[8.5px] font-mono text-slate-300 hover:text-white flex items-center gap-0.5 shrink-0 hover:border-cyan-500/40"
+                    >
+                      <span>+0.5</span>
+                      <kbd className="px-1 rounded bg-cyan-500/30 text-cyan-200 font-bold text-[7.5px]">⇧.</kbd>
+                    </button>
                   </div>
 
-                  {/* Duration / Frames info */}
+                  {/* Compact Duration / Frames row */}
                   {(() => {
                     const durationSec =
                       (currentClip.annotation_end ?? currentClip.end) -
@@ -489,32 +449,21 @@ export default function AnnotationPanel({
                     const computedFrames = computeTensorFrames(durationSec);
                     const isOverMax = computedFrames > MAX_MODEL_FRAMES;
                     return (
-                      <div className="flex flex-col gap-0.5 text-[9px] text-slate-400 glass-card p-1.5 font-mono">
-                        <div className="flex items-center justify-between">
-                          <span>Duration:</span>
-                          <span className="text-white font-bold">
-                            {durationSec.toFixed(2)}s
-                          </span>
+                      <div className="flex items-center justify-between text-[8.5px] text-slate-400 bg-black/20 px-2 py-0.5 rounded font-mono">
+                        <div className="flex items-center gap-1">
+                          <span>Dur:</span>
+                          <span className="text-white font-bold">{durationSec.toFixed(2)}s</span>
                         </div>
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1">
                           <span>Frames:</span>
-                          <span className="text-white font-bold">
-                            {computedFrames} @ {MODEL_FPS}fps
-                          </span>
+                          <span className="text-white font-bold">{computedFrames} @ 10fps</span>
                         </div>
-                        {isOverMax && (
-                          <div className="text-rose-400 text-[8px] mt-0.5 flex items-center gap-1">
-                            <span>
-                              ⚠️ Exceeds {MAX_MODEL_FRAMES} — truncated
-                            </span>
-                          </div>
-                        )}
                       </div>
                     );
                   })()}
                 </div>
               ) : (
-                <div className="text-center py-3 glass-card">
+                <div className="text-center py-2 glass-card">
                   <span className="text-[9px] text-slate-500">
                     No active segment
                   </span>
